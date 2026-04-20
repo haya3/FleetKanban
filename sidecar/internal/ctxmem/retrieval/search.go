@@ -34,11 +34,11 @@ func New(
 
 // Query parameters for Search.
 type Query struct {
-	RepoID      string
-	Text        string
-	Kinds       []string
-	OnlyEnabled bool
-	Limit       int  // per-channel cap; 0 → 20
+	RepoID        string
+	Text          string
+	Kinds         []string
+	OnlyEnabled   bool
+	Limit         int // per-channel cap; 0 → 20
 	TopKNeighbors int // graph-boost hop expansion; 0 disables
 }
 
@@ -60,7 +60,6 @@ func (s *Searcher) Search(ctx context.Context, q Query) (ctxmem.SearchResult, er
 		return out, err
 	}
 	keywordList := make([]ScoredID, len(ftsHits))
-	keywordHits := make([]ctxmem.SearchHit, 0, len(ftsHits))
 	for i, h := range ftsHits {
 		keywordList[i] = ScoredID{ID: h.NodeID, Score: h.Score}
 	}
@@ -68,7 +67,6 @@ func (s *Searcher) Search(ctx context.Context, q Query) (ctxmem.SearchResult, er
 	// Semantic (vector cosine).
 	provider, provErr := s.registry.Get(q.RepoID)
 	var semanticList []ScoredID
-	semanticHits := []ctxmem.SearchHit{}
 	if provErr == nil {
 		queryVecs, err := provider.Embed(ctx, []string{q.Text})
 		if err == nil && len(queryVecs) > 0 && len(queryVecs[0]) > 0 {
@@ -87,9 +85,9 @@ func (s *Searcher) Search(ctx context.Context, q Query) (ctxmem.SearchResult, er
 	}
 
 	// Populate channel views.
-	keywordHits = s.hitsFromRanking(ctx, keywordList, "keyword", "BM25 match")
+	keywordHits := s.hitsFromRanking(ctx, keywordList, "keyword", "BM25 match")
 	out.Channels["keyword"] = keywordHits
-	semanticHits = s.hitsFromRanking(ctx, semanticList, "semantic", "cosine similarity")
+	semanticHits := s.hitsFromRanking(ctx, semanticList, "semantic", "cosine similarity")
 	out.Channels["semantic"] = semanticHits
 
 	// Fuse keyword + semantic with RRF.
@@ -116,7 +114,7 @@ func (s *Searcher) Search(ctx context.Context, q Query) (ctxmem.SearchResult, er
 			seen[h.Node.ID] = struct{}{}
 		}
 	}
-	out.TotalUnique = int(len(seen))
+	out.TotalUnique = len(seen)
 
 	return out, nil
 }

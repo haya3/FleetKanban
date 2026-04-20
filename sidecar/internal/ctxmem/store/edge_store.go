@@ -74,11 +74,11 @@ func (s *EdgeStore) Delete(ctx context.Context, id string) error {
 
 // EdgeFilter narrows ListEdges results.
 type EdgeFilter struct {
-	RepoID    string
-	NodeID    string // incident in either direction when set
-	Rels      []string
-	Limit     int
-	Offset    int
+	RepoID string
+	NodeID string // incident in either direction when set
+	Rels   []string
+	Limit  int
+	Offset int
 }
 
 // List returns edges matching the filter plus a pre-limit count.

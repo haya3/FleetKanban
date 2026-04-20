@@ -32,14 +32,14 @@ type DB interface {
 // Stores aggregates every per-type store against a single DB. Used by
 // the ctxmem Service facade and by integration tests.
 type Stores struct {
-	Nodes       *NodeStore
-	Edges       *EdgeStore
-	Closure     *ClosureStore
-	Facts       *FactStore
-	Scratchpad  *ScratchpadStore
-	Vectors     *VectorStore
-	FTS         *FTSStore
-	Settings    *SettingsStore
+	Nodes      *NodeStore
+	Edges      *EdgeStore
+	Closure    *ClosureStore
+	Facts      *FactStore
+	Scratchpad *ScratchpadStore
+	Vectors    *VectorStore
+	FTS        *FTSStore
+	Settings   *SettingsStore
 }
 
 // New returns a Stores aggregate wrapping db.

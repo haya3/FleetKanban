@@ -248,14 +248,14 @@ type scratchpadScanner interface {
 
 func scanScratchpad(s scratchpadScanner) (ctxmem.ScratchpadEntry, error) {
 	var (
-		e             ctxmem.ScratchpadEntry
-		attrsJSON     string
-		signalsJSON   string
-		snoozedUntil  sql.NullString
-		promotedID    sql.NullString
-		confidence    float64
-		createdAt     string
-		updatedAt     string
+		e            ctxmem.ScratchpadEntry
+		attrsJSON    string
+		signalsJSON  string
+		snoozedUntil sql.NullString
+		promotedID   sql.NullString
+		confidence   float64
+		createdAt    string
+		updatedAt    string
 	)
 	if err := s.Scan(
 		&e.ID, &e.RepoID, &e.ProposedKind, &e.ProposedLabel, &e.ProposedContentMD,

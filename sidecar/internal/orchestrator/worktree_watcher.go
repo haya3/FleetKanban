@@ -91,7 +91,7 @@ func (w *worktreeWatcher) Stop() {
 
 func (w *worktreeWatcher) run(ctx context.Context, fsw *fsnotify.Watcher) {
 	defer close(w.done)
-	defer fsw.Close()
+	defer func() { _ = fsw.Close() }()
 
 	pending := make(map[string]struct{})
 	var timer *time.Timer

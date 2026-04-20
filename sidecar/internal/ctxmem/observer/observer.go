@@ -459,11 +459,3 @@ func firstN(s string, n int) string {
 	}
 	return s[:n]
 }
-
-
-func truncateTaskID(id string) string {
-	if len(id) <= 8 {
-		return id
-	}
-	return id[:8]
-}

@@ -192,7 +192,7 @@ func (r *Reviewer) Review(ctx context.Context, t *task.Task, diff, prevFeedback 
 				"elapsed_ms", elapsed.Milliseconds(),
 				"tool", d.ToolName,
 				"call_id", d.ToolCallID,
-				"args", compactArgs(d.Arguments, 400))
+				"args", compactArgs(d.Arguments))
 		case *copilot.ToolExecutionCompleteData:
 			errStr, resStr, telStr := toolEndSummary(d, 400)
 			attrs := []any{

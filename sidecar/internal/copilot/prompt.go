@@ -119,11 +119,11 @@ Planner's investigation summary (context — do not re-explore what's already kn
 		var b strings.Builder
 		b.WriteString("\n\nPrevious subtasks in this task (already done — their changes are live in the worktree):")
 		for i, p := range c.PriorSummaries {
-			b.WriteString(fmt.Sprintf("\n  %d. [%s] %s\n     %s",
+			fmt.Fprintf(&b, "\n  %d. [%s] %s\n     %s",
 				i+1,
 				SanitizeSingleLine(p.Role),
 				SanitizeSingleLine(p.Title),
-				SanitizeSingleLine(p.Summary)))
+				SanitizeSingleLine(p.Summary))
 		}
 		priorBlock = b.String()
 	}

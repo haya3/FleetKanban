@@ -230,7 +230,7 @@ func (p *Planner) Plan(ctx context.Context, t *task.Task, out chan<- *task.Agent
 				"elapsed_ms", elapsed.Milliseconds(),
 				"tool", d.ToolName,
 				"call_id", d.ToolCallID,
-				"args", compactArgs(d.Arguments, 400))
+				"args", compactArgs(d.Arguments))
 		case *copilot.ToolExecutionCompleteData:
 			errStr, resStr, telStr := toolEndSummary(d, 400)
 			attrs := []any{

@@ -61,24 +61,24 @@ var sourceExtensions = map[string]string{
 // tool caches. A per-repo .gitignore would be ideal but adds
 // complexity — the hardcoded list covers ~95% of real repos.
 var skipDirs = map[string]struct{}{
-	".git":         {},
-	"node_modules": {},
-	"vendor":       {},
-	"dist":         {},
-	"build":        {},
-	"target":       {},
-	"bin":          {},
-	"obj":          {},
-	".venv":        {},
-	"venv":         {},
-	"__pycache__":  {},
-	".dart_tool":   {},
-	".next":        {},
-	".nuxt":        {},
-	".gradle":      {},
-	".idea":        {},
-	".vscode":      {},
-	".pub-cache":   {},
+	".git":                   {},
+	"node_modules":           {},
+	"vendor":                 {},
+	"dist":                   {},
+	"build":                  {},
+	"target":                 {},
+	"bin":                    {},
+	"obj":                    {},
+	".venv":                  {},
+	"venv":                   {},
+	"__pycache__":            {},
+	".dart_tool":             {},
+	".next":                  {},
+	".nuxt":                  {},
+	".gradle":                {},
+	".idea":                  {},
+	".vscode":                {},
+	".pub-cache":             {},
 	".fleetkanban-worktrees": {},
 }
 
@@ -163,4 +163,3 @@ func Scan(repoPath string) ([]FileEntry, error) {
 	}
 	return out, nil
 }
-

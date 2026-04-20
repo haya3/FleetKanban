@@ -155,7 +155,7 @@ func (a *Analyzer) Analyze(ctx context.Context, repoPath, overrideModel, prompt 
 				progress(fmt.Sprintf("LLM turn — %d in / %d out tokens", in, outTok))
 			}
 		case *copilot.ToolExecutionStartData:
-			args := compactArgs(d.Arguments, 400)
+			args := compactArgs(d.Arguments)
 			slog.Info("analyzer: tool start",
 				"repo", repoPath,
 				"tool", d.ToolName,

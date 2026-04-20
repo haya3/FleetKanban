@@ -73,7 +73,6 @@ func parseGoImports(src string) []string {
 			}
 		} else {
 			if trim == ")" {
-				inBlock = false
 				break
 			}
 			if m := quoteBody.FindStringSubmatch(trim); len(m) > 1 {

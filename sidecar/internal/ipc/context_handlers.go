@@ -546,18 +546,18 @@ func nodeToPB(n ctxmem.Node) *pb.ContextNode {
 		n.Attrs = map[string]string{}
 	}
 	return &pb.ContextNode{
-		Id:              n.ID,
-		RepoId:          n.RepoID,
-		Kind:            n.Kind,
-		Label:           n.Label,
-		ContentMd:       n.ContentMD,
-		Attrs:           n.Attrs,
-		SourceKind:      n.SourceKind,
-		Confidence:      n.Confidence,
-		Enabled:         n.Enabled,
-		Pinned:          n.Pinned,
-		CreatedAt:       toProtoTime(n.CreatedAt),
-		UpdatedAt:       toProtoTime(n.UpdatedAt),
+		Id:         n.ID,
+		RepoId:     n.RepoID,
+		Kind:       n.Kind,
+		Label:      n.Label,
+		ContentMd:  n.ContentMD,
+		Attrs:      n.Attrs,
+		SourceKind: n.SourceKind,
+		Confidence: n.Confidence,
+		Enabled:    n.Enabled,
+		Pinned:     n.Pinned,
+		CreatedAt:  toProtoTime(n.CreatedAt),
+		UpdatedAt:  toProtoTime(n.UpdatedAt),
 	}
 }
 

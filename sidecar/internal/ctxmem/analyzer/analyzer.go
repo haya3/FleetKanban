@@ -136,11 +136,11 @@ const analysisPromptBody = `You are a code-auditing AI. Produce a structured sum
 Cover: language / framework stack, build / test / lint commands, key modules and what they do, explicit architectural constraints (e.g. "writes outside worktree denied"), recurring conventions (naming, structure, error handling), and any decision records you find (CHANGELOG, decision documents, prominent comments). Do NOT invent decisions that aren't supported by the files you read. Do NOT carry over knowledge from previous sessions or other repositories — only what you observe in the target repository's files. Prefer fewer high-confidence entries over many speculative ones.`
 
 type analyzerEntry struct {
-	Kind       string         `json:"kind"`
-	Label      string         `json:"label"`
-	ContentMD  string         `json:"content_md"`
-	Signals    []string       `json:"signals"`
-	Confidence float32        `json:"confidence"`
+	Kind       string   `json:"kind"`
+	Label      string   `json:"label"`
+	ContentMD  string   `json:"content_md"`
+	Signals    []string `json:"signals"`
+	Confidence float32  `json:"confidence"`
 	// Attrs is deliberately `any`-valued: the LLM frequently emits
 	// arrays or objects as attribute values despite the
 	// map[string]string contract advertised in the prompt. We accept

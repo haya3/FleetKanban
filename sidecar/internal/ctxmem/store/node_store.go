@@ -107,15 +107,15 @@ SELECT id, repo_id, kind, label, content_md, attrs_json,
 
 // ListFilter is the filter shape used by the Browse tab.
 type ListFilter struct {
-	RepoID         string
-	Kinds          []string
-	SourceKinds    []string
-	LabelContains  string
-	PinnedOnly     bool
-	EnabledOnly    bool
-	Limit          int
-	Offset         int
-	SortBy         string // "updated_at" (default) | "label" | "confidence"
+	RepoID        string
+	Kinds         []string
+	SourceKinds   []string
+	LabelContains string
+	PinnedOnly    bool
+	EnabledOnly   bool
+	Limit         int
+	Offset        int
+	SortBy        string // "updated_at" (default) | "label" | "confidence"
 }
 
 // List returns nodes matching the filter plus a total-count (pre-limit).
@@ -303,13 +303,13 @@ func scanNodeRow(row *sql.Row) (ctxmem.Node, error) {
 
 func scanNodes(s nodeScanner) (ctxmem.Node, error) {
 	var (
-		n            ctxmem.Node
-		attrsJSON    string
-		createdAt    string
-		updatedAt    string
-		enabled      int
-		pinned       int
-		confidence   float64
+		n          ctxmem.Node
+		attrsJSON  string
+		createdAt  string
+		updatedAt  string
+		enabled    int
+		pinned     int
+		confidence float64
 	)
 	if err := s.Scan(
 		&n.ID, &n.RepoID, &n.Kind, &n.Label, &n.ContentMD, &attrsJSON,

@@ -54,10 +54,10 @@ const (
 
 // Scratchpad status values.
 const (
-	ScratchpadPending   = "pending"
-	ScratchpadPromoted  = "promoted"
-	ScratchpadRejected  = "rejected"
-	ScratchpadSnoozed   = "snoozed"
+	ScratchpadPending  = "pending"
+	ScratchpadPromoted = "promoted"
+	ScratchpadRejected = "rejected"
+	ScratchpadSnoozed  = "snoozed"
 )
 
 // Node is one entity in the property graph. Content is Markdown that is
@@ -205,19 +205,19 @@ type SearchResult struct {
 // Overview aggregates Memory statistics for a single repo, shown on
 // the Context Overview tab. Byte sizes approximate on-disk storage.
 type Overview struct {
-	RepoID                 string
-	NodeCountsByKind       map[string]int32
-	EdgeCountsByRel        map[string]int32
-	ActiveFactCount        int32
-	ExpiredFactCount       int32
-	PendingScratchpadCount int32
+	RepoID                  string
+	NodeCountsByKind        map[string]int32
+	EdgeCountsByRel         map[string]int32
+	ActiveFactCount         int32
+	ExpiredFactCount        int32
+	PendingScratchpadCount  int32
 	PromotedScratchpadCount int32
 	RejectedScratchpadCount int32
-	VectorCount            int32
-	VectorDim              int32
-	VectorBytes            int64
-	ObservedSessionCount   int32
-	Enabled                bool
+	VectorCount             int32
+	VectorDim               int32
+	VectorBytes             int64
+	ObservedSessionCount    int32
+	Enabled                 bool
 }
 
 // InjectionSource records one memory item that contributed to an

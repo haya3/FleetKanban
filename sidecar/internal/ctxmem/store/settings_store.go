@@ -87,11 +87,11 @@ ON CONFLICT(repo_id) DO UPDATE SET
 
 func (s *SettingsStore) fetch(ctx context.Context, repoID string) (ctxmem.Settings, error) {
 	var (
-		set        ctxmem.Settings
-		enabled    int
-		autoPromo  int
-		threshold  float64
-		updatedAt  string
+		set       ctxmem.Settings
+		enabled   int
+		autoPromo int
+		threshold float64
+		updatedAt string
 	)
 	row := s.db.Read().QueryRowContext(ctx, `
 SELECT repo_id, enabled, embedding_provider, embedding_model, embedding_dim,

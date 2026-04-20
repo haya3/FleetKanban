@@ -41,7 +41,7 @@ func MapSessionEvent(e copilot.SessionEvent) *task.AgentEvent {
 			Payload: mustJSON(map[string]any{
 				"name": d.ToolName,
 				"id":   d.ToolCallID,
-				"args": compactArgs(d.Arguments, 400),
+				"args": compactArgs(d.Arguments),
 			}),
 		}
 
@@ -123,12 +123,16 @@ func mustJSON(v any) string {
 	return string(b)
 }
 
+// compactArgsMaxLen caps slog tool-arg previews. A giant view request
+// (whole-file base64 content, for example) would otherwise blow up the
+// log file.
+const compactArgsMaxLen = 400
+
 // compactArgs produces a short JSON preview of a tool's arguments,
 // suitable for slog attributes. Returns "" when args is nil, clips
-// to maxLen characters with a trailing "…" marker so a giant view
-// request (whole-file base64 content, for example) does not blow up
-// the log file.
-func compactArgs(args any, maxLen int) string {
+// to compactArgsMaxLen characters with a trailing "…" marker.
+func compactArgs(args any) string {
+	const maxLen = compactArgsMaxLen
 	if args == nil {
 		return ""
 	}

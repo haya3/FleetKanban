@@ -355,7 +355,7 @@ func (s *fakeSubtaskStore) ListLatestRound(_ context.Context, parentID string) (
 		if effective == 0 {
 			effective = 1
 		}
-		if effective != maxRound && !(maxRound == 0 && effective == 1) {
+		if effective != maxRound && (maxRound != 0 || effective != 1) {
 			continue
 		}
 		cp := *sub

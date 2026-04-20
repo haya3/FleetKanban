@@ -12,9 +12,9 @@ import (
 func TestCosineTopK(t *testing.T) {
 	query := []float32{1, 0, 0}
 	candidates := [][]float32{
-		{1, 0, 0},   // parallel, cos=1
-		{-1, 0, 0},  // anti-parallel, cos=-1
-		{0, 1, 0},   // orthogonal, cos=0
+		{1, 0, 0},  // parallel, cos=1
+		{-1, 0, 0}, // anti-parallel, cos=-1
+		{0, 1, 0},  // orthogonal, cos=0
 	}
 	ids := []string{"a", "b", "c"}
 	hits := CosineTopK(query, candidates, ids, 3)
