@@ -1,0 +1,41 @@
+run:
+  timeout: 5m
+  tests: true
+  go: "1.25"
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gosimple
+    - gofmt
+    - goimports
+    - misspell
+    - unconvert
+    - unparam
+    - revive
+    - gocritic
+
+linters-settings:
+  revive:
+    rules:
+      - name: var-naming
+      - name: exported
+        disabled: true
+  gocritic:
+    disabled-checks:
+      - ifElseChain
+      - hugeParam
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - unparam
+        - gocritic
+  max-issues-per-linter: 0
+  max-same-issues: 0

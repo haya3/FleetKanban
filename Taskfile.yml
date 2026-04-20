@@ -1,0 +1,141 @@
+version: "3"
+
+# FleetKanban is Windows 11 only. All tasks assume pwsh / cmd.
+# See docs/phase1-spec.md for details.
+#
+# Layout:
+#   - sidecar/ : Go gRPC backend (headless) — contains go.mod, cmd/, internal/
+#   - ui/      : Flutter + fluent_ui UI, spawns the sidecar
+#   - proto/   : shared gRPC schema (source of truth for both)
+#   - build/   : compiled sidecar.exe output
+
+vars:
+  APP_NAME: fleetkanban
+  BIN_DIR: "{{.ROOT_DIR}}/build/bin"
+
+tasks:
+  default:
+    desc: "Show available tasks"
+    cmds:
+      - task --list
+
+  tidy:
+    desc: "Run go mod tidy"
+    dir: sidecar
+    cmds:
+      - go mod tidy
+
+  fmt:
+    desc: "Format Go sources"
+    dir: sidecar
+    cmds:
+      - go fmt ./...
+
+  lint:
+    desc: "Run golangci-lint"
+    dir: sidecar
+    cmds:
+      - golangci-lint run ./...
+
+  test:
+    desc: "Run Go unit tests (no Copilot auth / network required)"
+    dir: sidecar
+    env:
+      CGO_ENABLED: "0"
+    cmds:
+      - go test -count=1 ./...
+
+  test:integration:
+    desc: "Run Go integration tests (requires COPILOT_AUTH=1, local only)"
+    dir: sidecar
+    env:
+      CGO_ENABLED: "0"
+      COPILOT_AUTH: "1"
+    cmds:
+      - go test -count=1 -tags=integration ./...
+
+  bundle:cli:
+    desc: "Download and embed the Copilot CLI binary into the sidecar cmd"
+    dir: sidecar
+    cmds:
+      - go tool bundler --platform windows/amd64 --output ./cmd/fleetkanban-sidecar
+
+  proto:gen:
+    desc: "Generate Go gRPC stubs from proto/fleetkanban/v1/*.proto via buf"
+    dir: proto
+    cmds:
+      - buf generate
+
+  proto:gen:dart:
+    desc: "Generate Dart gRPC stubs into ui/lib/infra/ipc/generated"
+    dir: proto
+    cmds:
+      - buf generate --template buf.gen.dart.yaml
+
+  proto:gen:all:
+    desc: "Regenerate all proto bindings (Go + Dart)"
+    deps: [proto:gen, "proto:gen:dart"]
+
+  proto:tools:
+    desc: "Install proto generation tools into $GOBIN / pub cache (one-time)"
+    cmds:
+      - go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+      - go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+      - go install github.com/bufbuild/buf/cmd/buf@latest
+      - dart pub global activate protoc_plugin
+
+  build:sidecar:
+    desc: "Build fleetkanban-sidecar.exe (gRPC backend) for Windows x64"
+    deps: [bundle:cli]
+    dir: sidecar
+    env:
+      GOOS: windows
+      GOARCH: amd64
+      CGO_ENABLED: "0"
+    cmds:
+      - go build -trimpath -ldflags "-s -w" -o "{{.BIN_DIR}}/{{.APP_NAME}}-sidecar.exe" ./cmd/fleetkanban-sidecar
+
+  build:windows:
+    desc: "Alias of build:sidecar"
+    deps: [build:sidecar]
+
+  flutter:pub:
+    desc: "Fetch Flutter pubspec dependencies"
+    dir: ui
+    cmds:
+      - flutter pub get
+
+  flutter:run:
+    desc: "Run Flutter app on Windows desktop (ensures sidecar is built first)"
+    deps: [build:sidecar]
+    dir: ui
+    cmds:
+      # Debug 隣接の sidecar.exe を毎回最新版に差し替える。
+      # resolveSidecarBinary() は <exeDir>/fleetkanban-sidecar.exe を最優先するため、
+      # ここをコピーし忘れると UI は古い v(n-1) sidecar を spawn し続け、
+      # ProtocolVersion bump 後に UNIMPLEMENTED を引き起こす。
+      - cmd: pwsh -NoProfile -Command "New-Item -ItemType Directory -Force -Path 'build/windows/x64/runner/Debug' | Out-Null; Copy-Item '../build/bin/fleetkanban-sidecar.exe' 'build/windows/x64/runner/Debug/' -Force"
+        platforms: [windows]
+      - flutter run -d windows
+
+  flutter:build:
+    desc: "Build Flutter Windows Release artifact (sidecar.exe is copied alongside)"
+    deps: [build:sidecar]
+    dir: ui
+    cmds:
+      - flutter build windows --release
+      - cmd: pwsh -NoProfile -Command "Copy-Item '../build/bin/fleetkanban-sidecar.exe' 'build/windows/x64/runner/Release/' -Force"
+        platforms: [windows]
+
+  build:msix:
+    desc: "Package fleetkanban_ui.msix (Flutter UI + sidecar.exe bundle)"
+    deps: [flutter:build]
+    dir: ui
+    cmds:
+      - dart run msix:create
+
+  clean:
+    desc: "Remove build artifacts"
+    cmds:
+      - cmd: pwsh -NoProfile -Command "Remove-Item -Recurse -Force '{{.BIN_DIR}}' -ErrorAction SilentlyContinue; Remove-Item -Recurse -Force 'ui/build' -ErrorAction SilentlyContinue"
+        platforms: [windows]

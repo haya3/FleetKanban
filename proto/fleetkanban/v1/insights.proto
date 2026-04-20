@@ -1,0 +1,101 @@
+// FleetKanban Insights service.
+//
+// Surfaces aggregate statistics over the tasks history so the UI can render
+// a dashboard of completion rate, rework load, failure breakdown, and
+// per-repository throughput. The MVP derives every metric from the `tasks`
+// table; Phase 3's embedding-based similarity search will add its own RPCs
+// on this service rather than carving out a second one.
+
+syntax = "proto3";
+
+package fleetkanban.v1;
+
+option go_package = "github.com/FleetKanban/fleetkanban/internal/ipc/gen/fleetkanban/v1;fleetkanbanv1";
+
+service InsightsService {
+  // GetInsights returns a one-shot snapshot of the aggregate metrics for
+  // the given repository (or across all registered repositories when
+  // repository_id is empty). All counters are derived from the current
+  // tasks table — the call is read-only and safe to invoke repeatedly.
+  rpc GetInsights (GetInsightsRequest) returns (InsightsSummary);
+}
+
+message GetInsightsRequest {
+  // Repository scope. Empty = all repositories.
+  string repository_id = 1;
+}
+
+// InsightsSummary bundles every metric the dashboard needs in one
+// round-trip. Fields with "_seconds" suffix are floating-point seconds so
+// the UI can format them as hh:mm:ss without another server call.
+message InsightsSummary {
+  // Totals across the scope.
+  int32 total_tasks         = 1;
+  int32 active_tasks        = 2;   // planning / queued / in_progress / *_review
+  int32 done_tasks          = 3;
+  int32 cancelled_tasks     = 4;
+  int32 aborted_tasks       = 5;
+  int32 failed_tasks        = 6;
+
+  // Completion metrics over tasks that have both started_at and finished_at
+  // (i.e. actually ran to completion or terminal failure).
+  int32  completed_samples       = 7;   // denominator for the averages below
+  double avg_duration_seconds    = 8;
+  double median_duration_seconds = 9;
+  double p90_duration_seconds    = 10;
+
+  // Rework histogram: one bucket per observed rework_count value where
+  // at least one task lives. Ascending by rework_count.
+  repeated ReworkBucket rework_buckets = 11;
+
+  // Failure breakdown by error_code (only failed tasks). Descending by count.
+  repeated FailureBucket failure_buckets = 12;
+
+  // Per-repository rows, ordered by total tasks desc. Only populated when
+  // the request scope is "all repositories" (repository_id empty); when a
+  // specific repo is requested this slice is empty and the caller should
+  // render the top-level totals instead.
+  repeated RepositoryInsight repositories = 13;
+
+  // Rolling 30-day throughput: one entry per calendar day (UTC), oldest
+  // first, for the past 30 days. Days with zero completions are included
+  // so the UI can render a continuous sparkline without gap handling.
+  repeated DailyThroughput daily_throughput = 14;
+
+  // Computed server-side as done_tasks / (done_tasks + failed_tasks +
+  // aborted_tasks + cancelled_tasks), range [0, 1]. 0 when no terminal
+  // tasks exist so the UI can suppress the badge instead of showing NaN.
+  double completion_rate = 15;
+}
+
+message ReworkBucket {
+  int32 rework_count = 1;   // 0 for first-pass tasks, N for tasks that
+                            // required N AI-review retry cycles.
+  int32 task_count   = 2;
+}
+
+message FailureBucket {
+  // error_code as persisted in tasks.error_code (e.g. "auth", "runner",
+  // "ai_review", "interrupted"). Forwarded verbatim so new codes do not
+  // require a proto bump.
+  string error_code = 1;
+  int32  count      = 2;
+}
+
+message RepositoryInsight {
+  string repository_id        = 1;
+  string display_name         = 2;
+  int32  total                = 3;
+  int32  done                 = 4;
+  int32  failed               = 5;
+  int32  aborted              = 6;
+  int32  cancelled            = 7;
+  double completion_rate      = 8;   // done / (done+failed+aborted+cancelled)
+  double avg_duration_seconds = 9;   // across completed samples only
+}
+
+message DailyThroughput {
+  string date      = 1;   // YYYY-MM-DD, UTC
+  int32  completed = 2;   // tasks whose finished_at falls on this day
+  int32  failed    = 3;   // failed/aborted/cancelled finished on this day
+}

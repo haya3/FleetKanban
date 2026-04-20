@@ -1,0 +1,760 @@
+// FleetKanban gRPC schema (Phase A).
+//
+// This file is the source of truth for the Go sidecar <-> Flutter UI contract.
+// Method and field shapes mirror internal/app.Service and internal/task/store
+// so the Go handlers can adapt 1:1 without a second domain model.
+//
+// The AgentEvent kind/payload strings are NOT converted to enums. They are
+// persisted verbatim in the events table and interpreted per-kind by the
+// frontend; keeping them as strings preserves forward compatibility when new
+// EventKind values are added without a proto bump.
+syntax = "proto3";
+
+package fleetkanban.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/FleetKanban/fleetkanban/internal/ipc/gen/fleetkanban/v1;fleetkanbanv1";
+
+// ---------------------------------------------------------------------------
+// Services
+// ---------------------------------------------------------------------------
+
+service TaskService {
+  rpc CreateTask    (CreateTaskRequest)    returns (Task);
+  rpc ListTasks     (ListTasksRequest)     returns (ListTasksResponse);
+  rpc GetTask       (IdRequest)            returns (Task);
+  rpc GetTaskDiff   (IdRequest)            returns (DiffResponse);
+  rpc RunTask       (IdRequest)            returns (google.protobuf.Empty);
+  rpc CancelTask    (IdRequest)            returns (google.protobuf.Empty);
+  rpc FinalizeTask  (FinalizeTaskRequest)  returns (google.protobuf.Empty);
+
+  // DeleteTask removes a task row and its associated worktree from disk.
+  // Intended for pruning terminal (done / cancelled / failed / aborted)
+  // or stuck tasks that the user wants off the Kanban entirely. The
+  // branch is preserved by default; pass delete_branch=true to also
+  // remove the fleetkanban/<id> branch.
+  //
+  // Running tasks (in_progress / ai_review) must be cancelled first —
+  // the sidecar rejects Delete calls for those states with
+  // FailedPrecondition so the UI can prompt for cancel.
+  rpc DeleteTask    (DeleteTaskRequest)    returns (google.protobuf.Empty);
+
+  // DeleteTaskBranch force-removes the fleetkanban/<id> branch of a
+  // finalized task (Done or Aborted) while leaving the task row intact.
+  // Intended for the Housekeeping UI's Stale list "Discard" action; the
+  // UI is responsible for confirming the user understands unmerged work
+  // on the branch will be lost. Returns FailedPrecondition for tasks in
+  // any other status, and NotFound when the task itself is missing.
+  rpc DeleteTaskBranch (IdRequest) returns (google.protobuf.Empty);
+
+  // SubmitReview records a reviewer decision for a task in ai_review or
+  // human_review. When action == APPROVE the task transitions toward done
+  // (human_review only — caller then calls FinalizeTask). When action ==
+  // REWORK the feedback is persisted and the task is transitioned back to
+  // queued; the orchestrator prepends feedback to the next Copilot prompt.
+  // When action == REJECT the task transitions to failed(ai_review).
+  rpc SubmitReview  (SubmitReviewRequest)  returns (google.protobuf.Empty);
+
+  rpc TaskEvents    (TaskEventsRequest)    returns (TaskEventsResponse);
+  rpc WatchEvents   (WatchEventsRequest)   returns (stream AgentEvent);
+}
+
+// SubtaskService manages the AI-authored subtask DAG for a parent task.
+// Subtasks are produced by the planner (one role per node, dependency
+// edges in depends_on) and executed one Copilot session per node.
+service SubtaskService {
+  rpc ListSubtasks     (ListSubtasksRequest)     returns (ListSubtasksResponse);
+  rpc CreateSubtask    (CreateSubtaskRequest)    returns (Subtask);
+  rpc UpdateSubtask    (UpdateSubtaskRequest)    returns (Subtask);
+  rpc DeleteSubtask    (IdRequest)               returns (google.protobuf.Empty);
+  rpc ReorderSubtasks  (ReorderSubtasksRequest)  returns (google.protobuf.Empty);
+}
+
+service RepositoryService {
+  rpc RegisterRepository (RegisterRepositoryRequest)  returns (Repository);
+  rpc ListRepositories   (google.protobuf.Empty)      returns (ListRepositoriesResponse);
+  rpc CheckGitConfig     (google.protobuf.Empty)      returns (GitConfigStatus);
+
+  // ScanGitRepositories walks `path` up to `max_depth` levels deep looking
+  // for `.git` entries. Useful when the user picks a folder that itself
+  // is not a repository but contains several (e.g. `C:\src\` with
+  // `C:\src\app\.git` + `C:\src\lib\.git`). The response is filtered to
+  // paths that are NOT yet registered so the UI can offer one-tap
+  // multi-registration.
+  rpc ScanGitRepositories (ScanGitRepositoriesRequest)  returns (ScanGitRepositoriesResponse);
+
+  // UpdateDefaultBaseBranch pins (or unpins) a repository's default base
+  // branch. Empty default_base_branch clears the pin and returns the
+  // repository to auto-detection mode (origin/HEAD → main → master → HEAD).
+  // Non-empty values are validated against refs/heads/ before persisting —
+  // callers can rely on "success means the branch exists right now".
+  rpc UpdateDefaultBaseBranch (UpdateDefaultBaseBranchRequest)
+      returns (Repository);
+
+  // ListBranches returns every refs/heads/ entry in the repository, with
+  // FleetKanban's own `fleetkanban/<id>` task branches filtered out (they
+  // are internal churn, not meaningful base branches). `default_branch`
+  // is the result of the auto-detect resolver at call time — the UI
+  // shows it as the "(自動検出: main)" option in the new-task dialog so
+  // the user sees what empty selection means.
+  rpc ListBranches (ListBranchesRequest) returns (ListBranchesResponse);
+
+  // CreateInitialCommit seeds a registered but empty repository (one that
+  // was only `git init`'d and has no commits) with a single empty root
+  // commit. Without this, task creation fails with "could not determine
+  // a base branch" because `git worktree add` needs a committish to fork
+  // from. The commit is authored as FleetKanban so it succeeds even when
+  // the user has not set global user.name/user.email. Returns
+  // FailedPrecondition when the repository already has commits — callers
+  // should refresh their cached `has_commits` flag and hide the button.
+  rpc CreateInitialCommit (IdRequest) returns (Repository);
+}
+
+service ModelService {
+  // ListModels returns the model IDs the embedded Copilot CLI reports as
+  // available for the currently authenticated user. The UI uses this to
+  // populate the Settings model pickers — hard-coded lists go stale as
+  // GitHub rotates models, producing "model X is not available" errors
+  // at task-run time.
+  rpc ListModels (google.protobuf.Empty) returns (ListModelsResponse);
+}
+
+service AuthService {
+  rpc CheckCopilotAuth       (google.protobuf.Empty)           returns (AuthStatus);
+
+  // BeginCopilotLogin launches a headless `copilot login` subprocess on the
+  // sidecar, parses the device code from its stdout, opens the GitHub
+  // verification URL (with user_code pre-filled) in the default browser, and
+  // returns the challenge so the UI can display it. The UI polls
+  // CheckCopilotAuth to detect completion; the sidecar auto-reloads the SDK
+  // client when the login subprocess exits successfully. This replaces the
+  // previous StartCopilotLogin terminal-spawn flow — Device Flow is
+  // inherently a browser-based step, so terminal input is never required.
+  rpc BeginCopilotLogin      (google.protobuf.Empty)           returns (CopilotLoginChallenge);
+
+  // CancelCopilotLogin terminates the login subprocess started by
+  // BeginCopilotLogin, if one is running. No-op otherwise. The UI calls
+  // this when the user dismisses the sign-in dialog without completing.
+  rpc CancelCopilotLogin     (google.protobuf.Empty)           returns (google.protobuf.Empty);
+
+  // GetCopilotLoginSession reports the lifecycle state of the login
+  // subprocess owned by BeginCopilotLogin. The sign-in dialog polls this
+  // instead of CheckCopilotAuth so that stale "already authenticated" state
+  // from the previous SDK client (common on account-switch flows, where
+  // ReloadAuth only runs after the new login succeeds) cannot close the
+  // dialog prematurely. SUCCEEDED is set only once the subprocess exits
+  // cleanly AND the SDK client has been reloaded with the fresh
+  // credentials, so callers can trust it as the "login complete" signal.
+  rpc GetCopilotLoginSession (google.protobuf.Empty)           returns (CopilotLoginSessionInfo);
+
+  // StartCopilotLogout opens an interactive terminal with the embedded
+  // Copilot CLI. The user is expected to type "/logout" (the CLI does not
+  // expose a headless logout subcommand). Device Flow login afterwards
+  // should be initiated via BeginCopilotLogin, not this terminal.
+  rpc StartCopilotLogout     (google.protobuf.Empty)           returns (google.protobuf.Empty);
+
+  // ReloadCopilotAuth forces the embedded Copilot CLI server to restart so
+  // it re-reads the on-disk OAuth token store. The onboarding UI calls
+  // this after the user completes /login in the spawned terminal, because
+  // auth.getStatus against a long-running CLI server may otherwise keep
+  // reporting the stale pre-login state. Returns the fresh AuthStatus so
+  // the caller can transition off the onboarding screen in one round-trip.
+  rpc ReloadCopilotAuth      (google.protobuf.Empty)           returns (AuthStatus);
+
+  // Backward-compatible shortcuts for the "default" (active) PAT. New code
+  // should prefer the label-aware APIs below.
+  rpc HasGitHubToken         (google.protobuf.Empty)           returns (BoolValue);
+  rpc SetGitHubToken         (SetGitHubTokenRequest)           returns (google.protobuf.Empty);
+
+  // Label-aware PAT management. Multiple PATs can be stored, each under a
+  // user-chosen label; one is marked active and fed into the Copilot SDK
+  // ClientOptions.GitHubToken. Switching the active token hot-reloads the
+  // SDK client so the change takes effect without a sidecar restart.
+  // (Approach B)
+  rpc ListGitHubTokens       (google.protobuf.Empty)           returns (ListGitHubTokensResponse);
+  rpc AddGitHubToken         (AddGitHubTokenRequest)           returns (google.protobuf.Empty);
+  rpc RemoveGitHubToken      (GitHubTokenLabelRequest)         returns (google.protobuf.Empty);
+  rpc SetActiveGitHubToken   (GitHubTokenLabelRequest)         returns (google.protobuf.Empty);
+
+  // GetGitHubAccountInfo fetches `/user` from the GitHub REST API with the
+  // active PAT and surfaces plan + profile metadata. Returns INVALID_ARGUMENT
+  // when no PAT is configured. Premium-request quotas are not exposed by the
+  // GitHub public API, so the response intentionally omits them.
+  rpc GetGitHubAccountInfo   (google.protobuf.Empty)           returns (GitHubAccountInfo);
+}
+
+service SystemService {
+  rpc GetConcurrency (google.protobuf.Empty) returns (IntValue);
+  rpc SetConcurrency (IntValue)              returns (IntValue);
+  rpc Shutdown       (google.protobuf.Empty) returns (google.protobuf.Empty);
+
+  // GetVersion returns the sidecar's ProtocolVersion. The UI calls this
+  // immediately after connecting (including when reusing a handshake from
+  // a prior sidecar instance) and kills + respawns the process if the
+  // version doesn't match the client's compiled-in expectation. That
+  // replaces the silent "UNIMPLEMENTED: unknown service ..." failure
+  // mode after a rebuild where the old sidecar is still running.
+  rpc GetVersion     (google.protobuf.Empty) returns (VersionInfo);
+
+  // GetPreconditions lists runtime dependencies the sidecar requires
+  // (today: PowerShell 7+). The UI calls this on first render and shows
+  // a modal if any dependency reports satisfied=false so the user can
+  // resolve the setup gap without dropping to a terminal.
+  rpc GetPreconditions (google.protobuf.Empty)          returns (PreconditionsResponse);
+
+  // InstallPrecondition attempts the canonical auto-install for the
+  // named dependency (e.g. winget per-user install of PowerShell 7).
+  // Blocks for the duration of the install — 1–3 minutes typical — so
+  // the UI should reserve headroom in any client-side gRPC timeout.
+  rpc InstallPrecondition (InstallPreconditionRequest)  returns (InstallPreconditionResponse);
+}
+
+// WorktreeService exposes the contents of the per-repo `git worktree list`
+// output joined with the local tasks DB, so the Worktrees pane can show
+// every worktree FleetKanban knows about (including orphans whose task row
+// has been deleted, and worktrees whose on-disk directory was removed
+// outside the app).
+service WorktreeService {
+  rpc ListWorktrees  (google.protobuf.Empty) returns (ListWorktreesResponse);
+  rpc RemoveWorktree (RemoveWorktreeRequest) returns (google.protobuf.Empty);
+}
+
+// ---------------------------------------------------------------------------
+// Common wrappers
+// ---------------------------------------------------------------------------
+
+message IdRequest   { string id = 1; }
+message BoolValue   { bool  value = 1; }
+message IntValue    { int32 value = 1; }
+
+// VersionInfo is the payload of SystemService.GetVersion. protocol_version
+// mirrors internal/branding.ProtocolVersion and bumps whenever the gRPC
+// contract changes in a breaking way. app_version is a free-form
+// human-readable build string (empty unless the binary is ldflags-tagged).
+message VersionInfo {
+  int32  protocol_version = 1;
+  string app_version      = 2;
+  // Module version of github.com/github/copilot-sdk/go linked into the
+  // sidecar binary. Empty if the build info is not available (unusual —
+  // only happens for stripped test builds).
+  string copilot_sdk_version = 3;
+  // Go runtime version (e.g. "go1.24.0") the sidecar was compiled with.
+  // Useful for bug reports without asking the user to run `go version`.
+  string go_version = 4;
+}
+
+// Precondition is one runtime dependency the sidecar requires. `kind`
+// is a stable identifier the UI can switch on (e.g. "pwsh"); the other
+// fields are human-readable text for the precondition banner.
+// `auto_installable` is true when the sidecar can resolve this
+// dependency via InstallPrecondition without user elevation; false
+// means the manual_command must be shown instead.
+message Precondition {
+  string kind             = 1;
+  bool   satisfied        = 2;
+  string description      = 3;
+  bool   auto_installable = 4;
+  // Free-form detail ("found on PATH", "pwsh.exe not found ...") —
+  // useful for debugging without dropping to logs.
+  string detail           = 5;
+  // Shell command the user can run themselves if auto-install is
+  // unavailable or fails. Empty when no canonical manual path exists.
+  string manual_command   = 6;
+}
+
+message PreconditionsResponse {
+  repeated Precondition preconditions = 1;
+}
+
+message InstallPreconditionRequest {
+  // Must match a kind returned by GetPreconditions; unknown kinds are
+  // rejected with InvalidArgument.
+  string kind = 1;
+}
+
+message InstallPreconditionResponse {
+  // Post-install snapshot of the precondition. satisfied=true on
+  // success; on failure the error field carries a short human message
+  // (the full installer output is logged server-side).
+  Precondition precondition = 1;
+  string       error        = 2;
+}
+
+// ---------------------------------------------------------------------------
+// Domain messages
+// ---------------------------------------------------------------------------
+
+// Task mirrors internal/task.Task. Status / error_code are kept as strings
+// (matching the DB representation) rather than enums, so adding new states
+// does not require a proto bump.
+message Task {
+  string id              = 1;
+  string repository_id   = 2;
+  string goal            = 3;
+  string base_branch     = 4;
+  string branch          = 5;
+  string worktree_path   = 6;
+  string model           = 7;
+  string status          = 8;   // pending|running|awaiting_review|completed|merged|cancelled|aborted|failed
+  string error_code      = 9;   // empty unless status == failed
+  string error_message   = 10;
+  string session_id      = 11;
+  bool   branch_exists   = 12;
+  google.protobuf.Timestamp created_at   = 13;
+  google.protobuf.Timestamp updated_at   = 14;
+  google.protobuf.Timestamp started_at   = 15;  // nil when never started
+  google.protobuf.Timestamp finished_at  = 16;  // nil when still running/pending
+  // Most recent reviewer feedback. Populated whenever SubmitReview records
+  // a REWORK decision; shown in the Human Review UI so the user can see
+  // what the previous reviewer asked for.
+  string review_feedback = 17;
+  // Number of AI Review → queued rework cycles this task has been through
+  // since its last fresh run. Capped by orchestrator.MaxReworkCount; on
+  // overflow the task is escalated to human_review instead of re-queued.
+  int32 rework_count = 18;
+  // Models actually used by the Plan and Review stages (Code stage uses
+  // `model` above). Empty when the stage has not run yet. Surfaced in the
+  // UI as per-stage badges so the user can tell which model produced each
+  // artifact without inspecting the event stream.
+  string plan_model   = 19;
+  string review_model = 20;
+}
+
+// Subtask mirrors internal/task.Subtask. Status is a 4-value string
+// (pending / doing / done / failed) rather than an enum so it can evolve
+// independently. agent_role is a planner-invented role name injected into
+// the subtask executor's system prompt; depends_on lists sibling subtask
+// IDs that must reach `done` before this subtask may start.
+message Subtask {
+  string id         = 1;
+  string task_id    = 2;
+  string title      = 3;
+  string status     = 4;   // pending|doing|done|failed
+  int32  order_idx  = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+  string agent_role = 8;
+  repeated string depends_on = 9;
+  // Model used to execute this subtask (Code stage). Empty until the
+  // executor actually runs the subtask.
+  string code_model = 10;
+}
+
+message Repository {
+  string id                  = 1;
+  string path                = 2;  // lowercase (NTFS case-fold)
+  string display_name        = 3;
+  // Empty = auto-detect mode (sidecar resolves origin/HEAD → main → master
+  // → current HEAD at CreateTask time). Non-empty = user-pinned; the
+  // sidecar uses it as-is and fails CreateTask loudly if the branch is
+  // missing (the user made an explicit choice).
+  string default_base_branch = 4;
+  google.protobuf.Timestamp created_at   = 5;
+  google.protobuf.Timestamp last_used_at = 6;  // nil if never used
+}
+
+// AgentEvent mirrors internal/task.AgentEvent verbatim. Kind and Payload are
+// string-typed on purpose; see file header for rationale.
+message AgentEvent {
+  string id          = 1;
+  string task_id     = 2;
+  int64  seq         = 3;
+  string kind        = 4;
+  string payload     = 5;
+  google.protobuf.Timestamp occurred_at = 6;
+}
+
+message AuthStatus {
+  bool   authenticated = 1;
+  string user          = 2;
+  string message       = 3;
+  google.protobuf.Timestamp checked_at = 4;
+}
+
+message GitConfigStatus {
+  bool   long_paths_ok  = 1;
+  string long_paths_val = 2;
+  bool   autocrlf_ok    = 3;
+  string autocrlf_val   = 4;
+}
+
+// ---------------------------------------------------------------------------
+// TaskService request/response
+// ---------------------------------------------------------------------------
+
+message CreateTaskRequest {
+  string repository_id = 1;
+  string goal          = 2;
+  string base_branch   = 3;  // optional; server falls back to repo default
+  string model         = 4;  // optional; Code stage — server falls back to runner default
+  string plan_model    = 5;  // optional; Plan stage — server falls back to planner default
+  string review_model  = 6;  // optional; Review stage — server falls back to reviewer default
+}
+
+message ListTasksRequest {
+  string repo_id   = 1;  // empty = all repos
+  repeated string statuses = 2;  // empty = all statuses
+  int32  limit     = 3;  // 0 = no limit
+  bool   ascending = 4;  // false = most-recently-updated first
+}
+
+message ListTasksResponse {
+  repeated Task tasks = 1;
+}
+
+message DiffResponse {
+  string unified_diff = 1;
+}
+
+// FinalizeAction is the user's post-run choice for a finalized task.
+//
+// KEEP removes the worktree directory but preserves `fleetkanban/<id>` so
+// the user can still inspect or manually merge the commits later.
+//
+// MERGE attempts a fast-forward (or --no-ff merge commit when the base
+// branch has diverged) of `fleetkanban/<id>` into the task's recorded
+// `base_branch`, then removes both the worktree and the task branch.
+// Conflicts or a dirty base-branch working tree abort the operation
+// before any ref is touched.
+//
+// DISCARD removes both the worktree and the task branch without merging.
+enum FinalizeAction {
+  FINALIZE_ACTION_UNSPECIFIED = 0;
+  FINALIZE_ACTION_KEEP        = 1;
+  FINALIZE_ACTION_MERGE       = 2;
+  FINALIZE_ACTION_DISCARD     = 3;
+}
+
+message FinalizeTaskRequest {
+  string         id     = 1;
+  FinalizeAction action = 2;
+}
+
+message DeleteTaskRequest {
+  string id            = 1;
+  // When true, delete the fleetkanban/<id> branch alongside the worktree.
+  // Default is false (branch preserved, worktree removed) so reviewers can
+  // still inspect the commits post-delete if needed.
+  bool   delete_branch = 2;
+}
+
+// ReviewAction is the reviewer's verdict on an ai_review or human_review task.
+enum ReviewAction {
+  REVIEW_ACTION_UNSPECIFIED = 0;
+  // APPROVE moves ai_review → human_review (AI approved) or is a no-op on
+  // human_review (the UI then calls FinalizeTask with KEEP/MERGE to finalize).
+  // Kept separate so future phases can gate FinalizeTask on AI approval.
+  REVIEW_ACTION_APPROVE    = 1;
+  // REWORK saves feedback, transitions the task back to queued, and tells
+  // the orchestrator to prepend feedback to the next Copilot prompt.
+  REVIEW_ACTION_REWORK     = 2;
+  // REJECT terminates the task as failed(ai_review). Only valid from
+  // ai_review; human reviewers should prefer Discard from human_review.
+  REVIEW_ACTION_REJECT     = 3;
+}
+
+message SubmitReviewRequest {
+  string       id       = 1;
+  ReviewAction action   = 2;
+  // Free-form text — required for REWORK, optional for APPROVE/REJECT.
+  // Persisted on the task and added as a review.submitted event.
+  string       feedback = 3;
+}
+
+message TaskEventsRequest {
+  string task_id   = 1;
+  int64  since_seq = 2;  // load events with seq > since_seq
+  int32  limit     = 3;  // 0 = no limit
+}
+
+message TaskEventsResponse {
+  repeated AgentEvent events = 1;
+}
+
+// WatchEvents is a server-stream subscription that fires every persisted
+// AgentEvent across all tasks. Clients can optionally pass since_seq_by_task
+// to resume after reconnecting; events whose seq <= the mapped value are
+// suppressed by the server. A task id absent from the map means "send every
+// future event for this task" (no backfill — use TaskEvents for backfill).
+message WatchEventsRequest {
+  map<string, int64> since_seq_by_task = 1;
+}
+
+// ---------------------------------------------------------------------------
+// SubtaskService request/response
+// ---------------------------------------------------------------------------
+
+message ListSubtasksRequest {
+  string task_id = 1;
+}
+
+message ListSubtasksResponse {
+  repeated Subtask subtasks = 1;
+}
+
+message CreateSubtaskRequest {
+  string task_id   = 1;
+  string title     = 2;
+  // Optional initial status (pending|doing|done|failed). Empty → "pending".
+  string status    = 3;
+  // Optional explicit order index. When 0/negative the server appends.
+  int32  order_idx = 4;
+  // Planner-invented agent role for execution; empty for legacy manual rows.
+  string agent_role = 5;
+  // Sibling subtask IDs that must reach `done` before this one may start.
+  repeated string depends_on = 6;
+}
+
+message UpdateSubtaskRequest {
+  string id        = 1;
+  // Only non-empty fields are applied — title/status may be set
+  // independently so the UI can toggle a checkbox without re-sending
+  // the title.
+  string title     = 2;
+  string status    = 3;
+}
+
+message ReorderSubtasksRequest {
+  string task_id = 1;
+  // Ordered list of subtask IDs belonging to task_id. The server persists
+  // order_idx as the position in this slice. IDs not present in the DB for
+  // the given task are rejected with InvalidArgument.
+  repeated string ids = 2;
+}
+
+// ---------------------------------------------------------------------------
+// RepositoryService request/response
+// ---------------------------------------------------------------------------
+
+message RegisterRepositoryRequest {
+  string path                 = 1;
+  string display_name         = 2;
+  // When true, the sidecar runs `git init --initial-branch=main` on the
+  // target directory before registering it. The UI sets this after the
+  // user confirms "このフォルダを git リポジトリ化しますか？" — without
+  // it the call returns FAILED_PRECONDITION ("not a git repository").
+  bool   initialize_if_empty  = 3;
+}
+
+message ListRepositoriesResponse {
+  repeated Repository repositories = 1;
+}
+
+message ScanGitRepositoriesRequest {
+  string path      = 1;
+  // Maximum recursion depth from `path`. 0 → server default (3). Keep
+  // this small; NTFS traversals over thousands of node_modules children
+  // get expensive quickly.
+  int32  max_depth = 2;
+}
+
+// FoundRepository is one candidate from ScanGitRepositories. `already_registered`
+// is true when the path is case-insensitively equal to a path already in
+// the repositories table, so the UI can grey those out.
+message FoundRepository {
+  string path               = 1;
+  string default_branch     = 2;
+  bool   already_registered = 3;
+}
+
+message ScanGitRepositoriesResponse {
+  repeated FoundRepository repositories = 1;
+  // True when the root path itself is already a git repo — UI should treat
+  // the scan as a single-repo registration path instead of a multi-select.
+  bool   root_is_repo                  = 2;
+}
+
+message UpdateDefaultBaseBranchRequest {
+  string repository_id       = 1;
+  // Empty clears the pin (returns the repo to auto-detection). Non-empty
+  // is the short branch name to pin (e.g. "main", "develop") — must exist
+  // in the repository's refs/heads/ namespace.
+  string default_base_branch = 2;
+}
+
+message ListBranchesRequest {
+  string repository_id = 1;
+}
+
+message ListBranchesResponse {
+  // Short branch names (no refs/heads/ prefix). fleetkanban/* branches are
+  // filtered out. Ordered with the auto-detected default first, the pinned
+  // default (if any, and distinct) second, then the remainder in the order
+  // git for-each-ref returned them (sorted by committerdate descending).
+  repeated string branches = 1;
+  // Branch that ResolveDefaultBranch would return right now. Empty when
+  // the repo has no resolvable default (unborn HEAD / detached on a repo
+  // with no refs).
+  string default_branch = 2;
+  // False when HEAD is unborn — i.e. the repo was only `git init`'d and
+  // has no commits yet. The UI surfaces this as a warning with a one-tap
+  // "初期コミットを作成" action that calls CreateInitialCommit.
+  bool   has_commits   = 3;
+}
+
+// ---------------------------------------------------------------------------
+// AuthService request/response
+// ---------------------------------------------------------------------------
+
+message SetGitHubTokenRequest {
+  // Empty string clears the stored PAT.
+  string token = 1;
+}
+
+// CopilotLoginChallenge is returned by BeginCopilotLogin. The UI displays
+// user_code in a dialog and typically offers a button that opens
+// verification_uri in the default browser (the sidecar has already opened
+// it once; the button is a convenience for retry / manual control).
+message CopilotLoginChallenge {
+  // 8-character device code (formatted as "XXXX-XXXX") that the user types
+  // into the GitHub verification page. The sidecar also appends it to
+  // verification_uri as a query parameter so the user never has to copy it.
+  string user_code        = 1;
+  // Full URL the user should open — already includes ?user_code=...
+  // and any other query params GitHub accepts for this flow.
+  string verification_uri = 2;
+  // How long the device code is valid. Informational; the sidecar owns
+  // the actual subprocess lifetime.
+  int32  expires_in_seconds = 3;
+}
+
+// CopilotLoginSessionState is the lifecycle of a `copilot login` subprocess
+// owned by the sidecar's LoginCoordinator. Returned by GetCopilotLoginSession
+// so the UI can drive the sign-in dialog off the subprocess itself rather
+// than off CheckCopilotAuth (which reflects the SDK client's possibly-stale
+// view of auth and can report authenticated=true before the new login
+// completes).
+enum CopilotLoginSessionState {
+  // Default / pre-enum-migration fallback. Callers should treat as IDLE.
+  COPILOT_LOGIN_SESSION_STATE_UNSPECIFIED = 0;
+  // No login is in progress. Either BeginCopilotLogin was never called, or
+  // the UI called CancelCopilotLogin to tear the session down.
+  COPILOT_LOGIN_SESSION_STATE_IDLE        = 1;
+  // Subprocess is alive and waiting for the user to complete the device
+  // flow in the browser. The UI should keep the dialog open.
+  COPILOT_LOGIN_SESSION_STATE_RUNNING     = 2;
+  // Subprocess exited with status 0 AND the SDK client has been reloaded
+  // against the new credentials. Safe to close the dialog.
+  COPILOT_LOGIN_SESSION_STATE_SUCCEEDED   = 3;
+  // Subprocess exited with a non-zero status, or ReloadAuth after a
+  // successful exit failed. error_message carries the formatted reason.
+  COPILOT_LOGIN_SESSION_STATE_FAILED      = 4;
+}
+
+message CopilotLoginSessionInfo {
+  CopilotLoginSessionState state         = 1;
+  // Populated when state == FAILED; empty otherwise.
+  string                   error_message = 2;
+}
+
+// Entry in ListGitHubTokensResponse. Tokens themselves are never surfaced to
+// the frontend; only label + metadata.
+message GitHubTokenEntry {
+  string label  = 1;  // user-chosen identifier (e.g. "work", "personal")
+  bool   active = 2;  // whether this label is the one fed into the SDK
+}
+
+message ListGitHubTokensResponse {
+  repeated GitHubTokenEntry tokens       = 1;
+  // Empty when no tokens exist. Matches the `active` flag on one of the
+  // entries when present.
+  string                    active_label = 2;
+}
+
+message AddGitHubTokenRequest {
+  string label      = 1;  // non-empty, unique per user
+  string token      = 2;  // non-empty PAT
+  bool   set_active = 3;  // if true, make this label the active one
+}
+
+message GitHubTokenLabelRequest {
+  string label = 1;
+}
+
+// GitHubAccountInfo mirrors a subset of the `/user` response. Copilot-plan
+// specific fields (premium_requests_remaining etc.) are not filled because
+// GitHub does not expose them on the public REST API; the UI surfaces a
+// static hint instead.
+message GitHubAccountInfo {
+  string login              = 1;
+  string name               = 2;
+  string avatar_url         = 3;
+  // `plan.name` from the REST response: "free" / "pro" / "team" / "enterprise".
+  // This reflects the GitHub account plan, which correlates with (but is not
+  // identical to) the Copilot tier.
+  string plan_name          = 4;
+  int32  plan_private_repos = 5;
+  int32  plan_collaborators = 6;
+  int64  plan_space         = 7;
+  // Whether this account has Copilot enabled. Derived from the SDK auth
+  // state; false for users who authenticated without Copilot entitlement.
+  bool   copilot_enabled    = 8;
+  // Free-form summary string for the UI to fall back on when parsing fails.
+  string raw_message        = 9;
+}
+
+// ---------------------------------------------------------------------------
+// ModelService request/response
+// ---------------------------------------------------------------------------
+
+// ModelInfo carries the per-model metadata the Settings picker needs to
+// surface billing impact (Free vs Premium request, multiplier ×N) so the
+// user can pick a model with full awareness of how many premium requests
+// each task will consume on their plan.
+message ModelInfo {
+  // Stable model identifier, e.g. "claude-sonnet-4-5". Sent verbatim to
+  // SDK CreateSession and stored on Task.{plan,code,review}_model.
+  string id         = 1;
+  // Human-friendly display name from the Copilot CLI catalog,
+  // e.g. "Claude Sonnet 4.5". Falls back to id when empty server-side.
+  string name       = 2;
+  // Premium-request multiplier the Copilot billing plan applies to each
+  // request against this model. 0 means "no premium request charged"
+  // (i.e. Free / unmetered for the user's plan); >=1 means each call
+  // counts as multiplier×1 premium request. Surfaced in the picker as a
+  // "Free" / "Premium ×N" badge.
+  double multiplier = 3;
+}
+
+message ListModelsResponse {
+  // Model catalog as advertised by the Copilot CLI server, ordered as
+  // returned. Order is treated as authoritative for "first match" picks
+  // (see copilot/runner.resolveModel).
+  repeated ModelInfo models = 1;
+}
+
+// ---------------------------------------------------------------------------
+// WorktreeService request/response
+// ---------------------------------------------------------------------------
+
+// WorktreeEntry is one row in the Worktrees pane. `task_id` is empty for
+// worktrees that are not under the fleetkanban/ branch namespace (primary
+// worktrees of registered repos are included so the pane can show them as
+// the "(main)" row). `path_exists` reflects whether the worktree directory
+// still exists on disk — false means the directory was deleted externally
+// and a `git worktree prune` is needed to clean the repo metadata.
+message WorktreeEntry {
+  string repository_id   = 1;
+  string repository_path = 2;
+  string path            = 3;   // absolute worktree directory
+  string branch          = 4;   // full refname, e.g. refs/heads/fleetkanban/01J...
+  bool   path_exists     = 5;
+  bool   is_primary      = 6;   // true for the repo's main working tree
+  string task_id         = 7;   // empty unless branch is under fleetkanban/
+  string task_status     = 8;   // empty unless the task row exists in DB
+  string head            = 9;   // HEAD sha from `git worktree list --porcelain`
+}
+
+message ListWorktreesResponse {
+  repeated WorktreeEntry worktrees = 1;
+}
+
+message RemoveWorktreeRequest {
+  string repository_id = 1;
+  string worktree_path = 2;
+  // When true, the fleetkanban/<task-id> branch is also deleted. Only honored
+  // for worktrees that live under the fleetkanban/ namespace.
+  bool   delete_branch = 3;
+}
