@@ -45,5 +45,14 @@ const (
 	// errors that users could otherwise only fix by hand.
 	//
 	// Bump this whenever a proto change lands. Never decrement.
-	ProtocolVersion = 16
+	ProtocolVersion = 25
 )
+
+// AppVersion is the user-facing release version (semver, no leading "v").
+// Kept as a var rather than const so release builds can override it via
+//
+//	go build -ldflags "-X github.com/<...>/branding.AppVersion=1.2.3"
+//
+// without editing source. Must match ui/pubspec.yaml version and
+// ui/lib/app/version.dart appVersion.
+var AppVersion = "0.1.0"

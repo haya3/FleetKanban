@@ -148,6 +148,22 @@ After launch, from the Kanban board:
 > "Run anyway" to proceed. EV signing / Azure Trusted Signing is planned for
 > Phase 2.
 
+## Releases
+
+FleetKanban is distributed via GitHub Releases as a Velopack-packaged Windows
+installer. Grab `FleetKanban-Setup.exe` from the latest Release and run it;
+the app self-updates on a one-click InfoBar prompt after that.
+
+- [docs/release-process.md](./docs/release-process.md) — how to cut a release
+  (version bump points, tag push, CI flow, rollback)
+- [docs/signing-future.md](./docs/signing-future.md) — when and how to
+  introduce code signing (Azure Trusted Signing vs SSL.com OV)
+
+Tagging `v*` on this repository triggers `.github/workflows/release.yml`,
+which builds the Flutter UI + Go sidecar, runs `vpk pack`, and uploads the
+Setup / delta / full packages to the Release. Nothing else is automated —
+version bumps, changelog edits, and tag pushes stay manual.
+
 ## Contributing
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for development-environment setup,

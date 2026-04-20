@@ -1,0 +1,141 @@
+name: Release
+
+# Builds and publishes a Velopack-packaged Windows release to GitHub Releases
+# when a `v*` tag is pushed. Tag creation is always manual (per branching
+# policy — no automated push / merge / PR). `workflow_dispatch` is provided
+# for dry runs that build the artefacts without publishing.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build only; do not upload to Releases"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build & package
+    runs-on: windows-latest
+    env:
+      CGO_ENABLED: "0"
+      FLEETKANBAN_SKIP_PWSH_CHECK: "1"
+      # Set VPK_SIGN_TEMPLATE via repo/organization secret when signing.
+      # See docs/signing-future.md.
+      VPK_SIGN_TEMPLATE: ${{ secrets.VPK_SIGN_TEMPLATE }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve app version
+        id: version
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          if ($tag -and $tag.StartsWith('v')) {
+            $ver = $tag.Substring(1)
+          } else {
+            $line = (Get-Content ui/pubspec.yaml | Select-String '^version:').Line
+            $ver = ($line -split ':')[1].Trim().Split('+')[0]
+          }
+          "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "App version: $ver"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: sidecar/go.sum
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Task (taskfile.dev)
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Velopack CLI
+        run: dotnet tool install -g vpk
+
+      - name: Build sidecar with AppVersion injected
+        working-directory: sidecar
+        env:
+          GOOS: windows
+          GOARCH: amd64
+        run: |
+          go tool bundler --platform windows/amd64 --output ./cmd/fleetkanban-sidecar
+          $out = "${{ github.workspace }}/build/bin/fleetkanban-sidecar.exe"
+          New-Item -ItemType Directory -Force -Path (Split-Path $out) | Out-Null
+          go build -trimpath -ldflags "-s -w -X github.com/FleetKanban/fleetkanban/internal/branding.AppVersion=${{ steps.version.outputs.version }}" -o $out ./cmd/fleetkanban-sidecar
+        shell: pwsh
+
+      - name: Flutter pub get
+        working-directory: ui
+        run: flutter pub get
+
+      - name: Flutter build windows (release)
+        working-directory: ui
+        run: flutter build windows --release
+
+      - name: Copy sidecar next to Flutter release runner
+        shell: pwsh
+        run: |
+          Copy-Item 'build/bin/fleetkanban-sidecar.exe' 'ui/build/windows/x64/runner/Release/' -Force
+
+      - name: Generate release notes with git-cliff
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --latest --tag ${{ github.ref_name }}
+        env:
+          OUTPUT: RELEASE_NOTES.md
+
+      - name: Velopack pack
+        shell: pwsh
+        working-directory: ui
+        run: |
+          New-Item -ItemType Directory -Force -Path '${{ github.workspace }}/build/release' | Out-Null
+          $signArgs = @()
+          if ($env:VPK_SIGN_TEMPLATE) {
+            $signArgs = @('--signTemplate', $env:VPK_SIGN_TEMPLATE)
+          }
+          vpk pack `
+            --packId com.fleetkanban.FleetKanban `
+            --packVersion '${{ steps.version.outputs.version }}' `
+            --packDir build/windows/x64/runner/Release `
+            --mainExe fleetkanban_ui.exe `
+            --packTitle FleetKanban `
+            --packAuthors haya3 `
+            --outputDir '${{ github.workspace }}/build/release' `
+            @signArgs
+
+      - name: Upload artefacts to workflow run
+        uses: actions/upload-artifact@v4
+        with:
+          name: fleetkanban-release-${{ steps.version.outputs.version }}
+          path: build/release/*
+          if-no-files-found: error
+
+      - name: Publish to GitHub Releases
+        if: startsWith(github.ref, 'refs/tags/v') && (github.event_name != 'workflow_dispatch' || inputs.dry_run == false)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path '${{ github.workspace }}/build/release' -File | ForEach-Object { $_.FullName }
+          gh release create '${{ github.ref_name }}' @files --title 'FleetKanban ${{ github.ref_name }}' --notes-file RELEASE_NOTES.md

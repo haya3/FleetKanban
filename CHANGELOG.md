@@ -12,11 +12,15 @@ and version numbers follow [Semantic Versioning](https://semver.org/).
 - Issue / PR templates (`.github/ISSUE_TEMPLATE/*.md`, `.github/PULL_REQUEST_TEMPLATE.md`)
 - Architecture and roadmap docs placed under `repo/docs/`
 - Distinguish GitHub API `401 Unauthorized` / `403 Forbidden` as `ErrInvalidToken` / `ErrInsufficientScopes`
+- Velopack-based distribution pipeline: `task release:pack`, `.github/workflows/release.yml`, `cliff.toml` for release notes
+- In-app one-click update flow (`ui/lib/app/updater/`) with "Update available" InfoBar in the shell
+- `branding.AppVersion` / `appVersion` constants so the About dialog and updater share a single semver source
+- `docs/release-process.md` and `docs/signing-future.md`
 
 ### Changed
 - `SanitizeGoal` now folds newlines into spaces to prevent prompt-structure corruption
 - Added lint rules to `ui/analysis_options.yaml` (cancel_subscriptions / close_sinks / unnecessary_await_in_return, etc.)
-- Added `## Contributing` / `## Security` sections to the README
+- Added `## Contributing` / `## Security` / `## Releases` sections to the README
 
 ## [0.1.0] - TBD
 

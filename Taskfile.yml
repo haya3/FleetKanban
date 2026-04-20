@@ -134,6 +134,29 @@ tasks:
     cmds:
       - dart run msix:create
 
+  release:pack:
+    desc: "Package Velopack installer + delta from the Flutter Release runner (output: build/release/)"
+    deps: [flutter:build]
+    dir: ui
+    vars:
+      # Derive version from pubspec.yaml (strip build-number suffix after `+`).
+      # Override by setting APP_VERSION in the environment.
+      APP_VERSION:
+        sh: pwsh -NoProfile -Command "((Get-Content pubspec.yaml | Select-String '^version:').Line -split ':')[1].Trim().Split('+')[0]"
+      OUTPUT_DIR: "{{.ROOT_DIR}}/build/release"
+      PACK_ID: "com.fleetkanban.FleetKanban"
+      PACK_TITLE: "FleetKanban"
+      PACK_AUTHORS: "haya3"
+      MAIN_EXE: "fleetkanban_ui.exe"
+    cmds:
+      - cmd: pwsh -NoProfile -Command "New-Item -ItemType Directory -Force -Path '{{.OUTPUT_DIR}}' | Out-Null"
+        platforms: [windows]
+      # Set VPK_SIGN_TEMPLATE (e.g., 'signtool sign /tr ... /f cert.pfx /p pw {{file...}}')
+      # to enable code signing. When unset, the installer is unsigned and
+      # SmartScreen will show a first-run warning.
+      - cmd: vpk pack --packId {{.PACK_ID}} --packVersion {{.APP_VERSION}} --packDir build/windows/x64/runner/Release --mainExe {{.MAIN_EXE}} --packTitle {{.PACK_TITLE}} --packAuthors {{.PACK_AUTHORS}} --outputDir "{{.OUTPUT_DIR}}"{{if .VPK_SIGN_TEMPLATE}} --signTemplate "{{.VPK_SIGN_TEMPLATE}}"{{end}}
+        platforms: [windows]
+
   clean:
     desc: "Remove build artifacts"
     cmds:

@@ -1,0 +1,54 @@
+# git-cliff configuration for FleetKanban.
+#
+# Generates release notes from Conventional Commits between tags. Used by
+# .github/workflows/release.yml to populate the GitHub Releases body on a
+# `v*` tag push. Does NOT commit CHANGELOG.md automatically — the file is
+# maintained by hand per the branching policy (no bot pushes).
+#
+# Preview locally:
+#   git cliff --latest --tag v0.1.1
+#   git cliff --unreleased
+
+[changelog]
+header = """
+# Changelog
+All notable changes to FleetKanban. Follows Keep a Changelog and SemVer.
+"""
+body = """
+{% if version %}\
+## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+## [Unreleased]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | upper_first }}
+{% for commit in commits %}\
+- {{ commit.message | split(pat="\n") | first | trim }}{% if commit.id %} ({{ commit.id | truncate(length=7, end="") }}){% endif %}
+{% endfor %}\
+{% endfor %}\n
+"""
+footer = ""
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+split_commits = false
+commit_parsers = [
+  { message = "^feat",      group = "Features" },
+  { message = "^fix",       group = "Bug Fixes" },
+  { message = "^perf",      group = "Performance" },
+  { message = "^refactor",  group = "Refactor" },
+  { message = "^doc",       group = "Documentation" },
+  { message = "^build",     group = "Build" },
+  { message = "^ci",        group = "CI" },
+  { message = "^test",      group = "Tests" },
+  { message = "^chore\\(release\\)", skip = true },
+  { message = "^chore",     group = "Chore" },
+]
+filter_commits = true
+tag_pattern = "v[0-9]*"
+skip_tags = "v0\\.0\\..*"
+ignore_tags = ""
+topo_order = false
+sort_commits = "newest"

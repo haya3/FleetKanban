@@ -9,4 +9,10 @@
 // to kill whatever process it finds and spawn the binary at
 // `build/bin/fleetkanban-sidecar.exe`. Make sure that binary is the new
 // build before bumping.
-const int expectedSidecarProtocolVersion = 15;
+const int expectedSidecarProtocolVersion = 25;
+
+/// User-facing release version (semver, no leading "v"). Must match
+/// `pubspec.yaml` `version` and `sidecar/internal/branding.AppVersion`.
+/// Shown in the About dialog and sent to the updater for comparison
+/// against the latest GitHub Release.
+const String appVersion = '0.1.0';
