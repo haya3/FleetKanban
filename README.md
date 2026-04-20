@@ -2,17 +2,19 @@
 
 A **Windows 11-native** autonomous multi-agent development framework built
 around the GitHub Copilot CLI.
-It is built from scratch on three design pillars:
-(1) launching the **GitHub Copilot CLI** as a child process for the agent
-execution substrate,
-(2) adopting **Flutter (Windows desktop) + Go gRPC sidecar** at the desktop
-layer, and
-(3) a **Windows 11-only design that makes no compromises for multi-OS
-support**.
 
-Users simply submit what they want as a task, and agents plan, implement, and
-verify in parallel on git worktrees, then safely integrate the result into the
-main branch.
+The design rests on three pillars:
+
+- **Agent substrate**: launch the **GitHub Copilot CLI** as a child process and
+  stream-parse its stdout / stderr
+- **Desktop stack**: **Flutter (Windows desktop) + Go gRPC sidecar** for native
+  rendering and child-process isolation
+- **Windows 11 only**: no compromises for multi-OS support — Job Object, Mica,
+  Jump List, Toast, and DPAPI are called directly from Go
+
+Users submit what they want as a task; agents plan, implement, and verify in
+parallel on git worktrees, then integrate the result back into the main branch
+under explicit user control.
 
 ## Intended Key Features
 
@@ -30,24 +32,33 @@ main branch.
 
 ## Tech Stack
 
-We actively adopt the latest stable versions (as of April 2026).
+Latest stable versions as of April 2026.
 
-- **Backend language**: Go 1.25+ (headless gRPC sidecar)
-- **UI framework**: [Flutter](https://flutter.dev) (Windows desktop) + [fluent_ui](https://pub.dev/packages/fluent_ui)
-- **IPC**: gRPC over loopback (protobuf; schema in `proto/fleetkanban/v1/`)
-- **Copilot engine**: [GitHub Copilot CLI](https://github.com/github/copilot-cli) v1.0.29+ launched as a child process
+**Backend (Go sidecar)**
+
+- **Language**: Go 1.25+ (headless gRPC sidecar)
+- **Concurrency**: `golang.org/x/sync/semaphore`
 - **Persistence**: [`modernc.org/sqlite`](https://gitlab.com/cznic/sqlite) (pure Go, no CGO)
 - **Windows API**: `golang.org/x/sys/windows` + direct syscalls (Job Object / Mica / Toast / Jump List / DPAPI)
-- **Concurrency**: `golang.org/x/sync/semaphore`
 - **ID generation**: `github.com/oklog/ulid/v2`
 - **Logging**: standard `log/slog`
-- **Test (Go)**: standard `testing` + `testify`
-- **Test (Flutter)**: `flutter_test` + `integration_test`
-- **Lint / Format (Go)**: `golangci-lint`
-- **Lint / Format (Dart)**: `analysis_options.yaml` (`flutter analyze`)
-- **Build tasks**: Taskfile (`go-task/task`) + [buf](https://buf.build) (proto generation)
-- **Distribution format**: MSIX (`dart run msix:create`)
-- **Target OS**: Windows 11 (64-bit) only. macOS / Linux are not supported
+
+**UI (Flutter)**
+
+- **Framework**: [Flutter](https://flutter.dev) (Windows desktop) + [fluent_ui](https://pub.dev/packages/fluent_ui)
+- **Distribution**: MSIX (`dart run msix:create`)
+
+**IPC / Agent engine**
+
+- **IPC**: gRPC over loopback (protobuf; schemas in `proto/fleetkanban/v1/`)
+- **Copilot engine**: [GitHub Copilot CLI](https://github.com/github/copilot-cli) v1.0.29+ launched as a child process
+
+**Tooling**
+
+- **Test**: Go `testing` + `testify`; Flutter `flutter_test` + `integration_test`
+- **Lint / Format**: `golangci-lint` (Go); `analysis_options.yaml` via `flutter analyze` (Dart)
+- **Build tasks**: Taskfile ([`go-task/task`](https://taskfile.dev)) + [buf](https://buf.build) for proto generation
+- **Target OS**: Windows 11 (64-bit) only — macOS / Linux are not supported
 
 ## Project Layout
 
@@ -64,10 +75,12 @@ FleetKanban/
 ├── docs/                            # architecture.md / roadmap.md
 ├── proto/                           # contract between sidecar and ui (source of truth)
 │   ├── buf.yaml / buf.gen.yaml / buf.gen.dart.yaml
-│   └── fleetkanban/v1/fleetkanban.proto
+│   └── fleetkanban/v1/              # fleetkanban.proto / housekeeping.proto / insights.proto
 ├── sidecar/                         # Go gRPC backend (headless)
 │   ├── go.mod                       # module github.com/FleetKanban/fleetkanban
-│   ├── cmd/fleetkanban-sidecar/     # entry + bundler-generated embedded CLI
+│   ├── cmd/
+│   │   ├── fleetkanban-sidecar/     # entry + bundler-generated embedded CLI
+│   │   └── dbquery/                 # local SQLite inspection helper
 │   └── internal/
 │       ├── app/                     # domain services (invoked from gRPC)
 │       ├── task/                    # Task model and state machine
@@ -77,6 +90,7 @@ FleetKanban/
 │       ├── copilot/                 # Copilot SDK adapter
 │       ├── ipc/                     # gRPC server / auth / event broker
 │       ├── reaper/                  # process reclamation
+│       ├── setup/                   # runtime-dependency checks (pwsh / winget)
 │       ├── winapi/                  # Windows 11-specific features
 │       └── branding/                # app identifiers
 ├── ui/                              # Flutter UI (Windows desktop)
@@ -90,13 +104,15 @@ FleetKanban/
 ## Prerequisites
 
 - **OS**: Windows 11 64-bit
-- **Go**: 1.25+ (winget `GoLang.Go` recommended)
-- **Flutter**: 3.27+ (enable Windows desktop: `flutter config --enable-windows-desktop`)
-- **Git for Windows**: 2.45+ (enable worktree / longpaths)
-- **GitHub Copilot CLI**: v1.0.29+. Install via `winget install GitHub.CopilotCLI` or `npm i -g @github/copilot`, then run `copilot` and use `/login` to authenticate against a GitHub Copilot subscription
-- **GitHub Copilot subscription** (Individual / Business / Enterprise)
-- **Visual Studio 2022 Build Tools**: required for Flutter Windows desktop builds (C++ Desktop Development workload)
-- **PowerShell 7 (pwsh)**: required as the Copilot CLI's child shell. Distinct from the `powershell.exe` (5.1) that ships with Windows 11. Run `winget install Microsoft.PowerShell` in advance, or explicitly consent to install from the UI on first launch (winget does **not** run silently in the background; **we only execute via an RPC that involves user action**). In CI / headless environments, set `FLEETKANBAN_SKIP_PWSH_CHECK=1` to disable the check entirely.
+- **Go**: 1.25+ (`winget install GoLang.Go` recommended)
+- **Flutter**: 3.27+ — enable Windows desktop with `flutter config --enable-windows-desktop`
+- **Git for Windows**: 2.45+ (worktree / longpaths enabled)
+- **Visual Studio 2022 Build Tools**: C++ Desktop Development workload (required for Flutter Windows builds)
+- **GitHub Copilot CLI**: v1.0.29+ — install via `winget install GitHub.CopilotCLI` or `npm i -g @github/copilot`, then run `copilot` and `/login`
+- **GitHub Copilot subscription**: Individual / Business / Enterprise
+- **PowerShell 7 (pwsh)**: required as the Copilot CLI's child shell — distinct from the bundled `powershell.exe` (5.1)
+  - Install in advance: `winget install Microsoft.PowerShell`, or consent to install from the UI on first launch (winget requires user interaction)
+  - CI / headless environments: set `FLEETKANBAN_SKIP_PWSH_CHECK=1` to skip the check
 
 ## Quick Start (Envisioned After Phase 1)
 
@@ -118,52 +134,39 @@ task build:msix
 After launch, from the Kanban board:
 
 1. Select the target git repository
-2. Click "+ New Task", enter the goal (natural language), and pick a **base branch** (you can work on any branch, not just `main`)
+2. Click **"+ New Task"**, enter the goal (natural language), and pick a **base branch** (any branch, not just `main`)
 3. Drag the card from `Pending` → `Running`, or press the `▶` button to start
 4. Follow streaming logs and diffs in real time in the agent pane
-5. On completion, the default is **`Keep`** (tear down the worktree but retain the `fleetkanban/<task-id>` branch). Optionally select `Merge` / `Discard` explicitly
+5. On completion, the default is **`Keep`** (tear down the worktree but retain the `fleetkanban/<task-id>` branch). Optionally choose `Merge` / `Discard` explicitly
 
-> **Note**: The app never performs `git push` / PR creation / auto-merge.
-> Reflecting changes to a remote and creating PRs are assumed to be done
-> explicitly by the user with external tools (Git CLI / GitHub Desktop / IDE).
+> **No automatic remote writes.** The app never performs `git push`, PR
+> creation, or auto-merge. Pushing and opening PRs is done explicitly by the
+> user with external tools (Git CLI / GitHub Desktop / IDE).
 
-> **Note (SmartScreen)**: Phase 1 ships without code signing, so Windows
-> SmartScreen will show the "Windows protected your PC" warning on first
-> launch. Click "More info" → "Run anyway" to proceed. EV signing / Azure
-> Trusted Signing is planned for Phase 2.
-
-## Key Design Characteristics
-
-| Item | FleetKanban |
-| --- | --- |
-| Agent engine | **GitHub Copilot CLI** launched as a child process |
-| Authentication | GitHub Copilot subscription (Copilot CLI `/login`) |
-| Extension | MCP configured via Copilot CLI's `~/.copilot/mcp-config.json` |
-| Language / UI | **Flutter (Windows desktop) + Go gRPC sidecar** (native rendering, child-process isolation) |
-| Windows-specific optimization | **Job Object / Mica / Jump List / Toast called directly from Go** |
-| Supported OS | **Windows 11 64-bit only** (optimization is the goal) |
-| Auto push / PR / merge | **Permanently disallowed** (always via explicit user action) |
+> **SmartScreen.** Phase 1 ships without code signing, so Windows SmartScreen
+> will show "Windows protected your PC" on first launch. Click "More info" →
+> "Run anyway" to proceed. EV signing / Azure Trusted Signing is planned for
+> Phase 2.
 
 ## Contributing
 
-If you are interested in contributing to FleetKanban, see
-[CONTRIBUTING.md](./CONTRIBUTING.md). It covers development-environment
-setup, branching strategy, local verification commands
-(`task lint && task test`), and how to open a PR.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for development-environment setup,
+branching strategy, local verification (`task lint && task test`), and the
+PR flow.
 
-The code of conduct is [Contributor Covenant v2.1](./CODE_OF_CONDUCT.md).
-All Issue / PR / Discussions communication must follow it.
+All communication on Issues / PRs / Discussions must follow
+[Contributor Covenant v2.1](./CODE_OF_CONDUCT.md).
 
-The roadmap and architecture overview are here:
+Deeper design material:
 
 - [docs/architecture.md](./docs/architecture.md)
 - [docs/roadmap.md](./docs/roadmap.md)
 
 ## Security
 
-If you find a vulnerability, **do not open a public Issue**; follow
-[SECURITY.md](./SECURITY.md) to report it non-publicly. Reporting via GitHub
-Security Advisories (the repository's Security tab) is the most reliable path.
+If you find a vulnerability, **do not open a public Issue**. Follow
+[SECURITY.md](./SECURITY.md) and report non-publicly via GitHub Security
+Advisories (the repository's Security tab) as the most reliable path.
 
 ## License
 
