@@ -59,13 +59,17 @@ class KanbanPage extends ConsumerWidget {
                 padding: EdgeInsets.all(8),
                 child: ProgressBar(),
               ),
-              error: (e, _) =>
-                  ErrorInfoBar(title: 'Failed to load repositories', message: '$e'),
+              error: (e, _) => ErrorInfoBar(
+                title: 'Failed to load repositories',
+                message: '$e',
+              ),
               data: (repos) {
                 if (repos.isEmpty) {
                   return const Padding(
                     padding: EdgeInsets.symmetric(vertical: 16),
-                    child: Text('No repositories registered. Use "Register repository" in the top-right to add one.'),
+                    child: Text(
+                      'No repositories registered. Use "Register repository" in the top-right to add one.',
+                    ),
                   );
                 }
                 // Default-select the first repo if none picked yet.

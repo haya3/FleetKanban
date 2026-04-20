@@ -363,6 +363,31 @@ func (s *Service) CreateInitialCommit(ctx context.Context, repoID string) (*stor
 // instead of retrying.
 var ErrRepositoryAlreadyHasCommits = errors.New("app: repository already has commits")
 
+// StashUncommittedResult mirrors the ipc surface so the handler does
+// not have to reach into internal/worktree.
+type StashUncommittedResult struct {
+	Stashed bool
+	Message string
+}
+
+// StashUncommitted runs `git stash push --include-untracked` in the
+// registered repository's main working tree. Used by the UI's Merge
+// retry dialog when the task's base branch is checked out dirty.
+func (s *Service) StashUncommitted(ctx context.Context, repoID string) (StashUncommittedResult, error) {
+	if repoID == "" {
+		return StashUncommittedResult{}, errors.New("app: repository id is required")
+	}
+	repo, err := s.repo.Get(ctx, repoID)
+	if err != nil {
+		return StashUncommittedResult{}, err
+	}
+	r, err := s.wt.StashUncommitted(ctx, repo.Path)
+	if err != nil {
+		return StashUncommittedResult{}, err
+	}
+	return StashUncommittedResult{Stashed: r.Stashed, Message: r.Message}, nil
+}
+
 // UpdateDefaultBaseBranch pins (or clears) a repository's default base
 // branch. Empty `branch` clears the pin — the repository returns to
 // auto-detection mode at the next CreateTask call. Non-empty values are
@@ -851,6 +876,11 @@ func (s *Service) RunTask(ctx context.Context, id string) error {
 	case task.StatusQueued:
 		// nothing to do
 	case task.StatusAborted, task.StatusFailed:
+		// User-initiated Re-run: just transition back to queued.
+		// The orchestrator's dispatch always re-plans now, so old
+		// subtasks stay in place as history (visible in the DAG as
+		// previous rounds) and a new round is created on the next
+		// run. This matches AI / Human REWORK semantics.
 		if err := s.tasks.Transition(ctx, id, t.Status, task.StatusQueued,
 			task.ErrCodeNone, "", task.FinalizationNone); err != nil {
 			return fmt.Errorf("app: rerun transition: %w", err)
@@ -983,6 +1013,81 @@ func (s *Service) SetConcurrency(_ context.Context, n int) (int, error) {
 // GetConcurrency returns the orchestrator's current concurrent-task limit.
 func (s *Service) GetConcurrency(_ context.Context) (int, error) {
 	return s.orch.Concurrency(), nil
+}
+
+// AgentSettings is the user-controlled prompt + language overrides
+// the planner / runner / reviewer fold into every Copilot session.
+// Each field is empty when the user has not customised it; consumers
+// treat empty as "use the built-in default only".
+type AgentSettings struct {
+	PlanPrompt     string
+	CodePrompt     string
+	ReviewPrompt   string
+	OutputLanguage string
+}
+
+const (
+	settingsKeyPlanPrompt     = "agent.prompt.plan"
+	settingsKeyCodePrompt     = "agent.prompt.code"
+	settingsKeyReviewPrompt   = "agent.prompt.review"
+	settingsKeyOutputLanguage = "agent.output_language"
+)
+
+// GetDefaultAgentPrompts returns the sidecar's built-in stage prompts.
+// Surfaced to the UI so the Settings page can pre-populate each text
+// box with the default value — the user edits from there, and saves
+// persist the result as an override.
+func (s *Service) GetDefaultAgentPrompts(_ context.Context) AgentSettings {
+	return AgentSettings{
+		PlanPrompt:   copilot.DefaultPlanPrompt,
+		CodePrompt:   copilot.DefaultCodePrompt,
+		ReviewPrompt: copilot.DefaultReviewPrompt,
+	}
+}
+
+// GetAgentSettings reads the persisted prompt overrides + output
+// language. Missing keys default to empty string so callers don't
+// have to distinguish "unset" from "empty".
+func (s *Service) GetAgentSettings(ctx context.Context) (AgentSettings, error) {
+	settings := store.NewSettingsStore(s.db)
+	out := AgentSettings{}
+	for _, kv := range []struct {
+		key string
+		dst *string
+	}{
+		{settingsKeyPlanPrompt, &out.PlanPrompt},
+		{settingsKeyCodePrompt, &out.CodePrompt},
+		{settingsKeyReviewPrompt, &out.ReviewPrompt},
+		{settingsKeyOutputLanguage, &out.OutputLanguage},
+	} {
+		var v string
+		if _, err := settings.GetJSON(ctx, kv.key, &v); err != nil {
+			return AgentSettings{}, err
+		}
+		*kv.dst = v
+	}
+	return out, nil
+}
+
+// SetAgentSettings upserts each field. Returns the post-write
+// snapshot so the UI can immediately reflect any server-side
+// normalisation.
+func (s *Service) SetAgentSettings(ctx context.Context, in AgentSettings) (AgentSettings, error) {
+	settings := store.NewSettingsStore(s.db)
+	for _, kv := range []struct {
+		key   string
+		value string
+	}{
+		{settingsKeyPlanPrompt, strings.TrimRight(in.PlanPrompt, "\r\n\t ")},
+		{settingsKeyCodePrompt, strings.TrimRight(in.CodePrompt, "\r\n\t ")},
+		{settingsKeyReviewPrompt, strings.TrimRight(in.ReviewPrompt, "\r\n\t ")},
+		{settingsKeyOutputLanguage, strings.TrimSpace(in.OutputLanguage)},
+	} {
+		if err := settings.SetJSON(ctx, kv.key, kv.value); err != nil {
+			return AgentSettings{}, err
+		}
+	}
+	return s.GetAgentSettings(ctx)
 }
 
 // CheckGitConfig surfaces the user's global git configuration state for the
@@ -1302,6 +1407,10 @@ func (s *Service) SubmitReview(ctx context.Context, id string, action ReviewActi
 		if err := s.tasks.UpdateFields(ctx, t); err != nil {
 			return fmt.Errorf("app: persist feedback: %w", err)
 		}
+		// REWORK (Human or AI) re-plans on the next dispatch —
+		// orchestrator.dispatch always plans when a Planner is
+		// configured, with previous-round subtasks left in place as
+		// history. No subtask deletion needed here.
 	}
 
 	// Append the review event (history for the Logs tab) only once we
@@ -1371,7 +1480,15 @@ func (s *Service) appendReviewEvent(ctx context.Context, t *task.Task, action Re
 	case ReviewReject:
 		actionName = "reject"
 	}
-	payload := fmt.Sprintf(`{"action":%q,"feedback":%q}`, actionName, feedback)
+	// Round tag lets the UI attach each review.submitted to the correct
+	// Human Review node after rework cycles produce multiple rounds.
+	// Query failure is non-fatal — the event is still useful without
+	// the round tag, the UI just falls back to chronological matching.
+	round, _ := s.subtasks.MaxRound(ctx, t.ID)
+	if round < 1 {
+		round = 1
+	}
+	payload := fmt.Sprintf(`{"action":%q,"feedback":%q,"round":%d}`, actionName, feedback, round)
 	ev := &task.AgentEvent{
 		ID:      ulid.Make().String(),
 		TaskID:  t.ID,

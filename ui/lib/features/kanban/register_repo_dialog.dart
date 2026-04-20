@@ -429,7 +429,9 @@ class _RegisterRepoDialogState extends ConsumerState<_RegisterRepoDialog> {
                   child: ProgressRing(strokeWidth: 2),
                 )
               : Text(
-                  _isMultiMode ? 'Register ${_selectedPaths.length} selected' : 'Register',
+                  _isMultiMode
+                      ? 'Register ${_selectedPaths.length} selected'
+                      : 'Register',
                 ),
         ),
       ],

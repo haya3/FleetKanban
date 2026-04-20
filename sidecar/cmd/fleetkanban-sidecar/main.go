@@ -26,15 +26,18 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -46,6 +49,17 @@ import (
 	"github.com/FleetKanban/fleetkanban/internal/app"
 	"github.com/FleetKanban/fleetkanban/internal/branding"
 	"github.com/FleetKanban/fleetkanban/internal/copilot"
+	"github.com/FleetKanban/fleetkanban/internal/ctxmem"
+	ctxanalyzer "github.com/FleetKanban/fleetkanban/internal/ctxmem/analyzer"
+	ctxcodegraph "github.com/FleetKanban/fleetkanban/internal/ctxmem/codegraph"
+	ctxembed "github.com/FleetKanban/fleetkanban/internal/ctxmem/embed"
+	ctxgraph "github.com/FleetKanban/fleetkanban/internal/ctxmem/graph"
+	ctxinject "github.com/FleetKanban/fleetkanban/internal/ctxmem/inject"
+	ctxobserver "github.com/FleetKanban/fleetkanban/internal/ctxmem/observer"
+	ctxpromo "github.com/FleetKanban/fleetkanban/internal/ctxmem/promotion"
+	ctxretrieval "github.com/FleetKanban/fleetkanban/internal/ctxmem/retrieval"
+	ctxstore "github.com/FleetKanban/fleetkanban/internal/ctxmem/store"
+	ctxsvc "github.com/FleetKanban/fleetkanban/internal/ctxmem/svc"
 	"github.com/FleetKanban/fleetkanban/internal/ipc"
 	"github.com/FleetKanban/fleetkanban/internal/orchestrator"
 	"github.com/FleetKanban/fleetkanban/internal/reaper"
@@ -66,10 +80,26 @@ func main() {
 	flag.StringVar(&logLevel, "log-level", "info", "slog level: debug|info|warn|error")
 	flag.Parse()
 
-	// Log to stderr so stdout is reserved for the handshake line only.
+	// Log to stderr AND to a rolling file so planning / execution
+	// traces can be tailed after the fact without relying on the UI's
+	// in-memory ring buffer. stderr remains authoritative (stdout
+	// stays reserved for the single handshake line); the file is a
+	// passive mirror that callers can open with any text editor.
 	var lvl slog.Level
 	_ = lvl.UnmarshalText([]byte(logLevel))
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: lvl}))
+
+	var logWriter io.Writer = os.Stderr
+	if appData := os.Getenv("APPDATA"); appData != "" {
+		logDir := filepath.Join(appData, branding.DataDirName, "logs")
+		if err := os.MkdirAll(logDir, 0o755); err == nil {
+			logPath := filepath.Join(logDir, "sidecar.log")
+			if f, ferr := os.OpenFile(logPath,
+				os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644); ferr == nil {
+				logWriter = io.MultiWriter(os.Stderr, f)
+			}
+		}
+	}
+	logger := slog.New(slog.NewTextHandler(logWriter, &slog.HandlerOptions{Level: lvl}))
 	slog.SetDefault(logger)
 
 	if err := run(context.Background(), logger, port); err != nil {
@@ -150,13 +180,89 @@ func run(parent context.Context, log *slog.Logger, port int) error {
 		}
 	}
 
+	// Build the SettingsLookup that planner / runner / reviewer call at
+	// session creation to fold the user's prompt + language overrides
+	// into their system messages. Reads directly from the SettingsStore
+	// so we avoid a back-reference into app.Service (which depends on
+	// rt itself, creating a cycle if we used Service here).
+	settingsForRuntime := func(ctx context.Context) (copilot.AgentSettings, error) {
+		ss := store.NewSettingsStore(db)
+		var out copilot.AgentSettings
+		read := func(key string, dst *string) {
+			var v string
+			if _, err := ss.GetJSON(ctx, key, &v); err == nil {
+				*dst = v
+			}
+		}
+		read("agent.prompt.plan", &out.PlanPrompt)
+		read("agent.prompt.code", &out.CodePrompt)
+		read("agent.prompt.review", &out.ReviewPrompt)
+		read("agent.output_language", &out.OutputLanguage)
+		return out, nil
+	}
+
+	// --- Context / Graph Memory subsystem ---------------------------------
+	//
+	// ctxmem is wired into the Copilot runtime (for Passive prompt
+	// injection) and into the ipc server (for the ContextService /
+	// ScratchpadService / OllamaService RPCs). Failures here degrade
+	// gracefully: on an unreachable Ollama / OpenAI the registry simply
+	// has no provider for that repo, and retrieval short-circuits to
+	// an empty response.
+	ctxStores := ctxstore.New(dbAdapter{db})
+	ctxChanges := ctxmem.NewChangeBroker(0)
+	ctxRegistry := ctxembed.NewRegistry()
+	ctxGraph := ctxgraph.New(ctxStores.Nodes, ctxStores.Edges, ctxStores.Closure, db.Write())
+	ctxSearcher := ctxretrieval.New(ctxStores.Nodes, ctxStores.Vectors, ctxStores.FTS, ctxGraph, ctxRegistry)
+	ctxBuilder := ctxinject.New(ctxStores.Settings, ctxStores.Nodes, ctxStores.Facts, ctxSearcher)
+	ctxGate := ctxpromo.New(ctxStores.Scratchpad, ctxStores.Nodes, ctxStores.Settings)
+	ctxOllama := ctxembed.NewOllamaAdmin("")
+
+	// Analyzer wiring — one-shot Copilot session over the registered
+	// repository's root, parsed into pending scratchpad entries the
+	// user promotes manually. Built before ctxsvc.New so the facade
+	// receives it wired.
+	analyzerRunner := &copilotAnalyzerAdapter{
+		repoStore: store.NewRepositoryStore(db),
+		runtime:   nil, // populated after rt is constructed below
+	}
+	ctxAnalyzer := ctxanalyzer.New(
+		analyzerRunner,
+		ctxStores.Scratchpad,
+		ctxStores.Settings,
+		log.With("component", "ctxmem-analyzer"),
+	)
+
+	ctxCodeIndex := ctxcodegraph.New(ctxStores.Nodes, ctxStores.Edges,
+		log.With("component", "ctxmem-codegraph"))
+	ctxRepoLookup := &ctxRepoPathAdapter{repoStore: store.NewRepositoryStore(db)}
+
+	ctxService := ctxsvc.New(ctxsvc.Config{
+		Stores:    ctxStores,
+		Graph:     ctxGraph,
+		Search:    ctxSearcher,
+		Inject:    ctxBuilder,
+		Gate:      ctxGate,
+		Registry:  ctxRegistry,
+		Changes:   ctxChanges,
+		Ollama:    ctxOllama,
+		Analyzer:  ctxAnalyzer,
+		CodeIndex: ctxCodeIndex,
+		Repos:     ctxRepoLookup,
+		Logger:    log.With("component", "ctxmem"),
+	})
+
 	rt := copilot.NewRuntime(copilot.RuntimeConfig{
 		LogLevel:    "error",
 		GitHubToken: initialToken,
+		Settings:    settingsForRuntime,
+		Memory:      ctxService,
 	})
 	if err := rt.Start(parent); err != nil {
 		return fmt.Errorf("copilot runtime: %w", err)
 	}
+	// Back-fill the analyzer adapter with the started runtime.
+	analyzerRunner.runtime = rt
 	runner, err := rt.NewRunner(copilot.RunnerConfig{})
 	if err != nil {
 		rt.Stop()
@@ -167,6 +273,28 @@ func run(parent context.Context, log *slog.Logger, port int) error {
 
 	// Event broker fans orchestrator events out to WatchEvents subscribers.
 	broker := ipc.NewEventBroker(0 /* default buffer */)
+
+	// Start the ctxmem observer — listens on the event broker and
+	// writes co-access scratchpad candidates for tasks whose repo
+	// has Memory enabled. Also invokes the LLM summarizer per-task
+	// for Decision candidates. Runs for the sidecar's lifetime.
+	decisionSummarizer := &observerDecisionSummarizer{
+		runtime:  rt,
+		settings: ctxStores.Settings,
+		log:      log.With("component", "ctxmem-summarizer"),
+	}
+	ctxObserver := ctxobserver.New(
+		ctxStores.Scratchpad,
+		ctxStores.Settings,
+		broker,
+		&observerTaskLookup{store: store.NewTaskStore(db)},
+		ctxChanges,
+		decisionSummarizer,
+		ctxStores.Nodes,
+		log.With("component", "ctxmem-observer"),
+	)
+	go ctxObserver.Start(parent)
+	defer ctxObserver.Close()
 
 	// AI Reviewer uses the same Copilot runtime as the runner. When the
 	// reviewer fails to initialize (no auth, offline, model list failure),
@@ -336,9 +464,17 @@ func run(parent context.Context, log *slog.Logger, port int) error {
 	}
 
 	ipcServer, err := ipc.NewServer(ipc.ServerConfig{
-		App:          svc,
-		Broker:       broker,
-		Housekeeping: housekeepingDeps,
+		App:           svc,
+		Broker:        broker,
+		Housekeeping:  housekeepingDeps,
+		ContextMemory: ctxService,
+		// Embedding credentials come from the user's global secret
+		// store. Phase 1 leaves OpenAI / Ollama credentials outside
+		// the DPAPI secret store so a first-time user can still run
+		// with Ollama defaults; the Settings UI will wire a full
+		// credential flow in a follow-up.
+		OllamaBaseURL: "",
+		OpenAIAPIKey:  "",
 		ShutdownHook: func(ctx context.Context) error {
 			// SystemService.Shutdown → trigger graceful close. We close the
 			// channel and return immediately so the client does not block on
@@ -362,6 +498,9 @@ func run(parent context.Context, log *slog.Logger, port int) error {
 	pb.RegisterModelServiceServer(grpcServer, ipcServer)
 	pb.RegisterHousekeepingServiceServer(grpcServer, ipcServer)
 	pb.RegisterInsightsServiceServer(grpcServer, ipcServer)
+	pb.RegisterContextServiceServer(grpcServer, ipcServer)
+	pb.RegisterScratchpadServiceServer(grpcServer, ipcServer)
+	pb.RegisterOllamaServiceServer(grpcServer, ipcServer)
 
 	// Reflection lets grpcurl / Flutter devtools introspect services at runtime
 	// without shipping the .proto files. The sidecar is loopback-only so the
@@ -586,6 +725,160 @@ func buildToastContent(n orchestrator.Notification) (title, body string) {
 	default:
 		return branding.AppName, goal
 	}
+}
+
+// dbAdapter wraps *store.DB to satisfy ctxmem/store.DB. The wrapper
+// exists so the ctxmem store package does not import store (which
+// would create a sibling-package import cycle).
+type dbAdapter struct {
+	db *store.DB
+}
+
+func (a dbAdapter) Write() *sql.DB { return a.db.Write() }
+func (a dbAdapter) Read() *sql.DB  { return a.db.Read() }
+
+// ctxRepoPathAdapter implements ctxmem/svc.RepoPathLookup. Kept
+// local to main.go so the svc package stays free of the store
+// dependency (which would create a sibling-import cycle).
+type ctxRepoPathAdapter struct {
+	repoStore *store.RepositoryStore
+}
+
+func (a *ctxRepoPathAdapter) Path(ctx context.Context, repoID string) (string, error) {
+	repo, err := a.repoStore.Get(ctx, repoID)
+	if err != nil {
+		return "", err
+	}
+	return repo.Path, nil
+}
+
+// observerTaskLookup implements ctxmem/observer.TaskLookup by calling
+// TaskStore.Get to resolve a task id to its repo id. Declared here so
+// the observer package does not import store (which avoids a cycle
+// through app once app depends on observer in a later phase).
+type observerTaskLookup struct {
+	store *store.TaskStore
+}
+
+func (l *observerTaskLookup) RepoIDForTask(ctx context.Context, taskID string) (string, error) {
+	t, err := l.store.Get(ctx, taskID)
+	if err != nil {
+		return "", err
+	}
+	return t.RepoID, nil
+}
+
+func (l *observerTaskLookup) TaskInfo(ctx context.Context, taskID string) (ctxobserver.TaskInfo, error) {
+	t, err := l.store.Get(ctx, taskID)
+	if err != nil {
+		return ctxobserver.TaskInfo{}, err
+	}
+	return ctxobserver.TaskInfo{
+		RepoID:       t.RepoID,
+		Goal:         t.Goal,
+		WorktreePath: t.WorktreePath,
+	}, nil
+}
+
+// observerDecisionSummarizer wraps the Copilot runtime to satisfy
+// ctxmem/observer.TaskSummarizer. Gated on Memory being enabled
+// for the repo — the adapter checks ctx_memory_settings.enabled
+// before invoking the LLM, so a Memory-off repo pays no cost.
+type observerDecisionSummarizer struct {
+	runtime  *copilot.Runtime
+	settings *ctxstore.SettingsStore
+	log      *slog.Logger
+}
+
+func (s *observerDecisionSummarizer) Summarize(ctx context.Context, repoID, worktreePath, goal string, files []string) (string, error) {
+	if s.runtime == nil {
+		return "", fmt.Errorf("decision summarizer: runtime not started")
+	}
+	set, err := s.settings.Get(ctx, repoID)
+	if err != nil {
+		return "", err
+	}
+	if !set.Enabled {
+		return "", nil
+	}
+	if worktreePath == "" || goal == "" {
+		return "", nil
+	}
+	model := set.LLMModel
+	if model == "gpt-4o-mini" {
+		model = ""
+	}
+	analyzer, err := s.runtime.NewAnalyzer(ctx, model)
+	if err != nil {
+		return "", err
+	}
+	return analyzer.SummarizeTask(ctx, worktreePath, model, goal, files)
+}
+
+// copilotAnalyzerAdapter implements ctxmem/analyzer.SessionRunner by
+// resolving a repo id to its on-disk path and dispatching to the
+// Copilot runtime's Analyzer. The runtime field is populated after
+// rt.Start so the adapter can be constructed before rt is ready.
+type copilotAnalyzerAdapter struct {
+	repoStore *store.RepositoryStore
+	runtime   *copilot.Runtime
+}
+
+// RepoPath satisfies ctxmem/analyzer.SessionRunner — returns the
+// absolute repository path resolved from the store.
+func (a *copilotAnalyzerAdapter) RepoPath(ctx context.Context, repoID string) (string, error) {
+	repo, err := a.repoStore.Get(ctx, repoID)
+	if err != nil {
+		return "", err
+	}
+	return repo.Path, nil
+}
+
+// RunOneShot satisfies ctxmem/analyzer.SessionRunner.
+func (a *copilotAnalyzerAdapter) RunOneShot(ctx context.Context, repoID, model, prompt string, progress func(string)) (string, error) {
+	if a.runtime == nil {
+		return "", fmt.Errorf("copilot analyzer adapter: runtime not started yet")
+	}
+	repo, err := a.repoStore.Get(ctx, repoID)
+	if err != nil {
+		return "", fmt.Errorf("copilot analyzer adapter: lookup repo: %w", err)
+	}
+	// Legacy default: v13 migration shipped ctx_memory_settings.llm_model
+	// defaulting to "gpt-4o-mini" but Copilot's catalog does not include
+	// that id on most plans. Treat it as empty so the adapter falls
+	// through to auto-resolve.
+	if model == "gpt-4o-mini" {
+		model = ""
+	}
+	analyzer, err := a.runtime.NewAnalyzer(ctx, model)
+	if err != nil {
+		return "", err
+	}
+	out, err := analyzer.Analyze(ctx, repo.Path, model, prompt, progress)
+	if err != nil && isModelUnavailable(err) && model != "" {
+		// User-configured model not available. Retry once with
+		// auto-resolve (first Copilot-advertised model) so the
+		// user sees a successful run instead of a hard failure.
+		fallbackAnalyzer, ferr := a.runtime.NewAnalyzer(ctx, "")
+		if ferr != nil {
+			return "", err
+		}
+		return fallbackAnalyzer.Analyze(ctx, repo.Path, "", prompt, progress)
+	}
+	return out, err
+}
+
+// isModelUnavailable recognises the Copilot SDK's "Model not available"
+// error so the adapter can retry with auto-resolve instead of failing
+// the whole analyzer session.
+func isModelUnavailable(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "is not available") ||
+		strings.Contains(msg, "not available") ||
+		strings.Contains(msg, "unknown model")
 }
 
 func truncateRune(s string, n int) string {

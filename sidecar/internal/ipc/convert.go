@@ -76,6 +76,8 @@ func subtaskToPB(s *task.Subtask) *pb.Subtask {
 		AgentRole: s.AgentRole,
 		DependsOn: s.DependsOn,
 		CodeModel: s.CodeModel,
+		Round:     int32(s.Round),
+		Prompt:    s.Prompt,
 	}
 }
 

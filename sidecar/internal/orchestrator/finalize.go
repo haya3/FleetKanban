@@ -80,6 +80,20 @@ func (o *Orchestrator) Finalize(ctx context.Context, taskID string, action Final
 		return fmt.Errorf("orchestrator: repo lookup: %w", err)
 	}
 
+	// Auto-commit any pending changes on the task branch before we tear
+	// down the worktree. Required for Keep (so DiffBranch can show the
+	// agent's edits afterwards) and for Merge (so there's something
+	// substantive to advance base to). Skipped for Discard since the
+	// branch is going away anyway. Failures fall through to a warning —
+	// finalization should not be blocked by an auto-commit issue when
+	// the user has explicitly chosen Keep / Merge.
+	if action == FinalizeKeep || action == FinalizeMerge {
+		if _, ccErr := o.cfg.Worktrees.CommitPending(ctx, t.WorktreePath,
+			fmt.Sprintf("FleetKanban: finalize %s", t.ID)); ccErr != nil {
+			o.log.Warn("orchestrator: finalize auto-commit", "task", taskID, "err", ccErr)
+		}
+	}
+
 	var wtMode worktree.RemoveMode
 	var nextStatus task.Status
 	var finalization task.FinalizationKind

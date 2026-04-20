@@ -159,6 +159,23 @@ func (s *fakeEventStore) AppendAutoSeq(_ context.Context, e *task.AgentEvent) er
 	return nil
 }
 
+func (s *fakeEventStore) ListByTask(_ context.Context, id string, sinceSeq int64, limit int) ([]*task.AgentEvent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]*task.AgentEvent, 0, len(s.events[id]))
+	for _, e := range s.events[id] {
+		if e.Seq <= sinceSeq {
+			continue
+		}
+		cp := *e
+		out = append(out, &cp)
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
 func (s *fakeEventStore) forTask(id string) []*task.AgentEvent {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -222,14 +239,21 @@ func (w *fakeWorktrees) DeleteBranch(_ context.Context, _, _ string) error {
 	return nil
 }
 
-type runnerFn func(ctx context.Context, t *task.Task, out chan<- *task.AgentEvent) error
-
-func (f runnerFn) Run(ctx context.Context, t *task.Task, out chan<- *task.AgentEvent) (string, error) {
-	return "", f(ctx, t, out)
+func (w *fakeWorktrees) CommitPending(_ context.Context, _, _ string) (bool, error) {
+	// Finalize Keep / Merge auto-commits pending agent edits before tearing
+	// the worktree down. Tests that don't write to a real worktree have
+	// nothing to commit, so the fake unconditionally reports a no-op.
+	return false, nil
 }
 
-func (f runnerFn) RunSubtask(ctx context.Context, t *task.Task, _ *task.Subtask, out chan<- *task.AgentEvent) (string, error) {
-	return "", f(ctx, t, out)
+type runnerFn func(ctx context.Context, t *task.Task, out chan<- *task.AgentEvent) error
+
+func (f runnerFn) Run(ctx context.Context, t *task.Task, out chan<- *task.AgentEvent) (string, task.SessionUsage, error) {
+	return "", task.SessionUsage{}, f(ctx, t, out)
+}
+
+func (f runnerFn) RunSubtask(ctx context.Context, t *task.Task, _ *task.Subtask, _ task.SubtaskRunContext, out chan<- *task.AgentEvent) (string, task.SessionUsage, error) {
+	return "", task.SessionUsage{}, f(ctx, t, out)
 }
 
 // subtaskRunnerFn splits Run and RunSubtask so tests can assert per-subtask
@@ -240,12 +264,12 @@ type subtaskRunnerFn struct {
 	subFn func(ctx context.Context, t *task.Task, sub *task.Subtask, out chan<- *task.AgentEvent) error
 }
 
-func (f subtaskRunnerFn) Run(ctx context.Context, t *task.Task, out chan<- *task.AgentEvent) (string, error) {
-	return "", f.runFn(ctx, t, out)
+func (f subtaskRunnerFn) Run(ctx context.Context, t *task.Task, out chan<- *task.AgentEvent) (string, task.SessionUsage, error) {
+	return "", task.SessionUsage{}, f.runFn(ctx, t, out)
 }
 
-func (f subtaskRunnerFn) RunSubtask(ctx context.Context, t *task.Task, sub *task.Subtask, out chan<- *task.AgentEvent) (string, error) {
-	return "", f.subFn(ctx, t, sub, out)
+func (f subtaskRunnerFn) RunSubtask(ctx context.Context, t *task.Task, sub *task.Subtask, _ task.SubtaskRunContext, out chan<- *task.AgentEvent) (string, task.SessionUsage, error) {
+	return "", task.SessionUsage{}, f.subFn(ctx, t, sub, out)
 }
 
 // fakeSubtaskStore is the orchestrator-side slice of SubtaskRepo. Holds
@@ -273,19 +297,26 @@ func (s *fakeSubtaskStore) seed(subs ...*task.Subtask) {
 	}
 }
 
-func (s *fakeSubtaskStore) CreatePlan(_ context.Context, parentID string, subs []*task.Subtask) error {
+func (s *fakeSubtaskStore) CreatePlan(_ context.Context, parentID string, subs []*task.Subtask) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// Find current max round so the new plan picks max+1; matches the
+	// real store's iteration-history semantics. Unlike the real store,
+	// previous rounds stay in the map for tests that want to assert
+	// the full history.
+	maxRound := 0
 	for _, id := range s.byTask[parentID] {
-		delete(s.byID, id)
+		if existing, ok := s.byID[id]; ok && existing.Round > maxRound {
+			maxRound = existing.Round
+		}
 	}
-	s.byTask[parentID] = nil
+	round := maxRound + 1
 	for _, sub := range subs {
-		cp := *sub
-		s.byID[sub.ID] = &cp
+		sub.Round = round
+		s.byID[sub.ID] = sub
 		s.byTask[parentID] = append(s.byTask[parentID], sub.ID)
 	}
-	return nil
+	return round, nil
 }
 
 func (s *fakeSubtaskStore) ListByTask(_ context.Context, parentID string) ([]*task.Subtask, error) {
@@ -298,6 +329,50 @@ func (s *fakeSubtaskStore) ListByTask(_ context.Context, parentID string) ([]*ta
 		out = append(out, &cp)
 	}
 	return out, nil
+}
+
+// ListLatestRound mirrors the real store: returns subtasks belonging
+// to the maximum round only. Empty when the parent has no subtasks.
+func (s *fakeSubtaskStore) ListLatestRound(_ context.Context, parentID string) ([]*task.Subtask, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ids := s.byTask[parentID]
+	maxRound := 0
+	for _, id := range ids {
+		if sub, ok := s.byID[id]; ok && sub.Round > maxRound {
+			maxRound = sub.Round
+		}
+	}
+	out := make([]*task.Subtask, 0, len(ids))
+	for _, id := range ids {
+		sub, ok := s.byID[id]
+		if !ok {
+			continue
+		}
+		// Round 0 (legacy seed) treated as round 1 for backward
+		// compatibility with tests that don't set Round explicitly.
+		effective := sub.Round
+		if effective == 0 {
+			effective = 1
+		}
+		if effective != maxRound && !(maxRound == 0 && effective == 1) {
+			continue
+		}
+		cp := *sub
+		out = append(out, &cp)
+	}
+	return out, nil
+}
+
+func (s *fakeSubtaskStore) DeleteByTask(_ context.Context, parentID string) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ids := s.byTask[parentID]
+	for _, id := range ids {
+		delete(s.byID, id)
+	}
+	delete(s.byTask, parentID)
+	return int64(len(ids)), nil
 }
 
 func (s *fakeSubtaskStore) Update(_ context.Context, sub *task.Subtask) error {
@@ -329,11 +404,12 @@ type alwaysReworkReviewer struct {
 	calls int
 }
 
-func (r *alwaysReworkReviewer) Review(_ context.Context, _ *task.Task, _, _ string, _ int) (ReviewDecision, string, error) {
+func (r *alwaysReworkReviewer) Review(_ context.Context, _ *task.Task, _, _ string, _ int, out chan<- *task.AgentEvent) (ReviewDecision, string, task.SessionUsage, error) {
+	defer close(out)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.calls++
-	return ReviewDecision{Approve: false, Feedback: "same rework feedback from reviewer"}, "test-model", nil
+	return ReviewDecision{Approve: false, Feedback: "same rework feedback from reviewer"}, "test-model", task.SessionUsage{}, nil
 }
 
 func (r *alwaysReworkReviewer) callCount() int {

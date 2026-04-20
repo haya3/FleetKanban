@@ -41,11 +41,57 @@ const (
 	// rework iterations even though Task.ReviewFeedback only holds the latest.
 	EventReviewSubmitted EventKind = "review.submitted"
 
+	// AI Reviewer lifecycle. Payload is JSON {"round": <int>, "model":
+	// "<id>"}. The orchestrator emits this before invoking the Reviewer
+	// so the UI can bracket all reviewer-session events (reasoning,
+	// assistant deltas, tool calls) as "belonging to the Review phase
+	// of round N". Without the bracket, reviewer events look
+	// indistinguishable from runner events and the Review tab in the
+	// stage detail dialog can't show the reviewer's work in context.
+	EventAIReviewStart EventKind = "ai_review.start"
+
+	// AI Reviewer decision. Emitted by the orchestrator's ai_review goroutine
+	// after the Reviewer returns. Payload JSON: {"approve": bool,
+	// "feedback": "...", "rework_count": <int>, "model": "<id>"}. Persisted
+	// (unlike session.usage's transient sibling) so the user can see past
+	// AI feedback by clicking any subtask, even on tasks that have looped
+	// through several rework cycles. Task.ReviewFeedback only holds the
+	// latest verdict; this event keeps the full history. Also functions
+	// as the Review phase's "end" bracket — paired with ai_review.start.
+	EventAIReviewDecision EventKind = "ai_review.decision"
+
 	// Housekeeping (emitted by the reaper's background passes). Payload is
 	// a JSON-encoded object describing what was acted on and why — see
 	// phase1-spec §3.1 "Branch retention policy / GC". Used by the Settings >
 	// Housekeeping UI to show an audit trail of sweep activity.
 	EventHousekeepingBranchGC EventKind = "housekeeping.branch_gc"
+
+	// Per-session usage totals. Payload is a JSON-encoded object:
+	//   {"stage":"plan|code|review","subtask_id":"<ulid|empty>",
+	//    "model":"<id>","premium_requests":<float>,
+	//    "input_tokens":<int>,"output_tokens":<int>,
+	//    "cache_read_tokens":<int>,"duration_ms":<int>,"calls":<int>}
+	// Emitted exactly once per session (planner / runner / reviewer)
+	// after the session reaches idle, so the UI has a final aggregate
+	// instead of having to fold every assistant.usage event itself.
+	EventSessionUsage EventKind = "session.usage"
+
+	// Planner investigation summary. Payload is a plain-text 1-5 sentence
+	// human-readable explanation of what the planner looked at and why it
+	// chose this decomposition. Persisted as an event (not as a column on
+	// tasks) so reworks can preserve the history of every planning pass
+	// without overwriting the previous summary.
+	EventPlanSummary EventKind = "plan.summary"
+
+	// File-system change observed inside a task's worktree. Payload is a
+	// JSON-encoded {"paths":["rel/path", ...]} list of worktree-relative
+	// paths the watcher saw mutate within the debounce window.
+	//
+	// Transient signal — published to the EventBroker for live UI
+	// invalidation but NOT persisted in the events table (the watcher
+	// emits these without going through AppendAutoSeq), so they have no
+	// Seq and are not visible to TaskEvents backfill.
+	EventFileChanged EventKind = "file.changed"
 )
 
 // Valid reports whether kind is a known EventKind.
@@ -57,7 +103,12 @@ func (k EventKind) Valid() bool {
 		EventSubtaskStart, EventSubtaskEnd,
 		EventError, EventSecurityPathEscape,
 		EventReviewSubmitted,
-		EventHousekeepingBranchGC:
+		EventAIReviewStart,
+		EventAIReviewDecision,
+		EventHousekeepingBranchGC,
+		EventPlanSummary,
+		EventSessionUsage,
+		EventFileChanged:
 		return true
 	}
 	return false

@@ -322,18 +322,14 @@ func (o *Orchestrator) dispatch(ctx context.Context, taskID string) {
 		return
 	}
 
-	// Re-planning is skipped when the task already carries a plan — reworks
-	// (human_review → queued → in_progress) must reuse the graph the user
-	// approved instead of regenerating it from scratch.
+	// Always re-plan when a Planner is configured. With iteration
+	// history (subtasks.round), every queued→in_progress transition
+	// represents either a fresh task, a user Re-run, or a REWORK
+	// cycle — all three want a new round of subtasks. The previous
+	// "skip plan if subtasks exist" optimisation was tied to the now-
+	// retired keep-plan rework semantics. Earlier rounds remain in
+	// the DB as history and are surfaced by the UI.
 	planNeeded := o.cfg.Planner != nil
-	if planNeeded && o.cfg.SubtaskStore != nil {
-		existing, err := o.cfg.SubtaskStore.ListByTask(ctx, taskID)
-		if err != nil {
-			log.Warn("orchestrator: subtask lookup failed, proceeding with re-plan", "err", err)
-		} else if len(existing) > 0 {
-			planNeeded = false
-		}
-	}
 
 	// First status transition depends on the branch below. Everything past
 	// this point reads t.Status to know whether the dispatcher is in the
@@ -375,6 +371,17 @@ func (o *Orchestrator) dispatch(ctx context.Context, taskID string) {
 	if err := o.cfg.TaskStore.UpdateFields(ctx, t); err != nil {
 		log.Warn("orchestrator: persist worktree path failed", "err", err)
 	}
+
+	// File-system watcher: publishes EventFileChanged on the EventBroker
+	// so the Files tab in task detail can refresh its diff in real time
+	// while the agent works. Started after ensureWorktree so the directory
+	// is guaranteed to exist; stopped on dispatch return so the runner's
+	// post-completion housekeeping doesn't keep firing UI invalidations.
+	watcher, werr := startWorktreeWatcher(t.ID, t.WorktreePath, o.cfg.Sink, log, &o.eventIDs)
+	if werr != nil {
+		log.Warn("orchestrator: file watcher start failed", "err", werr)
+	}
+	defer watcher.Stop()
 
 	// Planning phase: read-only Copilot session that emits the subtask DAG.
 	// Only runs when planNeeded; reworks and Planner=nil skip straight to
@@ -431,7 +438,25 @@ func (o *Orchestrator) runPlanningPhase(ctx context.Context, t *task.Task, log *
 	planCtx, cancel := context.WithTimeout(ctx, o.cfg.PlanningTimeout)
 	defer cancel()
 
-	subs, planModel, err := o.cfg.Planner.Plan(planCtx, t)
+	// Stream the planner's assistant.delta / tool events through the
+	// consumer so the UI can live-render what the planner is "thinking"
+	// while it investigates and decomposes. The planner closes eventCh
+	// before returning; we wait for the consumer to drain after.
+	eventCh := make(chan *task.AgentEvent, o.cfg.EventChannelBuffer)
+	consumerDone := make(chan struct{})
+	go func() {
+		defer close(consumerDone)
+		if err := o.consumeEvents(ctx, t, eventCh); err != nil {
+			log.Warn("orchestrator: planning event consumer", "err", err)
+		}
+	}()
+
+	subs, planModel, planSummary, planUsage, err := o.cfg.Planner.Plan(planCtx, t, eventCh)
+	<-consumerDone
+	// Even on error we forward whatever usage was recorded — the planner
+	// may have spent budget before failing, and the user deserves to see
+	// that consumption.
+	o.emitUsageEvent(ctx, t, "plan", "", planUsage)
 	if err != nil {
 		o.mu.Lock()
 		abort := false
@@ -463,11 +488,25 @@ func (o *Orchestrator) runPlanningPhase(ctx context.Context, t *task.Task, log *
 		}
 	}
 
-	if err := o.cfg.SubtaskStore.CreatePlan(ctx, t.ID, subs); err != nil {
+	round, err := o.cfg.SubtaskStore.CreatePlan(ctx, t.ID, subs)
+	if err != nil {
 		log.Error("orchestrator: persist plan failed", "err", err)
 		o.failTask(ctx, t.ID, task.StatusPlanning, task.ErrCodeRuntime,
 			fmt.Sprintf("planner persist: %v", err))
 		return false
+	}
+
+	// Surface the planner's investigation summary to the UI as an
+	// AgentEvent. The payload is a JSON envelope carrying the round
+	// number alongside the text so the UI can show the correct summary
+	// on each Plan node after rework cycles produce multiple rounds —
+	// previously the plain-text payload meant every Plan node surfaced
+	// the latest summary, which looked identical after a Re-Run.
+	if planSummary != "" {
+		o.appendAuxEvent(ctx, t, &task.AgentEvent{
+			Kind:    task.EventPlanSummary,
+			Payload: mustJSONStr(map[string]any{"round": round, "text": planSummary}),
+		})
 	}
 
 	if err := o.cfg.TaskStore.Transition(ctx, t.ID,
@@ -513,13 +552,14 @@ func (o *Orchestrator) runAgent(ctx context.Context, t *task.Task, log *slog.Log
 	return o.runSubtaskLoop(ctx, t, subs, log)
 }
 
-// listSubtasks returns the task's plan in execution order, or an empty
-// slice when no plan exists / no SubtaskStore is configured.
+// listSubtasks returns the latest round's subtasks in execution order,
+// or an empty slice when no plan exists / no SubtaskStore is configured.
+// Earlier rounds remain in the DB for UI history but are not re-run.
 func (o *Orchestrator) listSubtasks(ctx context.Context, taskID string) ([]*task.Subtask, error) {
 	if o.cfg.SubtaskStore == nil {
 		return nil, nil
 	}
-	return o.cfg.SubtaskStore.ListByTask(ctx, taskID)
+	return o.cfg.SubtaskStore.ListLatestRound(ctx, taskID)
 }
 
 // runSingleSession is the pre-Phase-3 path: one Copilot session covers the
@@ -536,8 +576,9 @@ func (o *Orchestrator) runSingleSession(ctx context.Context, t *task.Task, log *
 		}
 	}()
 
-	codeModel, runErr := o.cfg.Runner.Run(ctx, t, eventCh)
+	codeModel, codeUsage, runErr := o.cfg.Runner.Run(ctx, t, eventCh)
 	<-consumerDone
+	o.emitUsageEvent(ctx, t, "code", "", codeUsage)
 
 	// Record the actual Code-stage model when the runner resolved a
 	// fallback default. We only overwrite when Task.Model is empty so
@@ -573,6 +614,15 @@ func (o *Orchestrator) runSubtaskLoop(ctx context.Context, t *task.Task, subs []
 	// the store so in-memory changes line up with what Update writes back.
 	failed := make(map[string]bool, len(subs))
 
+	// Fetch the latest plan.summary for this task once, so each Coder
+	// session gets the Planner's investigation context as part of its
+	// prompt — without this, every subtask re-explores the repo.
+	planSummary := o.fetchPlanSummary(ctx, t.ID)
+	// priorSummaries accumulates one entry per completed subtask so
+	// the next subtask's prompt carries "what the siblings already
+	// produced" — cuts down re-exploration and duplicate work.
+	priorSummaries := make([]task.PriorSubtaskSummary, 0, len(subs))
+
 	// Rework entry (ai_review → queued → in_progress) re-uses the plan the
 	// user already approved, but the per-subtask statuses from the previous
 	// run are now stale: done rows would be silently re-executed, and a
@@ -589,7 +639,7 @@ func (o *Orchestrator) runSubtaskLoop(ctx context.Context, t *task.Task, subs []
 		}
 	}
 
-	for _, sub := range subs {
+	for i, sub := range subs {
 		// Cascade-skip subtasks whose upstreams already failed. This keeps
 		// the DB state readable after a mid-loop abort: directly-impacted
 		// nodes are marked failed with a dependency reason, the rest stay
@@ -619,8 +669,14 @@ func (o *Orchestrator) runSubtaskLoop(ctx context.Context, t *task.Task, subs []
 			}
 		}()
 
-		codeModel, runErr := o.cfg.Runner.RunSubtask(ctx, t, sub, eventCh)
+		subCtx := task.SubtaskRunContext{
+			PlanSummary:    planSummary,
+			PriorSummaries: append([]task.PriorSubtaskSummary(nil), priorSummaries...),
+			IsFinalSubtask: i == len(subs)-1,
+		}
+		codeModel, codeUsage, runErr := o.cfg.Runner.RunSubtask(ctx, t, sub, subCtx, eventCh)
 		<-consumerDone
+		o.emitUsageEvent(ctx, t, "code", sub.ID, codeUsage)
 
 		// Record the Code-stage model the runner actually used on the
 		// subtask so the UI can show a per-subtask badge. Populated even
@@ -642,6 +698,32 @@ func (o *Orchestrator) runSubtaskLoop(ctx context.Context, t *task.Task, subs []
 				abort = rs.abortByUser
 			}
 			o.mu.Unlock()
+			// Cascade-cancel the rest of this round so the DAG does not
+			// leave stale "pending" subtasks sitting there after a user
+			// Cancel. Without this cleanup the UI shows a half-run
+			// round whose pending cards look identical to an active run
+			// — which on top of a re-enqueued next round makes it look
+			// like round 1 and round 2 are executing simultaneously.
+			reason := runErr.Error()
+			if abort {
+				reason = "cancelled by user"
+			}
+			// Use a fresh context so the cleanup still persists even
+			// when the outer ctx is already done (common on Cancel).
+			bgCtx, bgCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			for _, rest := range subs[i+1:] {
+				if rest.Status == task.SubtaskDone ||
+					rest.Status == task.SubtaskFailed {
+					continue
+				}
+				rest.Status = task.SubtaskFailed
+				if err := o.cfg.SubtaskStore.Update(bgCtx, rest); err != nil {
+					log.Warn("orchestrator: mark remaining subtask cancelled",
+						"id", rest.ID, "err", err)
+				}
+				o.emitSubtaskEnd(bgCtx, t, rest, false, reason)
+			}
+			bgCancel()
 			return runOutcome{runErr: runErr, abortByUser: abort}
 		}
 
@@ -650,6 +732,17 @@ func (o *Orchestrator) runSubtaskLoop(ctx context.Context, t *task.Task, subs []
 			log.Warn("orchestrator: mark subtask done", "id", sub.ID, "err", err)
 		}
 		o.emitSubtaskEnd(ctx, t, sub, true, "")
+		// Add this subtask's outcome to priorSummaries so the next
+		// subtask's prompt lists it. We don't have the agent's final
+		// paragraph in hand here (it streamed through eventCh and
+		// landed in the events table), so the summary stays empty
+		// for now; title + role alone is already enough context to
+		// prevent redundant re-exploration.
+		priorSummaries = append(priorSummaries, task.PriorSubtaskSummary{
+			Title:   sub.Title,
+			Role:    sub.AgentRole,
+			Summary: "",
+		})
 	}
 
 	o.mu.Lock()
@@ -659,6 +752,44 @@ func (o *Orchestrator) runSubtaskLoop(ctx context.Context, t *task.Task, subs []
 	}
 	o.mu.Unlock()
 	return runOutcome{runErr: nil, abortByUser: abort}
+}
+
+// fetchPlanSummary returns the latest plan.summary text for taskID,
+// or empty string when the task has no plan.summary event yet (first
+// run before Planner emits one, or task from before the plan-summary
+// feature existed). Best-effort — a DB glitch just means the Coder
+// doesn't get the context boost, not that execution fails.
+//
+// Post-2026-04 the payload is JSON `{"round":N,"text":"..."}`; legacy
+// rows carry the raw text, which we preserve via a decode-with-fallback.
+func (o *Orchestrator) fetchPlanSummary(ctx context.Context, taskID string) string {
+	events, err := o.cfg.EventStore.ListByTask(ctx, taskID, 0, 0)
+	if err != nil {
+		return ""
+	}
+	latest := ""
+	for _, e := range events {
+		if e.Kind == task.EventPlanSummary {
+			latest = decodePlanSummaryText(e.Payload)
+		}
+	}
+	return latest
+}
+
+// decodePlanSummaryText extracts the human-readable text from a
+// plan.summary event payload. Handles both the current JSON
+// `{"round":N,"text":"..."}` shape and the legacy raw-string shape.
+func decodePlanSummaryText(payload string) string {
+	if payload == "" {
+		return ""
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(payload), &m); err == nil {
+		if s, ok := m["text"].(string); ok {
+			return s
+		}
+	}
+	return payload
 }
 
 func hasFailedDep(sub *task.Subtask, failed map[string]bool) bool {
@@ -695,6 +826,34 @@ func (o *Orchestrator) emitSubtaskEnd(ctx context.Context, t *task.Task, sub *ta
 		Payload: mustJSONStr(payload),
 	}
 	o.appendAuxEvent(ctx, t, ev)
+}
+
+// emitUsageEvent persists a session.usage event with the per-stage
+// totals collected from one Copilot session. Skipped when usage is
+// zero-valued (the session never reached an LLM call) so the event
+// stream isn't cluttered with empty rows. SubtaskID is empty for
+// plan / review stages.
+func (o *Orchestrator) emitUsageEvent(ctx context.Context, t *task.Task, stage, subtaskID string, u task.SessionUsage) {
+	if u.IsZero() {
+		return
+	}
+	payload := map[string]any{
+		"stage":             stage,
+		"model":             u.Model,
+		"premium_requests":  u.PremiumRequests,
+		"input_tokens":      u.InputTokens,
+		"output_tokens":     u.OutputTokens,
+		"cache_read_tokens": u.CacheReadTokens,
+		"duration_ms":       u.DurationMs,
+		"calls":             u.Calls,
+	}
+	if subtaskID != "" {
+		payload["subtask_id"] = subtaskID
+	}
+	o.appendAuxEvent(ctx, t, &task.AgentEvent{
+		Kind:    task.EventSessionUsage,
+		Payload: mustJSONStr(payload),
+	})
 }
 
 // appendAuxEvent persists an orchestrator-emitted event (subtask lifecycle,
@@ -905,12 +1064,48 @@ func (o *Orchestrator) runAIReview(taskID string, log *slog.Logger) {
 		return // leave in ai_review; user can advance manually
 	}
 
+	// Bracket the reviewer session so the UI can show the reviewer's
+	// reasoning / tool calls in the Review stage detail as a proper
+	// log — events between ai_review.start and ai_review.decision
+	// belong to the Review phase of this round. Round is derived from
+	// the latest subtask round so it always matches the DAG node the
+	// user clicks.
+	reviewRound := 1
+	if o.cfg.SubtaskStore != nil {
+		if subs, lErr := o.cfg.SubtaskStore.ListLatestRound(ctx, t.ID); lErr == nil && len(subs) > 0 {
+			if subs[0].Round > 0 {
+				reviewRound = subs[0].Round
+			}
+		}
+	}
+	o.appendAuxEvent(ctx, t, &task.AgentEvent{
+		Kind: task.EventAIReviewStart,
+		Payload: mustJSONStr(map[string]any{
+			"round": reviewRound,
+			"model": t.ReviewModel,
+		}),
+	})
+
+	// Stream reviewer events through a dedicated consumer so they land
+	// in the events table alongside planner / runner events. Without
+	// this, the Review stage detail dialog has nothing to show.
+	eventCh := make(chan *task.AgentEvent, o.cfg.EventChannelBuffer)
+	consumerDone := make(chan struct{})
+	go func() {
+		defer close(consumerDone)
+		if err := o.consumeEvents(ctx, t, eventCh); err != nil {
+			log.Warn("orchestrator: reviewer event consumer", "err", err)
+		}
+	}()
+
 	// Pass the task's current ReviewFeedback (set by the previous rework
 	// cycle, empty on first review) as prevFeedback. The reviewer uses it
 	// to self-check whether its last complaint is already addressed, which
 	// breaks the "reviewer keeps flagging items the agent already did"
 	// loop.
-	decision, reviewModel, err := o.cfg.Reviewer.Review(ctx, t, diff, t.ReviewFeedback, t.ReworkCount)
+	decision, reviewModel, reviewUsage, err := o.cfg.Reviewer.Review(ctx, t, diff, t.ReviewFeedback, t.ReworkCount, eventCh)
+	<-consumerDone
+	o.emitUsageEvent(ctx, t, "review", "", reviewUsage)
 	if err != nil {
 		// A user-initiated Cancel flows through as a ctx cancel here.
 		// Distinguish it from a real reviewer error: on cancel, advance
@@ -947,6 +1142,9 @@ func (o *Orchestrator) runAIReview(taskID string, log *slog.Logger) {
 	}
 
 	if decision.Approve {
+		// Emit before transitioning so the event seq lands ahead of
+		// the status event for cleaner UI ordering.
+		o.emitAIReviewDecision(ctx, t, decision, t.ReworkCount, reviewModel)
 		if err := o.cfg.TaskStore.Transition(ctx, taskID,
 			task.StatusAIReview, task.StatusHumanReview, "", "", task.FinalizationNone); err != nil {
 			log.Warn("orchestrator: ai_review→human_review failed", "err", err)
@@ -996,6 +1194,17 @@ func (o *Orchestrator) runAIReview(taskID string, log *slog.Logger) {
 		log.Warn("orchestrator: ai_review feedback persist failed", "err", err)
 		return
 	}
+
+	// Persist the AI Reviewer's verdict as an event so the UI can show
+	// past feedback when the user clicks a subtask, even after several
+	// rework cycles. Task.ReviewFeedback only retains the latest verdict.
+	o.emitAIReviewDecision(ctx, t, decision, t.ReworkCount, reviewModel)
+
+	// AI rework re-plans on the next dispatch (planNeeded is now
+	// always true when a Planner is configured). The previous round's
+	// subtasks stay in the DB for UI history; CreatePlan inserts a new
+	// round at max+1 so the rework is visually distinct.
+
 	if err := o.cfg.TaskStore.Transition(ctx, taskID,
 		task.StatusAIReview, task.StatusQueued, "", "", task.FinalizationNone); err != nil {
 		log.Warn("orchestrator: ai_review→queued failed", "err", err)
@@ -1005,6 +1214,38 @@ func (o *Orchestrator) runAIReview(taskID string, log *slog.Logger) {
 	if err := o.Enqueue(taskID); err != nil && !errors.Is(err, ErrAlreadyRunning) {
 		log.Warn("orchestrator: ai_review rework enqueue failed", "err", err)
 	}
+}
+
+// emitAIReviewDecision persists an ai_review.decision event with the
+// reviewer's verdict + feedback so the UI can show past AI feedback
+// for any rework cycle. Best-effort — failures are logged and swallowed
+// because the review transition itself is already the source of truth.
+func (o *Orchestrator) emitAIReviewDecision(ctx context.Context, t *task.Task, decision ReviewDecision, reworkCount int, model string) {
+	// round lets the UI attach each decision to the matching AI Review
+	// node in the subtask DAG. Derived from the latest-round subtasks so
+	// it stays accurate even after the task has looped through rework
+	// cycles.
+	round := 1
+	if o.cfg.SubtaskStore != nil {
+		if subs, err := o.cfg.SubtaskStore.ListLatestRound(ctx, t.ID); err == nil && len(subs) > 0 {
+			round = subs[0].Round
+			if round < 1 {
+				round = 1
+			}
+		}
+	}
+	payload := map[string]any{
+		"approve":      decision.Approve,
+		"feedback":     decision.Feedback,
+		"summary":      decision.Summary,
+		"rework_count": reworkCount,
+		"round":        round,
+		"model":        model,
+	}
+	o.appendAuxEvent(ctx, t, &task.AgentEvent{
+		Kind:    task.EventAIReviewDecision,
+		Payload: mustJSONStr(payload),
+	})
 }
 
 // passThroughAIReview is the fallback when no Reviewer is configured. It

@@ -52,12 +52,17 @@ class HousekeepingSection extends ConsumerWidget {
     if (e is GrpcError && e.code == StatusCode.unavailable) {
       return const InfoBar(
         title: Text('Cleanup is unavailable'),
-        content: Text('The sidecar reaper has not been initialized. Check the logs.'),
+        content: Text(
+          'The sidecar reaper has not been initialized. Check the logs.',
+        ),
         severity: InfoBarSeverity.warning,
         isLong: true,
       );
     }
-    return CopyableErrorText(text: '$e', reportTitle: 'Housekeeping / settings fetch');
+    return CopyableErrorText(
+      text: '$e',
+      reportTitle: 'Housekeeping / settings fetch',
+    );
   }
 }
 
@@ -129,7 +134,9 @@ class _SweepControlsState extends ConsumerState<_SweepControls> {
                       setState(() => _enabled = v);
                       _commit(days: v ? _days : 0);
                     },
-              content: Text(_enabled ? 'Auto cleanup: on' : 'Auto cleanup: off'),
+              content: Text(
+                _enabled ? 'Auto cleanup: on' : 'Auto cleanup: off',
+              ),
             ),
             const Spacer(),
             if (_saving)
@@ -194,7 +201,10 @@ class _SweepControlsState extends ConsumerState<_SweepControls> {
         if (_error != null)
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: ErrorInfoBar(title: 'Cleanup action failed', message: _error!),
+            child: ErrorInfoBar(
+              title: 'Cleanup action failed',
+              message: _error!,
+            ),
           ),
       ],
     );

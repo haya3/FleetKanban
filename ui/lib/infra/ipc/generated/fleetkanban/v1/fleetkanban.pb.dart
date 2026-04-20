@@ -23,6 +23,177 @@ export 'package:protobuf/protobuf.dart' show GeneratedMessageGenericExtensions;
 
 export 'fleetkanban.pbenum.dart';
 
+class StashUncommittedResponse extends $pb.GeneratedMessage {
+  factory StashUncommittedResponse({
+    $core.bool? stashed,
+    $core.String? message,
+  }) {
+    final result = create();
+    if (stashed != null) result.stashed = stashed;
+    if (message != null) result.message = message;
+    return result;
+  }
+
+  StashUncommittedResponse._();
+
+  factory StashUncommittedResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory StashUncommittedResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'StashUncommittedResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOB(1, _omitFieldNames ? '' : 'stashed')
+    ..aOS(2, _omitFieldNames ? '' : 'message')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StashUncommittedResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StashUncommittedResponse copyWith(
+          void Function(StashUncommittedResponse) updates) =>
+      super.copyWith((message) => updates(message as StashUncommittedResponse))
+          as StashUncommittedResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static StashUncommittedResponse create() => StashUncommittedResponse._();
+  @$core.override
+  StashUncommittedResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static StashUncommittedResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<StashUncommittedResponse>(create);
+  static StashUncommittedResponse? _defaultInstance;
+
+  /// True when git actually created a stash entry; false when the
+  /// working tree was already clean.
+  @$pb.TagNumber(1)
+  $core.bool get stashed => $_getBF(0);
+  @$pb.TagNumber(1)
+  set stashed($core.bool value) => $_setBool(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasStashed() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearStashed() => $_clearField(1);
+
+  /// Git's own message (e.g. "Saved working directory and index state ...").
+  /// Surfaced in the UI toast so the user sees the stash label and can
+  /// match it later via `git stash list`.
+  @$pb.TagNumber(2)
+  $core.String get message => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set message($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasMessage() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMessage() => $_clearField(2);
+}
+
+/// AgentSettings holds per-stage prompt overrides the user wants
+/// FleetKanban to inject into every Copilot session, plus a free-form
+/// output language directive (e.g. "Japanese", "Spanish", "casual
+/// English"). Empty fields are no-ops; the agent runs with the
+/// built-in defaults only.
+class AgentSettings extends $pb.GeneratedMessage {
+  factory AgentSettings({
+    $core.String? planPrompt,
+    $core.String? codePrompt,
+    $core.String? reviewPrompt,
+    $core.String? outputLanguage,
+  }) {
+    final result = create();
+    if (planPrompt != null) result.planPrompt = planPrompt;
+    if (codePrompt != null) result.codePrompt = codePrompt;
+    if (reviewPrompt != null) result.reviewPrompt = reviewPrompt;
+    if (outputLanguage != null) result.outputLanguage = outputLanguage;
+    return result;
+  }
+
+  AgentSettings._();
+
+  factory AgentSettings.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory AgentSettings.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'AgentSettings',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'planPrompt')
+    ..aOS(2, _omitFieldNames ? '' : 'codePrompt')
+    ..aOS(3, _omitFieldNames ? '' : 'reviewPrompt')
+    ..aOS(4, _omitFieldNames ? '' : 'outputLanguage')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  AgentSettings clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  AgentSettings copyWith(void Function(AgentSettings) updates) =>
+      super.copyWith((message) => updates(message as AgentSettings))
+          as AgentSettings;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static AgentSettings create() => AgentSettings._();
+  @$core.override
+  AgentSettings createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static AgentSettings getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<AgentSettings>(create);
+  static AgentSettings? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get planPrompt => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set planPrompt($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasPlanPrompt() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearPlanPrompt() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get codePrompt => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set codePrompt($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasCodePrompt() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearCodePrompt() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get reviewPrompt => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set reviewPrompt($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasReviewPrompt() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearReviewPrompt() => $_clearField(3);
+
+  /// Free-form natural-language identifier the agent uses to choose
+  /// the language of its summaries / explanations / feedback. The
+  /// sidecar passes this verbatim — the AI is expected to recognise
+  /// values like "日本語", "Japanese", "Português brasileiro", etc.
+  @$pb.TagNumber(4)
+  $core.String get outputLanguage => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set outputLanguage($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasOutputLanguage() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearOutputLanguage() => $_clearField(4);
+}
+
 class IdRequest extends $pb.GeneratedMessage {
   factory IdRequest({
     $core.String? id,
@@ -911,6 +1082,8 @@ class Subtask extends $pb.GeneratedMessage {
     $core.String? agentRole,
     $core.Iterable<$core.String>? dependsOn,
     $core.String? codeModel,
+    $core.int? round,
+    $core.String? prompt,
   }) {
     final result = create();
     if (id != null) result.id = id;
@@ -923,6 +1096,8 @@ class Subtask extends $pb.GeneratedMessage {
     if (agentRole != null) result.agentRole = agentRole;
     if (dependsOn != null) result.dependsOn.addAll(dependsOn);
     if (codeModel != null) result.codeModel = codeModel;
+    if (round != null) result.round = round;
+    if (prompt != null) result.prompt = prompt;
     return result;
   }
 
@@ -951,6 +1126,8 @@ class Subtask extends $pb.GeneratedMessage {
     ..aOS(8, _omitFieldNames ? '' : 'agentRole')
     ..pPS(9, _omitFieldNames ? '' : 'dependsOn')
     ..aOS(10, _omitFieldNames ? '' : 'codeModel')
+    ..aI(11, _omitFieldNames ? '' : 'round')
+    ..aOS(12, _omitFieldNames ? '' : 'prompt')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1060,6 +1237,36 @@ class Subtask extends $pb.GeneratedMessage {
   $core.bool hasCodeModel() => $_has(9);
   @$pb.TagNumber(10)
   void clearCodeModel() => $_clearField(10);
+
+  /// Round is the 1-based iteration counter within the parent task.
+  /// Round 1 is the planner's first decomposition; AI / Human REWORK and
+  /// User Re-run each create a fresh round at max+1, with the previous
+  /// round's subtasks left in place as history. The orchestrator only
+  /// executes the latest round; the UI stacks earlier rounds above as
+  /// visual context for the rework loop.
+  @$pb.TagNumber(11)
+  $core.int get round => $_getIZ(10);
+  @$pb.TagNumber(11)
+  set round($core.int value) => $_setSignedInt32(10, value);
+  @$pb.TagNumber(11)
+  $core.bool hasRound() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearRound() => $_clearField(11);
+
+  /// Prompt is the concrete instruction the planner wrote for this
+  /// subtask — multi-sentence, naming specific files/behaviour/verification
+  /// steps. BuildSubtaskPrompt folds it into the Coder's session prompt so
+  /// the executor has precise intent instead of guessing from the Title.
+  /// Empty for legacy / manual subtasks; BuildSubtaskPrompt falls back to
+  /// a title-only template.
+  @$pb.TagNumber(12)
+  $core.String get prompt => $_getSZ(11);
+  @$pb.TagNumber(12)
+  set prompt($core.String value) => $_setString(11, value);
+  @$pb.TagNumber(12)
+  $core.bool hasPrompt() => $_has(11);
+  @$pb.TagNumber(12)
+  void clearPrompt() => $_clearField(12);
 }
 
 class Repository extends $pb.GeneratedMessage {
@@ -4174,6 +4381,4686 @@ class RemoveWorktreeRequest extends $pb.GeneratedMessage {
   $core.bool hasDeleteBranch() => $_has(2);
   @$pb.TagNumber(3)
   void clearDeleteBranch() => $_clearField(3);
+}
+
+/// ContextNode is one entity in the property graph. kind / source_kind
+/// are strings; see service-level comment. content_md is Markdown that
+/// is rendered directly in the Browse tab and serialized into injected
+/// prompts. attrs is a free-form map for kind-specific metadata (e.g.
+/// File nodes may carry "path" and "language"; Decision nodes may carry
+/// "decision_id" and "rationale_url").
+class ContextNode extends $pb.GeneratedMessage {
+  factory ContextNode({
+    $core.String? id,
+    $core.String? repoId,
+    $core.String? kind,
+    $core.String? label,
+    $core.String? contentMd,
+    $core.Iterable<$core.MapEntry<$core.String, $core.String>>? attrs,
+    $core.String? sourceKind,
+    $core.double? confidence,
+    $core.bool? enabled,
+    $core.bool? pinned,
+    $2.Timestamp? createdAt,
+    $2.Timestamp? updatedAt,
+  }) {
+    final result = create();
+    if (id != null) result.id = id;
+    if (repoId != null) result.repoId = repoId;
+    if (kind != null) result.kind = kind;
+    if (label != null) result.label = label;
+    if (contentMd != null) result.contentMd = contentMd;
+    if (attrs != null) result.attrs.addEntries(attrs);
+    if (sourceKind != null) result.sourceKind = sourceKind;
+    if (confidence != null) result.confidence = confidence;
+    if (enabled != null) result.enabled = enabled;
+    if (pinned != null) result.pinned = pinned;
+    if (createdAt != null) result.createdAt = createdAt;
+    if (updatedAt != null) result.updatedAt = updatedAt;
+    return result;
+  }
+
+  ContextNode._();
+
+  factory ContextNode.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ContextNode.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ContextNode',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOS(2, _omitFieldNames ? '' : 'repoId')
+    ..aOS(3, _omitFieldNames ? '' : 'kind')
+    ..aOS(4, _omitFieldNames ? '' : 'label')
+    ..aOS(5, _omitFieldNames ? '' : 'contentMd')
+    ..m<$core.String, $core.String>(6, _omitFieldNames ? '' : 'attrs',
+        entryClassName: 'ContextNode.AttrsEntry',
+        keyFieldType: $pb.PbFieldType.OS,
+        valueFieldType: $pb.PbFieldType.OS,
+        packageName: const $pb.PackageName('fleetkanban.v1'))
+    ..aOS(7, _omitFieldNames ? '' : 'sourceKind')
+    ..aD(8, _omitFieldNames ? '' : 'confidence', fieldType: $pb.PbFieldType.OF)
+    ..aOB(9, _omitFieldNames ? '' : 'enabled')
+    ..aOB(10, _omitFieldNames ? '' : 'pinned')
+    ..aOM<$2.Timestamp>(11, _omitFieldNames ? '' : 'createdAt',
+        subBuilder: $2.Timestamp.create)
+    ..aOM<$2.Timestamp>(12, _omitFieldNames ? '' : 'updatedAt',
+        subBuilder: $2.Timestamp.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ContextNode clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ContextNode copyWith(void Function(ContextNode) updates) =>
+      super.copyWith((message) => updates(message as ContextNode))
+          as ContextNode;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ContextNode create() => ContextNode._();
+  @$core.override
+  ContextNode createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ContextNode getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ContextNode>(create);
+  static ContextNode? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get repoId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set repoId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasRepoId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearRepoId() => $_clearField(2);
+
+  /// File | Module | Function | Class | Concept | Decision | Constraint | Tag
+  @$pb.TagNumber(3)
+  $core.String get kind => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set kind($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasKind() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearKind() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get label => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set label($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasLabel() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearLabel() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get contentMd => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set contentMd($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasContentMd() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearContentMd() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $pb.PbMap<$core.String, $core.String> get attrs => $_getMap(5);
+
+  /// manual | observer | analyzer | static-analysis | session-summary
+  @$pb.TagNumber(7)
+  $core.String get sourceKind => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set sourceKind($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasSourceKind() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearSourceKind() => $_clearField(7);
+
+  @$pb.TagNumber(8)
+  $core.double get confidence => $_getN(7);
+  @$pb.TagNumber(8)
+  set confidence($core.double value) => $_setFloat(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasConfidence() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearConfidence() => $_clearField(8);
+
+  @$pb.TagNumber(9)
+  $core.bool get enabled => $_getBF(8);
+  @$pb.TagNumber(9)
+  set enabled($core.bool value) => $_setBool(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasEnabled() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearEnabled() => $_clearField(9);
+
+  @$pb.TagNumber(10)
+  $core.bool get pinned => $_getBF(9);
+  @$pb.TagNumber(10)
+  set pinned($core.bool value) => $_setBool(9, value);
+  @$pb.TagNumber(10)
+  $core.bool hasPinned() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearPinned() => $_clearField(10);
+
+  @$pb.TagNumber(11)
+  $2.Timestamp get createdAt => $_getN(10);
+  @$pb.TagNumber(11)
+  set createdAt($2.Timestamp value) => $_setField(11, value);
+  @$pb.TagNumber(11)
+  $core.bool hasCreatedAt() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearCreatedAt() => $_clearField(11);
+  @$pb.TagNumber(11)
+  $2.Timestamp ensureCreatedAt() => $_ensure(10);
+
+  @$pb.TagNumber(12)
+  $2.Timestamp get updatedAt => $_getN(11);
+  @$pb.TagNumber(12)
+  set updatedAt($2.Timestamp value) => $_setField(12, value);
+  @$pb.TagNumber(12)
+  $core.bool hasUpdatedAt() => $_has(11);
+  @$pb.TagNumber(12)
+  void clearUpdatedAt() => $_clearField(12);
+  @$pb.TagNumber(12)
+  $2.Timestamp ensureUpdatedAt() => $_ensure(11);
+}
+
+/// ContextEdge is one directed relationship between two nodes. `rel`
+/// values the sidecar recognises today:
+///   imports | calls | contains | dependsOn | relatedTo
+///   conflictsWith | coAccessedWith | supersedes | tagged
+/// Additional rels can be added without a proto bump — the UI renders
+/// unknown rels as a plain chip labelled with the string.
+class ContextEdge extends $pb.GeneratedMessage {
+  factory ContextEdge({
+    $core.String? id,
+    $core.String? repoId,
+    $core.String? srcNodeId,
+    $core.String? dstNodeId,
+    $core.String? rel,
+    $core.Iterable<$core.MapEntry<$core.String, $core.String>>? attrs,
+    $2.Timestamp? createdAt,
+  }) {
+    final result = create();
+    if (id != null) result.id = id;
+    if (repoId != null) result.repoId = repoId;
+    if (srcNodeId != null) result.srcNodeId = srcNodeId;
+    if (dstNodeId != null) result.dstNodeId = dstNodeId;
+    if (rel != null) result.rel = rel;
+    if (attrs != null) result.attrs.addEntries(attrs);
+    if (createdAt != null) result.createdAt = createdAt;
+    return result;
+  }
+
+  ContextEdge._();
+
+  factory ContextEdge.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ContextEdge.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ContextEdge',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOS(2, _omitFieldNames ? '' : 'repoId')
+    ..aOS(3, _omitFieldNames ? '' : 'srcNodeId')
+    ..aOS(4, _omitFieldNames ? '' : 'dstNodeId')
+    ..aOS(5, _omitFieldNames ? '' : 'rel')
+    ..m<$core.String, $core.String>(6, _omitFieldNames ? '' : 'attrs',
+        entryClassName: 'ContextEdge.AttrsEntry',
+        keyFieldType: $pb.PbFieldType.OS,
+        valueFieldType: $pb.PbFieldType.OS,
+        packageName: const $pb.PackageName('fleetkanban.v1'))
+    ..aOM<$2.Timestamp>(7, _omitFieldNames ? '' : 'createdAt',
+        subBuilder: $2.Timestamp.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ContextEdge clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ContextEdge copyWith(void Function(ContextEdge) updates) =>
+      super.copyWith((message) => updates(message as ContextEdge))
+          as ContextEdge;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ContextEdge create() => ContextEdge._();
+  @$core.override
+  ContextEdge createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ContextEdge getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ContextEdge>(create);
+  static ContextEdge? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get repoId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set repoId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasRepoId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearRepoId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get srcNodeId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set srcNodeId($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasSrcNodeId() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearSrcNodeId() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get dstNodeId => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set dstNodeId($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasDstNodeId() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearDstNodeId() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get rel => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set rel($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasRel() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearRel() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $pb.PbMap<$core.String, $core.String> get attrs => $_getMap(5);
+
+  @$pb.TagNumber(7)
+  $2.Timestamp get createdAt => $_getN(6);
+  @$pb.TagNumber(7)
+  set createdAt($2.Timestamp value) => $_setField(7, value);
+  @$pb.TagNumber(7)
+  $core.bool hasCreatedAt() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearCreatedAt() => $_clearField(7);
+  @$pb.TagNumber(7)
+  $2.Timestamp ensureCreatedAt() => $_ensure(6);
+}
+
+/// ContextFact is a bi-temporal predicate anchored on a subject node.
+/// valid_from / valid_to bracket the wall-clock interval during which
+/// the fact is considered true; valid_to nil means "still active".
+/// `supersedes` links to the id of the fact this one replaces so the
+/// Facts Timeline can render succession chains (e.g. "SendGrid → Resend").
+class ContextFact extends $pb.GeneratedMessage {
+  factory ContextFact({
+    $core.String? id,
+    $core.String? repoId,
+    $core.String? subjectNodeId,
+    $core.String? predicate,
+    $core.String? objectText,
+    $2.Timestamp? validFrom,
+    $2.Timestamp? validTo,
+    $core.String? supersedes,
+    $2.Timestamp? createdAt,
+  }) {
+    final result = create();
+    if (id != null) result.id = id;
+    if (repoId != null) result.repoId = repoId;
+    if (subjectNodeId != null) result.subjectNodeId = subjectNodeId;
+    if (predicate != null) result.predicate = predicate;
+    if (objectText != null) result.objectText = objectText;
+    if (validFrom != null) result.validFrom = validFrom;
+    if (validTo != null) result.validTo = validTo;
+    if (supersedes != null) result.supersedes = supersedes;
+    if (createdAt != null) result.createdAt = createdAt;
+    return result;
+  }
+
+  ContextFact._();
+
+  factory ContextFact.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ContextFact.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ContextFact',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOS(2, _omitFieldNames ? '' : 'repoId')
+    ..aOS(3, _omitFieldNames ? '' : 'subjectNodeId')
+    ..aOS(4, _omitFieldNames ? '' : 'predicate')
+    ..aOS(5, _omitFieldNames ? '' : 'objectText')
+    ..aOM<$2.Timestamp>(6, _omitFieldNames ? '' : 'validFrom',
+        subBuilder: $2.Timestamp.create)
+    ..aOM<$2.Timestamp>(7, _omitFieldNames ? '' : 'validTo',
+        subBuilder: $2.Timestamp.create)
+    ..aOS(8, _omitFieldNames ? '' : 'supersedes')
+    ..aOM<$2.Timestamp>(9, _omitFieldNames ? '' : 'createdAt',
+        subBuilder: $2.Timestamp.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ContextFact clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ContextFact copyWith(void Function(ContextFact) updates) =>
+      super.copyWith((message) => updates(message as ContextFact))
+          as ContextFact;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ContextFact create() => ContextFact._();
+  @$core.override
+  ContextFact createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ContextFact getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ContextFact>(create);
+  static ContextFact? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get repoId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set repoId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasRepoId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearRepoId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get subjectNodeId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set subjectNodeId($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasSubjectNodeId() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearSubjectNodeId() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get predicate => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set predicate($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasPredicate() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearPredicate() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get objectText => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set objectText($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasObjectText() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearObjectText() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $2.Timestamp get validFrom => $_getN(5);
+  @$pb.TagNumber(6)
+  set validFrom($2.Timestamp value) => $_setField(6, value);
+  @$pb.TagNumber(6)
+  $core.bool hasValidFrom() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearValidFrom() => $_clearField(6);
+  @$pb.TagNumber(6)
+  $2.Timestamp ensureValidFrom() => $_ensure(5);
+
+  @$pb.TagNumber(7)
+  $2.Timestamp get validTo => $_getN(6);
+  @$pb.TagNumber(7)
+  set validTo($2.Timestamp value) => $_setField(7, value);
+  @$pb.TagNumber(7)
+  $core.bool hasValidTo() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearValidTo() => $_clearField(7);
+  @$pb.TagNumber(7)
+  $2.Timestamp ensureValidTo() => $_ensure(6);
+
+  @$pb.TagNumber(8)
+  $core.String get supersedes => $_getSZ(7);
+  @$pb.TagNumber(8)
+  set supersedes($core.String value) => $_setString(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasSupersedes() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearSupersedes() => $_clearField(8);
+
+  @$pb.TagNumber(9)
+  $2.Timestamp get createdAt => $_getN(8);
+  @$pb.TagNumber(9)
+  set createdAt($2.Timestamp value) => $_setField(9, value);
+  @$pb.TagNumber(9)
+  $core.bool hasCreatedAt() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearCreatedAt() => $_clearField(9);
+  @$pb.TagNumber(9)
+  $2.Timestamp ensureCreatedAt() => $_ensure(8);
+}
+
+/// ContextNodeDetail is the full-fidelity payload returned by GetNode.
+/// Neighbors is the 1-hop closure of the node (both in- and out-edges
+/// resolved to ContextNode summaries) so the detail pane does not need
+/// a second round-trip to render "related items".
+class ContextNodeDetail extends $pb.GeneratedMessage {
+  factory ContextNodeDetail({
+    ContextNode? node,
+    $core.Iterable<ContextEdge>? outEdges,
+    $core.Iterable<ContextEdge>? inEdges,
+    $core.Iterable<ContextNode>? neighbors,
+    $core.Iterable<ContextFact>? facts,
+    $core.String? sourceTaskId,
+    $core.String? sourceSessionId,
+  }) {
+    final result = create();
+    if (node != null) result.node = node;
+    if (outEdges != null) result.outEdges.addAll(outEdges);
+    if (inEdges != null) result.inEdges.addAll(inEdges);
+    if (neighbors != null) result.neighbors.addAll(neighbors);
+    if (facts != null) result.facts.addAll(facts);
+    if (sourceTaskId != null) result.sourceTaskId = sourceTaskId;
+    if (sourceSessionId != null) result.sourceSessionId = sourceSessionId;
+    return result;
+  }
+
+  ContextNodeDetail._();
+
+  factory ContextNodeDetail.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ContextNodeDetail.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ContextNodeDetail',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOM<ContextNode>(1, _omitFieldNames ? '' : 'node',
+        subBuilder: ContextNode.create)
+    ..pPM<ContextEdge>(2, _omitFieldNames ? '' : 'outEdges',
+        subBuilder: ContextEdge.create)
+    ..pPM<ContextEdge>(3, _omitFieldNames ? '' : 'inEdges',
+        subBuilder: ContextEdge.create)
+    ..pPM<ContextNode>(4, _omitFieldNames ? '' : 'neighbors',
+        subBuilder: ContextNode.create)
+    ..pPM<ContextFact>(5, _omitFieldNames ? '' : 'facts',
+        subBuilder: ContextFact.create)
+    ..aOS(6, _omitFieldNames ? '' : 'sourceTaskId')
+    ..aOS(7, _omitFieldNames ? '' : 'sourceSessionId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ContextNodeDetail clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ContextNodeDetail copyWith(void Function(ContextNodeDetail) updates) =>
+      super.copyWith((message) => updates(message as ContextNodeDetail))
+          as ContextNodeDetail;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ContextNodeDetail create() => ContextNodeDetail._();
+  @$core.override
+  ContextNodeDetail createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ContextNodeDetail getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ContextNodeDetail>(create);
+  static ContextNodeDetail? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  ContextNode get node => $_getN(0);
+  @$pb.TagNumber(1)
+  set node(ContextNode value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasNode() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearNode() => $_clearField(1);
+  @$pb.TagNumber(1)
+  ContextNode ensureNode() => $_ensure(0);
+
+  @$pb.TagNumber(2)
+  $pb.PbList<ContextEdge> get outEdges => $_getList(1);
+
+  @$pb.TagNumber(3)
+  $pb.PbList<ContextEdge> get inEdges => $_getList(2);
+
+  @$pb.TagNumber(4)
+  $pb.PbList<ContextNode> get neighbors => $_getList(3);
+
+  @$pb.TagNumber(5)
+  $pb.PbList<ContextFact> get facts => $_getList(4);
+
+  /// Provenance — which session / task introduced this node. Empty when
+  /// source_kind == manual.
+  @$pb.TagNumber(6)
+  $core.String get sourceTaskId => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set sourceTaskId($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasSourceTaskId() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearSourceTaskId() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.String get sourceSessionId => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set sourceSessionId($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasSourceSessionId() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearSourceSessionId() => $_clearField(7);
+}
+
+/// ContextOverview is the Overview tab's aggregate view. Counts are
+/// filtered by repo_id. byte_size fields approximate on-disk storage
+/// for the Overview storage card (vectors dominate).
+class ContextOverview extends $pb.GeneratedMessage {
+  factory ContextOverview({
+    $core.String? repoId,
+    $core.Iterable<$core.MapEntry<$core.String, $core.int>>? nodeCountsByKind,
+    $core.Iterable<$core.MapEntry<$core.String, $core.int>>? edgeCountsByRel,
+    $core.int? activeFactCount,
+    $core.int? expiredFactCount,
+    $core.int? pendingScratchpadCount,
+    $core.int? promotedScratchpadCount,
+    $core.int? rejectedScratchpadCount,
+    $core.int? vectorCount,
+    $core.int? vectorDim,
+    $fixnum.Int64? vectorBytes,
+    $core.int? observedSessionCount,
+    $core.bool? enabled,
+  }) {
+    final result = create();
+    if (repoId != null) result.repoId = repoId;
+    if (nodeCountsByKind != null)
+      result.nodeCountsByKind.addEntries(nodeCountsByKind);
+    if (edgeCountsByRel != null)
+      result.edgeCountsByRel.addEntries(edgeCountsByRel);
+    if (activeFactCount != null) result.activeFactCount = activeFactCount;
+    if (expiredFactCount != null) result.expiredFactCount = expiredFactCount;
+    if (pendingScratchpadCount != null)
+      result.pendingScratchpadCount = pendingScratchpadCount;
+    if (promotedScratchpadCount != null)
+      result.promotedScratchpadCount = promotedScratchpadCount;
+    if (rejectedScratchpadCount != null)
+      result.rejectedScratchpadCount = rejectedScratchpadCount;
+    if (vectorCount != null) result.vectorCount = vectorCount;
+    if (vectorDim != null) result.vectorDim = vectorDim;
+    if (vectorBytes != null) result.vectorBytes = vectorBytes;
+    if (observedSessionCount != null)
+      result.observedSessionCount = observedSessionCount;
+    if (enabled != null) result.enabled = enabled;
+    return result;
+  }
+
+  ContextOverview._();
+
+  factory ContextOverview.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ContextOverview.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ContextOverview',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'repoId')
+    ..m<$core.String, $core.int>(2, _omitFieldNames ? '' : 'nodeCountsByKind',
+        entryClassName: 'ContextOverview.NodeCountsByKindEntry',
+        keyFieldType: $pb.PbFieldType.OS,
+        valueFieldType: $pb.PbFieldType.O3,
+        packageName: const $pb.PackageName('fleetkanban.v1'))
+    ..m<$core.String, $core.int>(3, _omitFieldNames ? '' : 'edgeCountsByRel',
+        entryClassName: 'ContextOverview.EdgeCountsByRelEntry',
+        keyFieldType: $pb.PbFieldType.OS,
+        valueFieldType: $pb.PbFieldType.O3,
+        packageName: const $pb.PackageName('fleetkanban.v1'))
+    ..aI(4, _omitFieldNames ? '' : 'activeFactCount')
+    ..aI(5, _omitFieldNames ? '' : 'expiredFactCount')
+    ..aI(6, _omitFieldNames ? '' : 'pendingScratchpadCount')
+    ..aI(7, _omitFieldNames ? '' : 'promotedScratchpadCount')
+    ..aI(8, _omitFieldNames ? '' : 'rejectedScratchpadCount')
+    ..aI(9, _omitFieldNames ? '' : 'vectorCount')
+    ..aI(10, _omitFieldNames ? '' : 'vectorDim')
+    ..aInt64(11, _omitFieldNames ? '' : 'vectorBytes')
+    ..aI(12, _omitFieldNames ? '' : 'observedSessionCount')
+    ..aOB(13, _omitFieldNames ? '' : 'enabled')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ContextOverview clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ContextOverview copyWith(void Function(ContextOverview) updates) =>
+      super.copyWith((message) => updates(message as ContextOverview))
+          as ContextOverview;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ContextOverview create() => ContextOverview._();
+  @$core.override
+  ContextOverview createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ContextOverview getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ContextOverview>(create);
+  static ContextOverview? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get repoId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set repoId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRepoId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRepoId() => $_clearField(1);
+
+  /// Per-kind node counts, keyed by kind string (e.g. "File", "Concept").
+  @$pb.TagNumber(2)
+  $pb.PbMap<$core.String, $core.int> get nodeCountsByKind => $_getMap(1);
+
+  /// Per-rel edge counts, keyed by rel string (e.g. "imports", "calls").
+  @$pb.TagNumber(3)
+  $pb.PbMap<$core.String, $core.int> get edgeCountsByRel => $_getMap(2);
+
+  @$pb.TagNumber(4)
+  $core.int get activeFactCount => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set activeFactCount($core.int value) => $_setSignedInt32(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasActiveFactCount() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearActiveFactCount() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.int get expiredFactCount => $_getIZ(4);
+  @$pb.TagNumber(5)
+  set expiredFactCount($core.int value) => $_setSignedInt32(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasExpiredFactCount() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearExpiredFactCount() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.int get pendingScratchpadCount => $_getIZ(5);
+  @$pb.TagNumber(6)
+  set pendingScratchpadCount($core.int value) => $_setSignedInt32(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasPendingScratchpadCount() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearPendingScratchpadCount() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.int get promotedScratchpadCount => $_getIZ(6);
+  @$pb.TagNumber(7)
+  set promotedScratchpadCount($core.int value) => $_setSignedInt32(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasPromotedScratchpadCount() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearPromotedScratchpadCount() => $_clearField(7);
+
+  @$pb.TagNumber(8)
+  $core.int get rejectedScratchpadCount => $_getIZ(7);
+  @$pb.TagNumber(8)
+  set rejectedScratchpadCount($core.int value) => $_setSignedInt32(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasRejectedScratchpadCount() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearRejectedScratchpadCount() => $_clearField(8);
+
+  @$pb.TagNumber(9)
+  $core.int get vectorCount => $_getIZ(8);
+  @$pb.TagNumber(9)
+  set vectorCount($core.int value) => $_setSignedInt32(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasVectorCount() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearVectorCount() => $_clearField(9);
+
+  @$pb.TagNumber(10)
+  $core.int get vectorDim => $_getIZ(9);
+  @$pb.TagNumber(10)
+  set vectorDim($core.int value) => $_setSignedInt32(9, value);
+  @$pb.TagNumber(10)
+  $core.bool hasVectorDim() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearVectorDim() => $_clearField(10);
+
+  @$pb.TagNumber(11)
+  $fixnum.Int64 get vectorBytes => $_getI64(10);
+  @$pb.TagNumber(11)
+  set vectorBytes($fixnum.Int64 value) => $_setInt64(10, value);
+  @$pb.TagNumber(11)
+  $core.bool hasVectorBytes() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearVectorBytes() => $_clearField(11);
+
+  /// Number of tasks / sessions the observer has processed for this
+  /// repo. Surfaced in the Overview as "28 sessions of learning".
+  @$pb.TagNumber(12)
+  $core.int get observedSessionCount => $_getIZ(11);
+  @$pb.TagNumber(12)
+  set observedSessionCount($core.int value) => $_setSignedInt32(11, value);
+  @$pb.TagNumber(12)
+  $core.bool hasObservedSessionCount() => $_has(11);
+  @$pb.TagNumber(12)
+  void clearObservedSessionCount() => $_clearField(12);
+
+  /// Whether memory is currently enabled for this repo — mirrors
+  /// MemorySettings.enabled so the Overview card does not need a
+  /// second call.
+  @$pb.TagNumber(13)
+  $core.bool get enabled => $_getBF(12);
+  @$pb.TagNumber(13)
+  set enabled($core.bool value) => $_setBool(12, value);
+  @$pb.TagNumber(13)
+  $core.bool hasEnabled() => $_has(12);
+  @$pb.TagNumber(13)
+  void clearEnabled() => $_clearField(13);
+}
+
+class RepoIdRequest extends $pb.GeneratedMessage {
+  factory RepoIdRequest({
+    $core.String? repoId,
+  }) {
+    final result = create();
+    if (repoId != null) result.repoId = repoId;
+    return result;
+  }
+
+  RepoIdRequest._();
+
+  factory RepoIdRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory RepoIdRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'RepoIdRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'repoId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RepoIdRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RepoIdRequest copyWith(void Function(RepoIdRequest) updates) =>
+      super.copyWith((message) => updates(message as RepoIdRequest))
+          as RepoIdRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static RepoIdRequest create() => RepoIdRequest._();
+  @$core.override
+  RepoIdRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static RepoIdRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<RepoIdRequest>(create);
+  static RepoIdRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get repoId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set repoId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRepoId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRepoId() => $_clearField(1);
+}
+
+class NodeIdRequest extends $pb.GeneratedMessage {
+  factory NodeIdRequest({
+    $core.String? nodeId,
+  }) {
+    final result = create();
+    if (nodeId != null) result.nodeId = nodeId;
+    return result;
+  }
+
+  NodeIdRequest._();
+
+  factory NodeIdRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory NodeIdRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'NodeIdRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'nodeId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  NodeIdRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  NodeIdRequest copyWith(void Function(NodeIdRequest) updates) =>
+      super.copyWith((message) => updates(message as NodeIdRequest))
+          as NodeIdRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static NodeIdRequest create() => NodeIdRequest._();
+  @$core.override
+  NodeIdRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static NodeIdRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<NodeIdRequest>(create);
+  static NodeIdRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get nodeId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set nodeId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasNodeId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearNodeId() => $_clearField(1);
+}
+
+class EdgeIdRequest extends $pb.GeneratedMessage {
+  factory EdgeIdRequest({
+    $core.String? edgeId,
+  }) {
+    final result = create();
+    if (edgeId != null) result.edgeId = edgeId;
+    return result;
+  }
+
+  EdgeIdRequest._();
+
+  factory EdgeIdRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory EdgeIdRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'EdgeIdRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'edgeId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  EdgeIdRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  EdgeIdRequest copyWith(void Function(EdgeIdRequest) updates) =>
+      super.copyWith((message) => updates(message as EdgeIdRequest))
+          as EdgeIdRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EdgeIdRequest create() => EdgeIdRequest._();
+  @$core.override
+  EdgeIdRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static EdgeIdRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<EdgeIdRequest>(create);
+  static EdgeIdRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get edgeId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set edgeId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasEdgeId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearEdgeId() => $_clearField(1);
+}
+
+class EntryIdRequest extends $pb.GeneratedMessage {
+  factory EntryIdRequest({
+    $core.String? entryId,
+  }) {
+    final result = create();
+    if (entryId != null) result.entryId = entryId;
+    return result;
+  }
+
+  EntryIdRequest._();
+
+  factory EntryIdRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory EntryIdRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'EntryIdRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'entryId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  EntryIdRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  EntryIdRequest copyWith(void Function(EntryIdRequest) updates) =>
+      super.copyWith((message) => updates(message as EntryIdRequest))
+          as EntryIdRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EntryIdRequest create() => EntryIdRequest._();
+  @$core.override
+  EntryIdRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static EntryIdRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<EntryIdRequest>(create);
+  static EntryIdRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get entryId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set entryId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasEntryId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearEntryId() => $_clearField(1);
+}
+
+class SearchContextRequest extends $pb.GeneratedMessage {
+  factory SearchContextRequest({
+    $core.String? repoId,
+    $core.String? query,
+    $core.String? mode,
+    $core.int? limit,
+    $core.Iterable<$core.String>? kinds,
+    $core.bool? onlyEnabled,
+  }) {
+    final result = create();
+    if (repoId != null) result.repoId = repoId;
+    if (query != null) result.query = query;
+    if (mode != null) result.mode = mode;
+    if (limit != null) result.limit = limit;
+    if (kinds != null) result.kinds.addAll(kinds);
+    if (onlyEnabled != null) result.onlyEnabled = onlyEnabled;
+    return result;
+  }
+
+  SearchContextRequest._();
+
+  factory SearchContextRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory SearchContextRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SearchContextRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'repoId')
+    ..aOS(2, _omitFieldNames ? '' : 'query')
+    ..aOS(3, _omitFieldNames ? '' : 'mode')
+    ..aI(4, _omitFieldNames ? '' : 'limit')
+    ..pPS(5, _omitFieldNames ? '' : 'kinds')
+    ..aOB(6, _omitFieldNames ? '' : 'onlyEnabled')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SearchContextRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SearchContextRequest copyWith(void Function(SearchContextRequest) updates) =>
+      super.copyWith((message) => updates(message as SearchContextRequest))
+          as SearchContextRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SearchContextRequest create() => SearchContextRequest._();
+  @$core.override
+  SearchContextRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static SearchContextRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SearchContextRequest>(create);
+  static SearchContextRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get repoId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set repoId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRepoId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRepoId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get query => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set query($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasQuery() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearQuery() => $_clearField(2);
+
+  /// Which retrieval channel(s) to return. Fused is the default and
+  /// represents the production hybrid pipeline; the other three are
+  /// exposed so the Search tab can show why results differ (debug
+  /// view). Empty → all four populated.
+  ///   "semantic" | "keyword" | "fused" | "all"
+  @$pb.TagNumber(3)
+  $core.String get mode => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set mode($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasMode() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearMode() => $_clearField(3);
+
+  /// Limit per channel. 0 → server default (20).
+  @$pb.TagNumber(4)
+  $core.int get limit => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set limit($core.int value) => $_setSignedInt32(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasLimit() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearLimit() => $_clearField(4);
+
+  /// Optional filter on node kind (AND across entries).
+  @$pb.TagNumber(5)
+  $pb.PbList<$core.String> get kinds => $_getList(4);
+
+  /// Optional filter on enabled flag. Unset → include both.
+  @$pb.TagNumber(6)
+  $core.bool get onlyEnabled => $_getBF(5);
+  @$pb.TagNumber(6)
+  set onlyEnabled($core.bool value) => $_setBool(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasOnlyEnabled() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearOnlyEnabled() => $_clearField(6);
+}
+
+/// SearchHit is one result with its channel-specific score and the
+/// reason it surfaced (for the debug / trust view).
+class SearchHit extends $pb.GeneratedMessage {
+  factory SearchHit({
+    ContextNode? node,
+    $core.double? score,
+    $core.int? rank,
+    $core.String? channel,
+    $core.String? reason,
+  }) {
+    final result = create();
+    if (node != null) result.node = node;
+    if (score != null) result.score = score;
+    if (rank != null) result.rank = rank;
+    if (channel != null) result.channel = channel;
+    if (reason != null) result.reason = reason;
+    return result;
+  }
+
+  SearchHit._();
+
+  factory SearchHit.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory SearchHit.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SearchHit',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOM<ContextNode>(1, _omitFieldNames ? '' : 'node',
+        subBuilder: ContextNode.create)
+    ..aD(2, _omitFieldNames ? '' : 'score', fieldType: $pb.PbFieldType.OF)
+    ..aI(3, _omitFieldNames ? '' : 'rank')
+    ..aOS(4, _omitFieldNames ? '' : 'channel')
+    ..aOS(5, _omitFieldNames ? '' : 'reason')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SearchHit clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SearchHit copyWith(void Function(SearchHit) updates) =>
+      super.copyWith((message) => updates(message as SearchHit)) as SearchHit;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SearchHit create() => SearchHit._();
+  @$core.override
+  SearchHit createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static SearchHit getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SearchHit>(create);
+  static SearchHit? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  ContextNode get node => $_getN(0);
+  @$pb.TagNumber(1)
+  set node(ContextNode value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasNode() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearNode() => $_clearField(1);
+  @$pb.TagNumber(1)
+  ContextNode ensureNode() => $_ensure(0);
+
+  @$pb.TagNumber(2)
+  $core.double get score => $_getN(1);
+  @$pb.TagNumber(2)
+  set score($core.double value) => $_setFloat(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasScore() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearScore() => $_clearField(2);
+
+  /// Best rank across channels (1-based). 0 when the node was only
+  /// introduced via graph-neighborhood boost.
+  @$pb.TagNumber(3)
+  $core.int get rank => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set rank($core.int value) => $_setSignedInt32(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasRank() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearRank() => $_clearField(3);
+
+  /// "semantic" | "keyword" | "graph-boost" | "fused"
+  @$pb.TagNumber(4)
+  $core.String get channel => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set channel($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasChannel() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearChannel() => $_clearField(4);
+
+  /// Free-form reason for debug UI ("matched 'auth' in label",
+  /// "cosine 0.83 against query embedding", "1-hop from decision-08").
+  @$pb.TagNumber(5)
+  $core.String get reason => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set reason($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasReason() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearReason() => $_clearField(5);
+}
+
+class SearchContextResponse extends $pb.GeneratedMessage {
+  factory SearchContextResponse({
+    $core.Iterable<$core.MapEntry<$core.String, SearchHitList>>? channels,
+    $core.int? totalUnique,
+  }) {
+    final result = create();
+    if (channels != null) result.channels.addEntries(channels);
+    if (totalUnique != null) result.totalUnique = totalUnique;
+    return result;
+  }
+
+  SearchContextResponse._();
+
+  factory SearchContextResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory SearchContextResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SearchContextResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..m<$core.String, SearchHitList>(1, _omitFieldNames ? '' : 'channels',
+        entryClassName: 'SearchContextResponse.ChannelsEntry',
+        keyFieldType: $pb.PbFieldType.OS,
+        valueFieldType: $pb.PbFieldType.OM,
+        valueCreator: SearchHitList.create,
+        valueDefaultOrMaker: SearchHitList.getDefault,
+        packageName: const $pb.PackageName('fleetkanban.v1'))
+    ..aI(2, _omitFieldNames ? '' : 'totalUnique')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SearchContextResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SearchContextResponse copyWith(
+          void Function(SearchContextResponse) updates) =>
+      super.copyWith((message) => updates(message as SearchContextResponse))
+          as SearchContextResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SearchContextResponse create() => SearchContextResponse._();
+  @$core.override
+  SearchContextResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static SearchContextResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SearchContextResponse>(create);
+  static SearchContextResponse? _defaultInstance;
+
+  /// One bucket per channel requested. Channel string mirrors
+  /// SearchHit.channel so callers can pattern-match.
+  @$pb.TagNumber(1)
+  $pb.PbMap<$core.String, SearchHitList> get channels => $_getMap(0);
+
+  /// Total unique nodes across all channels (the Fused bucket's
+  /// deduplicated count after RRF).
+  @$pb.TagNumber(2)
+  $core.int get totalUnique => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set totalUnique($core.int value) => $_setSignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasTotalUnique() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearTotalUnique() => $_clearField(2);
+}
+
+class SearchHitList extends $pb.GeneratedMessage {
+  factory SearchHitList({
+    $core.Iterable<SearchHit>? hits,
+  }) {
+    final result = create();
+    if (hits != null) result.hits.addAll(hits);
+    return result;
+  }
+
+  SearchHitList._();
+
+  factory SearchHitList.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory SearchHitList.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SearchHitList',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..pPM<SearchHit>(1, _omitFieldNames ? '' : 'hits',
+        subBuilder: SearchHit.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SearchHitList clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SearchHitList copyWith(void Function(SearchHitList) updates) =>
+      super.copyWith((message) => updates(message as SearchHitList))
+          as SearchHitList;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SearchHitList create() => SearchHitList._();
+  @$core.override
+  SearchHitList createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static SearchHitList getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SearchHitList>(create);
+  static SearchHitList? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<SearchHit> get hits => $_getList(0);
+}
+
+class ListNodesRequest extends $pb.GeneratedMessage {
+  factory ListNodesRequest({
+    $core.String? repoId,
+    $core.Iterable<$core.String>? kinds,
+    $core.int? limit,
+    $core.int? offset,
+    $core.String? sort,
+    $core.Iterable<$core.String>? sourceKinds,
+    $core.String? labelContains,
+    $core.int? pinnedFilter,
+    $core.int? enabledFilter,
+  }) {
+    final result = create();
+    if (repoId != null) result.repoId = repoId;
+    if (kinds != null) result.kinds.addAll(kinds);
+    if (limit != null) result.limit = limit;
+    if (offset != null) result.offset = offset;
+    if (sort != null) result.sort = sort;
+    if (sourceKinds != null) result.sourceKinds.addAll(sourceKinds);
+    if (labelContains != null) result.labelContains = labelContains;
+    if (pinnedFilter != null) result.pinnedFilter = pinnedFilter;
+    if (enabledFilter != null) result.enabledFilter = enabledFilter;
+    return result;
+  }
+
+  ListNodesRequest._();
+
+  factory ListNodesRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ListNodesRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ListNodesRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'repoId')
+    ..pPS(2, _omitFieldNames ? '' : 'kinds')
+    ..aI(3, _omitFieldNames ? '' : 'limit')
+    ..aI(4, _omitFieldNames ? '' : 'offset')
+    ..aOS(5, _omitFieldNames ? '' : 'sort')
+    ..pPS(6, _omitFieldNames ? '' : 'sourceKinds')
+    ..aOS(7, _omitFieldNames ? '' : 'labelContains')
+    ..aI(8, _omitFieldNames ? '' : 'pinnedFilter')
+    ..aI(9, _omitFieldNames ? '' : 'enabledFilter')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListNodesRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListNodesRequest copyWith(void Function(ListNodesRequest) updates) =>
+      super.copyWith((message) => updates(message as ListNodesRequest))
+          as ListNodesRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ListNodesRequest create() => ListNodesRequest._();
+  @$core.override
+  ListNodesRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ListNodesRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ListNodesRequest>(create);
+  static ListNodesRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get repoId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set repoId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRepoId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRepoId() => $_clearField(1);
+
+  /// Optional filter — empty = all kinds.
+  @$pb.TagNumber(2)
+  $pb.PbList<$core.String> get kinds => $_getList(1);
+
+  /// Optional pagination. 0 → server default (200).
+  @$pb.TagNumber(3)
+  $core.int get limit => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set limit($core.int value) => $_setSignedInt32(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasLimit() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearLimit() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.int get offset => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set offset($core.int value) => $_setSignedInt32(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasOffset() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearOffset() => $_clearField(4);
+
+  /// Sort: "updated_at" (default, desc) | "label" (asc) | "confidence" (desc)
+  @$pb.TagNumber(5)
+  $core.String get sort => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set sort($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasSort() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearSort() => $_clearField(5);
+
+  /// Optional filter on source_kind.
+  @$pb.TagNumber(6)
+  $pb.PbList<$core.String> get sourceKinds => $_getList(5);
+
+  /// When set, only nodes that include the substring in label OR
+  /// content_md are returned. Use SearchContext for ranked search;
+  /// this is for simple Browse-tab filtering.
+  @$pb.TagNumber(7)
+  $core.String get labelContains => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set labelContains($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasLabelContains() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearLabelContains() => $_clearField(7);
+
+  /// Filter on pinned / enabled flags. Unset → include both.
+  /// Tri-state encoded via int32: 0=either, 1=only true, 2=only false.
+  @$pb.TagNumber(8)
+  $core.int get pinnedFilter => $_getIZ(7);
+  @$pb.TagNumber(8)
+  set pinnedFilter($core.int value) => $_setSignedInt32(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasPinnedFilter() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearPinnedFilter() => $_clearField(8);
+
+  @$pb.TagNumber(9)
+  $core.int get enabledFilter => $_getIZ(8);
+  @$pb.TagNumber(9)
+  set enabledFilter($core.int value) => $_setSignedInt32(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasEnabledFilter() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearEnabledFilter() => $_clearField(9);
+}
+
+class ListNodesResponse extends $pb.GeneratedMessage {
+  factory ListNodesResponse({
+    $core.Iterable<ContextNode>? nodes,
+    $core.int? total,
+  }) {
+    final result = create();
+    if (nodes != null) result.nodes.addAll(nodes);
+    if (total != null) result.total = total;
+    return result;
+  }
+
+  ListNodesResponse._();
+
+  factory ListNodesResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ListNodesResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ListNodesResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..pPM<ContextNode>(1, _omitFieldNames ? '' : 'nodes',
+        subBuilder: ContextNode.create)
+    ..aI(2, _omitFieldNames ? '' : 'total')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListNodesResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListNodesResponse copyWith(void Function(ListNodesResponse) updates) =>
+      super.copyWith((message) => updates(message as ListNodesResponse))
+          as ListNodesResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ListNodesResponse create() => ListNodesResponse._();
+  @$core.override
+  ListNodesResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ListNodesResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ListNodesResponse>(create);
+  static ListNodesResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<ContextNode> get nodes => $_getList(0);
+
+  @$pb.TagNumber(2)
+  $core.int get total => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set total($core.int value) => $_setSignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasTotal() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearTotal() => $_clearField(2);
+}
+
+class CreateNodeRequest extends $pb.GeneratedMessage {
+  factory CreateNodeRequest({
+    $core.String? repoId,
+    $core.String? kind,
+    $core.String? label,
+    $core.String? contentMd,
+    $core.Iterable<$core.MapEntry<$core.String, $core.String>>? attrs,
+    $core.String? sourceKind,
+    $core.double? confidence,
+  }) {
+    final result = create();
+    if (repoId != null) result.repoId = repoId;
+    if (kind != null) result.kind = kind;
+    if (label != null) result.label = label;
+    if (contentMd != null) result.contentMd = contentMd;
+    if (attrs != null) result.attrs.addEntries(attrs);
+    if (sourceKind != null) result.sourceKind = sourceKind;
+    if (confidence != null) result.confidence = confidence;
+    return result;
+  }
+
+  CreateNodeRequest._();
+
+  factory CreateNodeRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory CreateNodeRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CreateNodeRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'repoId')
+    ..aOS(2, _omitFieldNames ? '' : 'kind')
+    ..aOS(3, _omitFieldNames ? '' : 'label')
+    ..aOS(4, _omitFieldNames ? '' : 'contentMd')
+    ..m<$core.String, $core.String>(5, _omitFieldNames ? '' : 'attrs',
+        entryClassName: 'CreateNodeRequest.AttrsEntry',
+        keyFieldType: $pb.PbFieldType.OS,
+        valueFieldType: $pb.PbFieldType.OS,
+        packageName: const $pb.PackageName('fleetkanban.v1'))
+    ..aOS(6, _omitFieldNames ? '' : 'sourceKind')
+    ..aD(7, _omitFieldNames ? '' : 'confidence', fieldType: $pb.PbFieldType.OF)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CreateNodeRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CreateNodeRequest copyWith(void Function(CreateNodeRequest) updates) =>
+      super.copyWith((message) => updates(message as CreateNodeRequest))
+          as CreateNodeRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static CreateNodeRequest create() => CreateNodeRequest._();
+  @$core.override
+  CreateNodeRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static CreateNodeRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CreateNodeRequest>(create);
+  static CreateNodeRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get repoId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set repoId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRepoId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRepoId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get kind => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set kind($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasKind() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearKind() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get label => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set label($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasLabel() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearLabel() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get contentMd => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set contentMd($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasContentMd() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearContentMd() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $pb.PbMap<$core.String, $core.String> get attrs => $_getMap(4);
+
+  /// Defaults to "manual" if omitted — the only legitimate value for
+  /// UI-originated creations. Non-manual source_kinds are accepted so
+  /// the analyzer / observer can write directly.
+  @$pb.TagNumber(6)
+  $core.String get sourceKind => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set sourceKind($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasSourceKind() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearSourceKind() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.double get confidence => $_getN(6);
+  @$pb.TagNumber(7)
+  set confidence($core.double value) => $_setFloat(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasConfidence() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearConfidence() => $_clearField(7);
+}
+
+class UpdateNodeRequest extends $pb.GeneratedMessage {
+  factory UpdateNodeRequest({
+    $core.String? nodeId,
+    $core.String? label,
+    $core.String? contentMd,
+    $core.Iterable<$core.MapEntry<$core.String, $core.String>>? attrs,
+    $core.int? enabledOp,
+    $core.int? pinnedOp,
+    $core.double? confidence,
+  }) {
+    final result = create();
+    if (nodeId != null) result.nodeId = nodeId;
+    if (label != null) result.label = label;
+    if (contentMd != null) result.contentMd = contentMd;
+    if (attrs != null) result.attrs.addEntries(attrs);
+    if (enabledOp != null) result.enabledOp = enabledOp;
+    if (pinnedOp != null) result.pinnedOp = pinnedOp;
+    if (confidence != null) result.confidence = confidence;
+    return result;
+  }
+
+  UpdateNodeRequest._();
+
+  factory UpdateNodeRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory UpdateNodeRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'UpdateNodeRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'nodeId')
+    ..aOS(2, _omitFieldNames ? '' : 'label')
+    ..aOS(3, _omitFieldNames ? '' : 'contentMd')
+    ..m<$core.String, $core.String>(4, _omitFieldNames ? '' : 'attrs',
+        entryClassName: 'UpdateNodeRequest.AttrsEntry',
+        keyFieldType: $pb.PbFieldType.OS,
+        valueFieldType: $pb.PbFieldType.OS,
+        packageName: const $pb.PackageName('fleetkanban.v1'))
+    ..aI(5, _omitFieldNames ? '' : 'enabledOp')
+    ..aI(6, _omitFieldNames ? '' : 'pinnedOp')
+    ..aD(7, _omitFieldNames ? '' : 'confidence', fieldType: $pb.PbFieldType.OF)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UpdateNodeRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UpdateNodeRequest copyWith(void Function(UpdateNodeRequest) updates) =>
+      super.copyWith((message) => updates(message as UpdateNodeRequest))
+          as UpdateNodeRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static UpdateNodeRequest create() => UpdateNodeRequest._();
+  @$core.override
+  UpdateNodeRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static UpdateNodeRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<UpdateNodeRequest>(create);
+  static UpdateNodeRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get nodeId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set nodeId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasNodeId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearNodeId() => $_clearField(1);
+
+  /// Only non-empty string fields and explicitly-set oneof fields are
+  /// applied. Encoding "clear this field" for optional strings would
+  /// require wrappers; keep semantics simple by rejecting empty label
+  /// updates (UpdateNode with empty label → InvalidArgument).
+  @$pb.TagNumber(2)
+  $core.String get label => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set label($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasLabel() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearLabel() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get contentMd => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set contentMd($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasContentMd() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearContentMd() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $pb.PbMap<$core.String, $core.String> get attrs => $_getMap(3);
+
+  /// Tri-state: 0=unchanged, 1=enable, 2=disable. Same shape for pinned.
+  @$pb.TagNumber(5)
+  $core.int get enabledOp => $_getIZ(4);
+  @$pb.TagNumber(5)
+  set enabledOp($core.int value) => $_setSignedInt32(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasEnabledOp() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearEnabledOp() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.int get pinnedOp => $_getIZ(5);
+  @$pb.TagNumber(6)
+  set pinnedOp($core.int value) => $_setSignedInt32(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasPinnedOp() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearPinnedOp() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.double get confidence => $_getN(6);
+  @$pb.TagNumber(7)
+  set confidence($core.double value) => $_setFloat(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasConfidence() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearConfidence() => $_clearField(7);
+}
+
+class PinNodeRequest extends $pb.GeneratedMessage {
+  factory PinNodeRequest({
+    $core.String? nodeId,
+    $core.bool? pinned,
+  }) {
+    final result = create();
+    if (nodeId != null) result.nodeId = nodeId;
+    if (pinned != null) result.pinned = pinned;
+    return result;
+  }
+
+  PinNodeRequest._();
+
+  factory PinNodeRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory PinNodeRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PinNodeRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'nodeId')
+    ..aOB(2, _omitFieldNames ? '' : 'pinned')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PinNodeRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PinNodeRequest copyWith(void Function(PinNodeRequest) updates) =>
+      super.copyWith((message) => updates(message as PinNodeRequest))
+          as PinNodeRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static PinNodeRequest create() => PinNodeRequest._();
+  @$core.override
+  PinNodeRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static PinNodeRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<PinNodeRequest>(create);
+  static PinNodeRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get nodeId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set nodeId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasNodeId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearNodeId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.bool get pinned => $_getBF(1);
+  @$pb.TagNumber(2)
+  set pinned($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasPinned() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearPinned() => $_clearField(2);
+}
+
+class ListEdgesRequest extends $pb.GeneratedMessage {
+  factory ListEdgesRequest({
+    $core.String? repoId,
+    $core.String? nodeId,
+    $core.Iterable<$core.String>? rels,
+    $core.int? limit,
+    $core.int? offset,
+  }) {
+    final result = create();
+    if (repoId != null) result.repoId = repoId;
+    if (nodeId != null) result.nodeId = nodeId;
+    if (rels != null) result.rels.addAll(rels);
+    if (limit != null) result.limit = limit;
+    if (offset != null) result.offset = offset;
+    return result;
+  }
+
+  ListEdgesRequest._();
+
+  factory ListEdgesRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ListEdgesRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ListEdgesRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'repoId')
+    ..aOS(2, _omitFieldNames ? '' : 'nodeId')
+    ..pPS(3, _omitFieldNames ? '' : 'rels')
+    ..aI(4, _omitFieldNames ? '' : 'limit')
+    ..aI(5, _omitFieldNames ? '' : 'offset')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListEdgesRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListEdgesRequest copyWith(void Function(ListEdgesRequest) updates) =>
+      super.copyWith((message) => updates(message as ListEdgesRequest))
+          as ListEdgesRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ListEdgesRequest create() => ListEdgesRequest._();
+  @$core.override
+  ListEdgesRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ListEdgesRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ListEdgesRequest>(create);
+  static ListEdgesRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get repoId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set repoId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRepoId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRepoId() => $_clearField(1);
+
+  /// Optional: only edges incident to this node (either direction).
+  @$pb.TagNumber(2)
+  $core.String get nodeId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set nodeId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasNodeId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearNodeId() => $_clearField(2);
+
+  /// Optional filter on rel string.
+  @$pb.TagNumber(3)
+  $pb.PbList<$core.String> get rels => $_getList(2);
+
+  @$pb.TagNumber(4)
+  $core.int get limit => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set limit($core.int value) => $_setSignedInt32(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasLimit() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearLimit() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.int get offset => $_getIZ(4);
+  @$pb.TagNumber(5)
+  set offset($core.int value) => $_setSignedInt32(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasOffset() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearOffset() => $_clearField(5);
+}
+
+class ListEdgesResponse extends $pb.GeneratedMessage {
+  factory ListEdgesResponse({
+    $core.Iterable<ContextEdge>? edges,
+    $core.int? total,
+  }) {
+    final result = create();
+    if (edges != null) result.edges.addAll(edges);
+    if (total != null) result.total = total;
+    return result;
+  }
+
+  ListEdgesResponse._();
+
+  factory ListEdgesResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ListEdgesResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ListEdgesResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..pPM<ContextEdge>(1, _omitFieldNames ? '' : 'edges',
+        subBuilder: ContextEdge.create)
+    ..aI(2, _omitFieldNames ? '' : 'total')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListEdgesResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListEdgesResponse copyWith(void Function(ListEdgesResponse) updates) =>
+      super.copyWith((message) => updates(message as ListEdgesResponse))
+          as ListEdgesResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ListEdgesResponse create() => ListEdgesResponse._();
+  @$core.override
+  ListEdgesResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ListEdgesResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ListEdgesResponse>(create);
+  static ListEdgesResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<ContextEdge> get edges => $_getList(0);
+
+  @$pb.TagNumber(2)
+  $core.int get total => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set total($core.int value) => $_setSignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasTotal() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearTotal() => $_clearField(2);
+}
+
+class CreateEdgeRequest extends $pb.GeneratedMessage {
+  factory CreateEdgeRequest({
+    $core.String? repoId,
+    $core.String? srcNodeId,
+    $core.String? dstNodeId,
+    $core.String? rel,
+    $core.Iterable<$core.MapEntry<$core.String, $core.String>>? attrs,
+  }) {
+    final result = create();
+    if (repoId != null) result.repoId = repoId;
+    if (srcNodeId != null) result.srcNodeId = srcNodeId;
+    if (dstNodeId != null) result.dstNodeId = dstNodeId;
+    if (rel != null) result.rel = rel;
+    if (attrs != null) result.attrs.addEntries(attrs);
+    return result;
+  }
+
+  CreateEdgeRequest._();
+
+  factory CreateEdgeRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory CreateEdgeRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CreateEdgeRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'repoId')
+    ..aOS(2, _omitFieldNames ? '' : 'srcNodeId')
+    ..aOS(3, _omitFieldNames ? '' : 'dstNodeId')
+    ..aOS(4, _omitFieldNames ? '' : 'rel')
+    ..m<$core.String, $core.String>(5, _omitFieldNames ? '' : 'attrs',
+        entryClassName: 'CreateEdgeRequest.AttrsEntry',
+        keyFieldType: $pb.PbFieldType.OS,
+        valueFieldType: $pb.PbFieldType.OS,
+        packageName: const $pb.PackageName('fleetkanban.v1'))
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CreateEdgeRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CreateEdgeRequest copyWith(void Function(CreateEdgeRequest) updates) =>
+      super.copyWith((message) => updates(message as CreateEdgeRequest))
+          as CreateEdgeRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static CreateEdgeRequest create() => CreateEdgeRequest._();
+  @$core.override
+  CreateEdgeRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static CreateEdgeRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CreateEdgeRequest>(create);
+  static CreateEdgeRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get repoId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set repoId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRepoId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRepoId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get srcNodeId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set srcNodeId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasSrcNodeId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearSrcNodeId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get dstNodeId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set dstNodeId($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasDstNodeId() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearDstNodeId() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get rel => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set rel($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasRel() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearRel() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $pb.PbMap<$core.String, $core.String> get attrs => $_getMap(4);
+}
+
+class ListFactsRequest extends $pb.GeneratedMessage {
+  factory ListFactsRequest({
+    $core.String? repoId,
+    $core.String? subjectNodeId,
+    $core.bool? includeExpired,
+    $core.int? limit,
+    $core.int? offset,
+  }) {
+    final result = create();
+    if (repoId != null) result.repoId = repoId;
+    if (subjectNodeId != null) result.subjectNodeId = subjectNodeId;
+    if (includeExpired != null) result.includeExpired = includeExpired;
+    if (limit != null) result.limit = limit;
+    if (offset != null) result.offset = offset;
+    return result;
+  }
+
+  ListFactsRequest._();
+
+  factory ListFactsRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ListFactsRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ListFactsRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'repoId')
+    ..aOS(2, _omitFieldNames ? '' : 'subjectNodeId')
+    ..aOB(3, _omitFieldNames ? '' : 'includeExpired')
+    ..aI(4, _omitFieldNames ? '' : 'limit')
+    ..aI(5, _omitFieldNames ? '' : 'offset')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListFactsRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListFactsRequest copyWith(void Function(ListFactsRequest) updates) =>
+      super.copyWith((message) => updates(message as ListFactsRequest))
+          as ListFactsRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ListFactsRequest create() => ListFactsRequest._();
+  @$core.override
+  ListFactsRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ListFactsRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ListFactsRequest>(create);
+  static ListFactsRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get repoId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set repoId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRepoId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRepoId() => $_clearField(1);
+
+  /// Optional filter — only facts for this subject node.
+  @$pb.TagNumber(2)
+  $core.String get subjectNodeId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set subjectNodeId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasSubjectNodeId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearSubjectNodeId() => $_clearField(2);
+
+  /// When true, include facts whose valid_to is in the past. Defaults
+  /// to false (only currently-active facts).
+  @$pb.TagNumber(3)
+  $core.bool get includeExpired => $_getBF(2);
+  @$pb.TagNumber(3)
+  set includeExpired($core.bool value) => $_setBool(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasIncludeExpired() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearIncludeExpired() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.int get limit => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set limit($core.int value) => $_setSignedInt32(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasLimit() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearLimit() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.int get offset => $_getIZ(4);
+  @$pb.TagNumber(5)
+  set offset($core.int value) => $_setSignedInt32(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasOffset() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearOffset() => $_clearField(5);
+}
+
+class ListFactsResponse extends $pb.GeneratedMessage {
+  factory ListFactsResponse({
+    $core.Iterable<ContextFact>? facts,
+    $core.int? total,
+  }) {
+    final result = create();
+    if (facts != null) result.facts.addAll(facts);
+    if (total != null) result.total = total;
+    return result;
+  }
+
+  ListFactsResponse._();
+
+  factory ListFactsResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ListFactsResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ListFactsResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..pPM<ContextFact>(1, _omitFieldNames ? '' : 'facts',
+        subBuilder: ContextFact.create)
+    ..aI(2, _omitFieldNames ? '' : 'total')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListFactsResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListFactsResponse copyWith(void Function(ListFactsResponse) updates) =>
+      super.copyWith((message) => updates(message as ListFactsResponse))
+          as ListFactsResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ListFactsResponse create() => ListFactsResponse._();
+  @$core.override
+  ListFactsResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ListFactsResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ListFactsResponse>(create);
+  static ListFactsResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<ContextFact> get facts => $_getList(0);
+
+  @$pb.TagNumber(2)
+  $core.int get total => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set total($core.int value) => $_setSignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasTotal() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearTotal() => $_clearField(2);
+}
+
+/// InjectionSource lists one memory item that contributed to an
+/// injected prompt. source_ref is ContextNode.id or ContextFact.id
+/// depending on source_type. Ordering mirrors the Markdown that was
+/// rendered, so the UI can display sources as a numbered sidebar.
+class InjectionSource extends $pb.GeneratedMessage {
+  factory InjectionSource({
+    $core.String? sourceType,
+    $core.String? sourceRef,
+    $core.String? label,
+    $core.String? channel,
+    $core.int? tokens,
+    $core.double? relevance,
+  }) {
+    final result = create();
+    if (sourceType != null) result.sourceType = sourceType;
+    if (sourceRef != null) result.sourceRef = sourceRef;
+    if (label != null) result.label = label;
+    if (channel != null) result.channel = channel;
+    if (tokens != null) result.tokens = tokens;
+    if (relevance != null) result.relevance = relevance;
+    return result;
+  }
+
+  InjectionSource._();
+
+  factory InjectionSource.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory InjectionSource.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'InjectionSource',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'sourceType')
+    ..aOS(2, _omitFieldNames ? '' : 'sourceRef')
+    ..aOS(3, _omitFieldNames ? '' : 'label')
+    ..aOS(4, _omitFieldNames ? '' : 'channel')
+    ..aI(5, _omitFieldNames ? '' : 'tokens')
+    ..aD(6, _omitFieldNames ? '' : 'relevance', fieldType: $pb.PbFieldType.OF)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InjectionSource clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InjectionSource copyWith(void Function(InjectionSource) updates) =>
+      super.copyWith((message) => updates(message as InjectionSource))
+          as InjectionSource;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static InjectionSource create() => InjectionSource._();
+  @$core.override
+  InjectionSource createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static InjectionSource getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<InjectionSource>(create);
+  static InjectionSource? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get sourceType => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set sourceType($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasSourceType() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSourceType() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get sourceRef => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set sourceRef($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasSourceRef() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearSourceRef() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get label => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set label($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasLabel() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearLabel() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get channel => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set channel($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasChannel() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearChannel() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.int get tokens => $_getIZ(4);
+  @$pb.TagNumber(5)
+  set tokens($core.int value) => $_setSignedInt32(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasTokens() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearTokens() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.double get relevance => $_getN(5);
+  @$pb.TagNumber(6)
+  set relevance($core.double value) => $_setFloat(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasRelevance() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearRelevance() => $_clearField(6);
+}
+
+class InjectionPreview extends $pb.GeneratedMessage {
+  factory InjectionPreview({
+    $core.String? systemPrompt,
+    $core.Iterable<InjectionSource>? sources,
+    $core.int? estimatedTokens,
+    $core.String? tier,
+  }) {
+    final result = create();
+    if (systemPrompt != null) result.systemPrompt = systemPrompt;
+    if (sources != null) result.sources.addAll(sources);
+    if (estimatedTokens != null) result.estimatedTokens = estimatedTokens;
+    if (tier != null) result.tier = tier;
+    return result;
+  }
+
+  InjectionPreview._();
+
+  factory InjectionPreview.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory InjectionPreview.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'InjectionPreview',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'systemPrompt')
+    ..pPM<InjectionSource>(2, _omitFieldNames ? '' : 'sources',
+        subBuilder: InjectionSource.create)
+    ..aI(3, _omitFieldNames ? '' : 'estimatedTokens')
+    ..aOS(4, _omitFieldNames ? '' : 'tier')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InjectionPreview clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InjectionPreview copyWith(void Function(InjectionPreview) updates) =>
+      super.copyWith((message) => updates(message as InjectionPreview))
+          as InjectionPreview;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static InjectionPreview create() => InjectionPreview._();
+  @$core.override
+  InjectionPreview createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static InjectionPreview getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<InjectionPreview>(create);
+  static InjectionPreview? _defaultInstance;
+
+  /// The assembled Markdown block that would be prepended to the
+  /// Copilot system prompt. Empty when memory is disabled for the repo.
+  @$pb.TagNumber(1)
+  $core.String get systemPrompt => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set systemPrompt($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasSystemPrompt() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSystemPrompt() => $_clearField(1);
+
+  /// Ordered contributions so the UI can render a sidebar.
+  @$pb.TagNumber(2)
+  $pb.PbList<InjectionSource> get sources => $_getList(1);
+
+  /// Rough token estimate so the UI can compare against the Passive
+  /// budget from MemorySettings.
+  @$pb.TagNumber(3)
+  $core.int get estimatedTokens => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set estimatedTokens($core.int value) => $_setSignedInt32(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasEstimatedTokens() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearEstimatedTokens() => $_clearField(3);
+
+  /// Injection tier this preview represents.
+  /// "passive" | "reactive" | "active"
+  @$pb.TagNumber(4)
+  $core.String get tier => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set tier($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasTier() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearTier() => $_clearField(4);
+}
+
+class PreviewInjectionRequest extends $pb.GeneratedMessage {
+  factory PreviewInjectionRequest({
+    $core.String? repoId,
+    $core.String? taskId,
+    $core.String? rawPrompt,
+    $core.String? tier,
+  }) {
+    final result = create();
+    if (repoId != null) result.repoId = repoId;
+    if (taskId != null) result.taskId = taskId;
+    if (rawPrompt != null) result.rawPrompt = rawPrompt;
+    if (tier != null) result.tier = tier;
+    return result;
+  }
+
+  PreviewInjectionRequest._();
+
+  factory PreviewInjectionRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory PreviewInjectionRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PreviewInjectionRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'repoId')
+    ..aOS(2, _omitFieldNames ? '' : 'taskId')
+    ..aOS(3, _omitFieldNames ? '' : 'rawPrompt')
+    ..aOS(4, _omitFieldNames ? '' : 'tier')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PreviewInjectionRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PreviewInjectionRequest copyWith(
+          void Function(PreviewInjectionRequest) updates) =>
+      super.copyWith((message) => updates(message as PreviewInjectionRequest))
+          as PreviewInjectionRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static PreviewInjectionRequest create() => PreviewInjectionRequest._();
+  @$core.override
+  PreviewInjectionRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static PreviewInjectionRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<PreviewInjectionRequest>(create);
+  static PreviewInjectionRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get repoId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set repoId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRepoId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRepoId() => $_clearField(1);
+
+  /// Either task_id (use its goal / base branch / review feedback) OR
+  /// raw_prompt (for a hypothetical task the user is about to create).
+  /// Exactly one must be set.
+  @$pb.TagNumber(2)
+  $core.String get taskId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set taskId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasTaskId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearTaskId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get rawPrompt => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set rawPrompt($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasRawPrompt() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearRawPrompt() => $_clearField(3);
+
+  /// Which tier to preview. Defaults to "passive".
+  @$pb.TagNumber(4)
+  $core.String get tier => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set tier($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasTier() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearTier() => $_clearField(4);
+}
+
+class RebuildEmbeddingsResponse extends $pb.GeneratedMessage {
+  factory RebuildEmbeddingsResponse({
+    $core.int? rebuilt,
+    $core.int? skipped,
+  }) {
+    final result = create();
+    if (rebuilt != null) result.rebuilt = rebuilt;
+    if (skipped != null) result.skipped = skipped;
+    return result;
+  }
+
+  RebuildEmbeddingsResponse._();
+
+  factory RebuildEmbeddingsResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory RebuildEmbeddingsResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'RebuildEmbeddingsResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aI(1, _omitFieldNames ? '' : 'rebuilt')
+    ..aI(2, _omitFieldNames ? '' : 'skipped')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RebuildEmbeddingsResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RebuildEmbeddingsResponse copyWith(
+          void Function(RebuildEmbeddingsResponse) updates) =>
+      super.copyWith((message) => updates(message as RebuildEmbeddingsResponse))
+          as RebuildEmbeddingsResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static RebuildEmbeddingsResponse create() => RebuildEmbeddingsResponse._();
+  @$core.override
+  RebuildEmbeddingsResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static RebuildEmbeddingsResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<RebuildEmbeddingsResponse>(create);
+  static RebuildEmbeddingsResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.int get rebuilt => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set rebuilt($core.int value) => $_setSignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRebuilt() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRebuilt() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.int get skipped => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set skipped($core.int value) => $_setSignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasSkipped() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearSkipped() => $_clearField(2);
+}
+
+class RebuildCodeGraphResponse extends $pb.GeneratedMessage {
+  factory RebuildCodeGraphResponse({
+    $core.int? filesScanned,
+    $core.int? nodesCreated,
+    $core.int? nodesUpdated,
+    $core.int? edgesCreated,
+  }) {
+    final result = create();
+    if (filesScanned != null) result.filesScanned = filesScanned;
+    if (nodesCreated != null) result.nodesCreated = nodesCreated;
+    if (nodesUpdated != null) result.nodesUpdated = nodesUpdated;
+    if (edgesCreated != null) result.edgesCreated = edgesCreated;
+    return result;
+  }
+
+  RebuildCodeGraphResponse._();
+
+  factory RebuildCodeGraphResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory RebuildCodeGraphResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'RebuildCodeGraphResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aI(1, _omitFieldNames ? '' : 'filesScanned')
+    ..aI(2, _omitFieldNames ? '' : 'nodesCreated')
+    ..aI(3, _omitFieldNames ? '' : 'nodesUpdated')
+    ..aI(4, _omitFieldNames ? '' : 'edgesCreated')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RebuildCodeGraphResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RebuildCodeGraphResponse copyWith(
+          void Function(RebuildCodeGraphResponse) updates) =>
+      super.copyWith((message) => updates(message as RebuildCodeGraphResponse))
+          as RebuildCodeGraphResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static RebuildCodeGraphResponse create() => RebuildCodeGraphResponse._();
+  @$core.override
+  RebuildCodeGraphResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static RebuildCodeGraphResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<RebuildCodeGraphResponse>(create);
+  static RebuildCodeGraphResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.int get filesScanned => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set filesScanned($core.int value) => $_setSignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasFilesScanned() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearFilesScanned() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.int get nodesCreated => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set nodesCreated($core.int value) => $_setSignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasNodesCreated() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearNodesCreated() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.int get nodesUpdated => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set nodesUpdated($core.int value) => $_setSignedInt32(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasNodesUpdated() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearNodesUpdated() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.int get edgesCreated => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set edgesCreated($core.int value) => $_setSignedInt32(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasEdgesCreated() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearEdgesCreated() => $_clearField(4);
+}
+
+class AnalyzeRepoRequest extends $pb.GeneratedMessage {
+  factory AnalyzeRepoRequest({
+    $core.String? repoId,
+    $core.bool? force,
+    $core.String? model,
+  }) {
+    final result = create();
+    if (repoId != null) result.repoId = repoId;
+    if (force != null) result.force = force;
+    if (model != null) result.model = model;
+    return result;
+  }
+
+  AnalyzeRepoRequest._();
+
+  factory AnalyzeRepoRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory AnalyzeRepoRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'AnalyzeRepoRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'repoId')
+    ..aOB(2, _omitFieldNames ? '' : 'force')
+    ..aOS(3, _omitFieldNames ? '' : 'model')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  AnalyzeRepoRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  AnalyzeRepoRequest copyWith(void Function(AnalyzeRepoRequest) updates) =>
+      super.copyWith((message) => updates(message as AnalyzeRepoRequest))
+          as AnalyzeRepoRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static AnalyzeRepoRequest create() => AnalyzeRepoRequest._();
+  @$core.override
+  AnalyzeRepoRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static AnalyzeRepoRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<AnalyzeRepoRequest>(create);
+  static AnalyzeRepoRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get repoId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set repoId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRepoId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRepoId() => $_clearField(1);
+
+  /// When true, re-analyze even if an analyzer run already finished for
+  /// this repo. Defaults to false so "Analyze this repository" is
+  /// idempotent in normal operation.
+  @$pb.TagNumber(2)
+  $core.bool get force => $_getBF(1);
+  @$pb.TagNumber(2)
+  set force($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasForce() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearForce() => $_clearField(2);
+
+  /// Optional override: the LLM model used for the analyzer session.
+  /// Falls back to MemorySettings.llm_model when empty.
+  @$pb.TagNumber(3)
+  $core.String get model => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set model($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasModel() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearModel() => $_clearField(3);
+}
+
+class MemorySettings extends $pb.GeneratedMessage {
+  factory MemorySettings({
+    $core.String? repoId,
+    $core.bool? enabled,
+    $core.String? embeddingProvider,
+    $core.String? embeddingModel,
+    $core.int? embeddingDim,
+    $core.String? llmProvider,
+    $core.String? llmModel,
+    $core.int? passiveTokenBudget,
+    $core.int? topKNeighbors,
+    $core.bool? autoPromoteHighConfidence,
+    $core.double? autoPromoteThreshold,
+    $2.Timestamp? updatedAt,
+  }) {
+    final result = create();
+    if (repoId != null) result.repoId = repoId;
+    if (enabled != null) result.enabled = enabled;
+    if (embeddingProvider != null) result.embeddingProvider = embeddingProvider;
+    if (embeddingModel != null) result.embeddingModel = embeddingModel;
+    if (embeddingDim != null) result.embeddingDim = embeddingDim;
+    if (llmProvider != null) result.llmProvider = llmProvider;
+    if (llmModel != null) result.llmModel = llmModel;
+    if (passiveTokenBudget != null)
+      result.passiveTokenBudget = passiveTokenBudget;
+    if (topKNeighbors != null) result.topKNeighbors = topKNeighbors;
+    if (autoPromoteHighConfidence != null)
+      result.autoPromoteHighConfidence = autoPromoteHighConfidence;
+    if (autoPromoteThreshold != null)
+      result.autoPromoteThreshold = autoPromoteThreshold;
+    if (updatedAt != null) result.updatedAt = updatedAt;
+    return result;
+  }
+
+  MemorySettings._();
+
+  factory MemorySettings.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory MemorySettings.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'MemorySettings',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'repoId')
+    ..aOB(2, _omitFieldNames ? '' : 'enabled')
+    ..aOS(3, _omitFieldNames ? '' : 'embeddingProvider')
+    ..aOS(4, _omitFieldNames ? '' : 'embeddingModel')
+    ..aI(5, _omitFieldNames ? '' : 'embeddingDim')
+    ..aOS(6, _omitFieldNames ? '' : 'llmProvider')
+    ..aOS(7, _omitFieldNames ? '' : 'llmModel')
+    ..aI(8, _omitFieldNames ? '' : 'passiveTokenBudget')
+    ..aI(9, _omitFieldNames ? '' : 'topKNeighbors')
+    ..aOB(10, _omitFieldNames ? '' : 'autoPromoteHighConfidence')
+    ..aD(11, _omitFieldNames ? '' : 'autoPromoteThreshold',
+        fieldType: $pb.PbFieldType.OF)
+    ..aOM<$2.Timestamp>(12, _omitFieldNames ? '' : 'updatedAt',
+        subBuilder: $2.Timestamp.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  MemorySettings clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  MemorySettings copyWith(void Function(MemorySettings) updates) =>
+      super.copyWith((message) => updates(message as MemorySettings))
+          as MemorySettings;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static MemorySettings create() => MemorySettings._();
+  @$core.override
+  MemorySettings createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static MemorySettings getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<MemorySettings>(create);
+  static MemorySettings? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get repoId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set repoId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRepoId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRepoId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.bool get enabled => $_getBF(1);
+  @$pb.TagNumber(2)
+  set enabled($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasEnabled() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearEnabled() => $_clearField(2);
+
+  /// Ollama | openai | voyage | google | openrouter | azure_openai
+  @$pb.TagNumber(3)
+  $core.String get embeddingProvider => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set embeddingProvider($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasEmbeddingProvider() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearEmbeddingProvider() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get embeddingModel => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set embeddingModel($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasEmbeddingModel() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearEmbeddingModel() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.int get embeddingDim => $_getIZ(4);
+  @$pb.TagNumber(5)
+  set embeddingDim($core.int value) => $_setSignedInt32(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasEmbeddingDim() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearEmbeddingDim() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get llmProvider => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set llmProvider($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasLlmProvider() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearLlmProvider() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.String get llmModel => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set llmModel($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasLlmModel() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearLlmModel() => $_clearField(7);
+
+  /// Token budget for the Passive tier injection block. Hits above
+  /// this budget are truncated from the lowest-ranked tail.
+  @$pb.TagNumber(8)
+  $core.int get passiveTokenBudget => $_getIZ(7);
+  @$pb.TagNumber(8)
+  set passiveTokenBudget($core.int value) => $_setSignedInt32(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasPassiveTokenBudget() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearPassiveTokenBudget() => $_clearField(8);
+
+  /// Hops to expand the top-ranked semantic + keyword hits when
+  /// computing graph-neighborhood boost. 0 disables the boost.
+  @$pb.TagNumber(9)
+  $core.int get topKNeighbors => $_getIZ(8);
+  @$pb.TagNumber(9)
+  set topKNeighbors($core.int value) => $_setSignedInt32(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasTopKNeighbors() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearTopKNeighbors() => $_clearField(9);
+
+  /// When true, scratchpad entries whose confidence >= threshold skip
+  /// the trust gate and become ContextNodes directly. Default false.
+  @$pb.TagNumber(10)
+  $core.bool get autoPromoteHighConfidence => $_getBF(9);
+  @$pb.TagNumber(10)
+  set autoPromoteHighConfidence($core.bool value) => $_setBool(9, value);
+  @$pb.TagNumber(10)
+  $core.bool hasAutoPromoteHighConfidence() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearAutoPromoteHighConfidence() => $_clearField(10);
+
+  @$pb.TagNumber(11)
+  $core.double get autoPromoteThreshold => $_getN(10);
+  @$pb.TagNumber(11)
+  set autoPromoteThreshold($core.double value) => $_setFloat(10, value);
+  @$pb.TagNumber(11)
+  $core.bool hasAutoPromoteThreshold() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearAutoPromoteThreshold() => $_clearField(11);
+
+  @$pb.TagNumber(12)
+  $2.Timestamp get updatedAt => $_getN(11);
+  @$pb.TagNumber(12)
+  set updatedAt($2.Timestamp value) => $_setField(12, value);
+  @$pb.TagNumber(12)
+  $core.bool hasUpdatedAt() => $_has(11);
+  @$pb.TagNumber(12)
+  void clearUpdatedAt() => $_clearField(12);
+  @$pb.TagNumber(12)
+  $2.Timestamp ensureUpdatedAt() => $_ensure(11);
+}
+
+class UpdateMemorySettingsRequest extends $pb.GeneratedMessage {
+  factory UpdateMemorySettingsRequest({
+    MemorySettings? settings,
+  }) {
+    final result = create();
+    if (settings != null) result.settings = settings;
+    return result;
+  }
+
+  UpdateMemorySettingsRequest._();
+
+  factory UpdateMemorySettingsRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory UpdateMemorySettingsRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'UpdateMemorySettingsRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOM<MemorySettings>(1, _omitFieldNames ? '' : 'settings',
+        subBuilder: MemorySettings.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UpdateMemorySettingsRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UpdateMemorySettingsRequest copyWith(
+          void Function(UpdateMemorySettingsRequest) updates) =>
+      super.copyWith(
+              (message) => updates(message as UpdateMemorySettingsRequest))
+          as UpdateMemorySettingsRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static UpdateMemorySettingsRequest create() =>
+      UpdateMemorySettingsRequest._();
+  @$core.override
+  UpdateMemorySettingsRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static UpdateMemorySettingsRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<UpdateMemorySettingsRequest>(create);
+  static UpdateMemorySettingsRequest? _defaultInstance;
+
+  /// settings.repo_id is required. All other fields are applied as-is
+  /// (including zero values); to ignore a field, fetch, mutate, and
+  /// resend — the semantics mirror SetConcurrency.
+  @$pb.TagNumber(1)
+  MemorySettings get settings => $_getN(0);
+  @$pb.TagNumber(1)
+  set settings(MemorySettings value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasSettings() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSettings() => $_clearField(1);
+  @$pb.TagNumber(1)
+  MemorySettings ensureSettings() => $_ensure(0);
+}
+
+/// WatchContextRequest resumes a stream by passing the server sequence
+/// of the last observed change per change-kind. Unset → send only
+/// future changes (no backfill).
+class WatchContextRequest extends $pb.GeneratedMessage {
+  factory WatchContextRequest({
+    $core.String? repoId,
+    $core.Iterable<$core.MapEntry<$core.String, $fixnum.Int64>>? sinceSeqByKind,
+  }) {
+    final result = create();
+    if (repoId != null) result.repoId = repoId;
+    if (sinceSeqByKind != null)
+      result.sinceSeqByKind.addEntries(sinceSeqByKind);
+    return result;
+  }
+
+  WatchContextRequest._();
+
+  factory WatchContextRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory WatchContextRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'WatchContextRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'repoId')
+    ..m<$core.String, $fixnum.Int64>(2, _omitFieldNames ? '' : 'sinceSeqByKind',
+        entryClassName: 'WatchContextRequest.SinceSeqByKindEntry',
+        keyFieldType: $pb.PbFieldType.OS,
+        valueFieldType: $pb.PbFieldType.O6,
+        packageName: const $pb.PackageName('fleetkanban.v1'))
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  WatchContextRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  WatchContextRequest copyWith(void Function(WatchContextRequest) updates) =>
+      super.copyWith((message) => updates(message as WatchContextRequest))
+          as WatchContextRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static WatchContextRequest create() => WatchContextRequest._();
+  @$core.override
+  WatchContextRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static WatchContextRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<WatchContextRequest>(create);
+  static WatchContextRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get repoId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set repoId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRepoId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRepoId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $pb.PbMap<$core.String, $fixnum.Int64> get sinceSeqByKind => $_getMap(1);
+}
+
+class ContextChangeEvent extends $pb.GeneratedMessage {
+  factory ContextChangeEvent({
+    $fixnum.Int64? seq,
+    $core.String? kind,
+    $core.String? op,
+    $core.String? id,
+    $core.String? repoId,
+    $2.Timestamp? occurredAt,
+    $core.String? message,
+  }) {
+    final result = create();
+    if (seq != null) result.seq = seq;
+    if (kind != null) result.kind = kind;
+    if (op != null) result.op = op;
+    if (id != null) result.id = id;
+    if (repoId != null) result.repoId = repoId;
+    if (occurredAt != null) result.occurredAt = occurredAt;
+    if (message != null) result.message = message;
+    return result;
+  }
+
+  ContextChangeEvent._();
+
+  factory ContextChangeEvent.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ContextChangeEvent.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ContextChangeEvent',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aInt64(1, _omitFieldNames ? '' : 'seq')
+    ..aOS(2, _omitFieldNames ? '' : 'kind')
+    ..aOS(3, _omitFieldNames ? '' : 'op')
+    ..aOS(4, _omitFieldNames ? '' : 'id')
+    ..aOS(5, _omitFieldNames ? '' : 'repoId')
+    ..aOM<$2.Timestamp>(6, _omitFieldNames ? '' : 'occurredAt',
+        subBuilder: $2.Timestamp.create)
+    ..aOS(7, _omitFieldNames ? '' : 'message')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ContextChangeEvent clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ContextChangeEvent copyWith(void Function(ContextChangeEvent) updates) =>
+      super.copyWith((message) => updates(message as ContextChangeEvent))
+          as ContextChangeEvent;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ContextChangeEvent create() => ContextChangeEvent._();
+  @$core.override
+  ContextChangeEvent createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ContextChangeEvent getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ContextChangeEvent>(create);
+  static ContextChangeEvent? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $fixnum.Int64 get seq => $_getI64(0);
+  @$pb.TagNumber(1)
+  set seq($fixnum.Int64 value) => $_setInt64(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasSeq() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSeq() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get kind => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set kind($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasKind() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearKind() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get op => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set op($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasOp() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearOp() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get id => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set id($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasId() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearId() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get repoId => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set repoId($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasRepoId() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearRepoId() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $2.Timestamp get occurredAt => $_getN(5);
+  @$pb.TagNumber(6)
+  set occurredAt($2.Timestamp value) => $_setField(6, value);
+  @$pb.TagNumber(6)
+  $core.bool hasOccurredAt() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearOccurredAt() => $_clearField(6);
+  @$pb.TagNumber(6)
+  $2.Timestamp ensureOccurredAt() => $_ensure(5);
+
+  /// Human-readable detail. Populated for analyzer error events so the
+  /// UI can render the failure message (with a copy button) inline
+  /// rather than forcing the user to tail the sidecar log.
+  @$pb.TagNumber(7)
+  $core.String get message => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set message($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasMessage() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearMessage() => $_clearField(7);
+}
+
+class ScratchpadEntry extends $pb.GeneratedMessage {
+  factory ScratchpadEntry({
+    $core.String? id,
+    $core.String? repoId,
+    $core.String? proposedKind,
+    $core.String? proposedLabel,
+    $core.String? proposedContentMd,
+    $core.String? sourceKind,
+    $core.String? sourceRef,
+    $core.Iterable<$core.String>? signals,
+    $core.double? confidence,
+    $core.String? status,
+    $2.Timestamp? snoozedUntil,
+    $2.Timestamp? createdAt,
+    $2.Timestamp? updatedAt,
+  }) {
+    final result = create();
+    if (id != null) result.id = id;
+    if (repoId != null) result.repoId = repoId;
+    if (proposedKind != null) result.proposedKind = proposedKind;
+    if (proposedLabel != null) result.proposedLabel = proposedLabel;
+    if (proposedContentMd != null) result.proposedContentMd = proposedContentMd;
+    if (sourceKind != null) result.sourceKind = sourceKind;
+    if (sourceRef != null) result.sourceRef = sourceRef;
+    if (signals != null) result.signals.addAll(signals);
+    if (confidence != null) result.confidence = confidence;
+    if (status != null) result.status = status;
+    if (snoozedUntil != null) result.snoozedUntil = snoozedUntil;
+    if (createdAt != null) result.createdAt = createdAt;
+    if (updatedAt != null) result.updatedAt = updatedAt;
+    return result;
+  }
+
+  ScratchpadEntry._();
+
+  factory ScratchpadEntry.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ScratchpadEntry.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ScratchpadEntry',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOS(2, _omitFieldNames ? '' : 'repoId')
+    ..aOS(3, _omitFieldNames ? '' : 'proposedKind')
+    ..aOS(4, _omitFieldNames ? '' : 'proposedLabel')
+    ..aOS(5, _omitFieldNames ? '' : 'proposedContentMd')
+    ..aOS(6, _omitFieldNames ? '' : 'sourceKind')
+    ..aOS(7, _omitFieldNames ? '' : 'sourceRef')
+    ..pPS(8, _omitFieldNames ? '' : 'signals')
+    ..aD(9, _omitFieldNames ? '' : 'confidence', fieldType: $pb.PbFieldType.OF)
+    ..aOS(10, _omitFieldNames ? '' : 'status')
+    ..aOM<$2.Timestamp>(11, _omitFieldNames ? '' : 'snoozedUntil',
+        subBuilder: $2.Timestamp.create)
+    ..aOM<$2.Timestamp>(12, _omitFieldNames ? '' : 'createdAt',
+        subBuilder: $2.Timestamp.create)
+    ..aOM<$2.Timestamp>(13, _omitFieldNames ? '' : 'updatedAt',
+        subBuilder: $2.Timestamp.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ScratchpadEntry clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ScratchpadEntry copyWith(void Function(ScratchpadEntry) updates) =>
+      super.copyWith((message) => updates(message as ScratchpadEntry))
+          as ScratchpadEntry;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ScratchpadEntry create() => ScratchpadEntry._();
+  @$core.override
+  ScratchpadEntry createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ScratchpadEntry getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ScratchpadEntry>(create);
+  static ScratchpadEntry? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get repoId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set repoId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasRepoId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearRepoId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get proposedKind => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set proposedKind($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasProposedKind() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearProposedKind() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get proposedLabel => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set proposedLabel($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasProposedLabel() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearProposedLabel() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get proposedContentMd => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set proposedContentMd($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasProposedContentMd() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearProposedContentMd() => $_clearField(5);
+
+  /// observer-signal | analyzer | session-summary | manual-draft
+  @$pb.TagNumber(6)
+  $core.String get sourceKind => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set sourceKind($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasSourceKind() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearSourceKind() => $_clearField(6);
+
+  /// Origin task / session for debug / trust UI. Empty when the
+  /// observer aggregated multiple sessions.
+  @$pb.TagNumber(7)
+  $core.String get sourceRef => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set sourceRef($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasSourceRef() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearSourceRef() => $_clearField(7);
+
+  /// Free-form signal strings ("repeated file co-access (8x)",
+  /// "explicit reference in session summary", "matches dead-end
+  /// pattern X"). Rendered as chips in the Scratchpad card.
+  @$pb.TagNumber(8)
+  $pb.PbList<$core.String> get signals => $_getList(7);
+
+  @$pb.TagNumber(9)
+  $core.double get confidence => $_getN(8);
+  @$pb.TagNumber(9)
+  set confidence($core.double value) => $_setFloat(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasConfidence() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearConfidence() => $_clearField(9);
+
+  /// pending | promoted | rejected | snoozed
+  @$pb.TagNumber(10)
+  $core.String get status => $_getSZ(9);
+  @$pb.TagNumber(10)
+  set status($core.String value) => $_setString(9, value);
+  @$pb.TagNumber(10)
+  $core.bool hasStatus() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearStatus() => $_clearField(10);
+
+  @$pb.TagNumber(11)
+  $2.Timestamp get snoozedUntil => $_getN(10);
+  @$pb.TagNumber(11)
+  set snoozedUntil($2.Timestamp value) => $_setField(11, value);
+  @$pb.TagNumber(11)
+  $core.bool hasSnoozedUntil() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearSnoozedUntil() => $_clearField(11);
+  @$pb.TagNumber(11)
+  $2.Timestamp ensureSnoozedUntil() => $_ensure(10);
+
+  @$pb.TagNumber(12)
+  $2.Timestamp get createdAt => $_getN(11);
+  @$pb.TagNumber(12)
+  set createdAt($2.Timestamp value) => $_setField(12, value);
+  @$pb.TagNumber(12)
+  $core.bool hasCreatedAt() => $_has(11);
+  @$pb.TagNumber(12)
+  void clearCreatedAt() => $_clearField(12);
+  @$pb.TagNumber(12)
+  $2.Timestamp ensureCreatedAt() => $_ensure(11);
+
+  @$pb.TagNumber(13)
+  $2.Timestamp get updatedAt => $_getN(12);
+  @$pb.TagNumber(13)
+  set updatedAt($2.Timestamp value) => $_setField(13, value);
+  @$pb.TagNumber(13)
+  $core.bool hasUpdatedAt() => $_has(12);
+  @$pb.TagNumber(13)
+  void clearUpdatedAt() => $_clearField(13);
+  @$pb.TagNumber(13)
+  $2.Timestamp ensureUpdatedAt() => $_ensure(12);
+}
+
+class ListPendingRequest extends $pb.GeneratedMessage {
+  factory ListPendingRequest({
+    $core.String? repoId,
+    $core.Iterable<$core.String>? statuses,
+    $core.int? limit,
+    $core.int? offset,
+  }) {
+    final result = create();
+    if (repoId != null) result.repoId = repoId;
+    if (statuses != null) result.statuses.addAll(statuses);
+    if (limit != null) result.limit = limit;
+    if (offset != null) result.offset = offset;
+    return result;
+  }
+
+  ListPendingRequest._();
+
+  factory ListPendingRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ListPendingRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ListPendingRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'repoId')
+    ..pPS(2, _omitFieldNames ? '' : 'statuses')
+    ..aI(3, _omitFieldNames ? '' : 'limit')
+    ..aI(4, _omitFieldNames ? '' : 'offset')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListPendingRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListPendingRequest copyWith(void Function(ListPendingRequest) updates) =>
+      super.copyWith((message) => updates(message as ListPendingRequest))
+          as ListPendingRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ListPendingRequest create() => ListPendingRequest._();
+  @$core.override
+  ListPendingRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ListPendingRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ListPendingRequest>(create);
+  static ListPendingRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get repoId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set repoId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRepoId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRepoId() => $_clearField(1);
+
+  /// Include statuses beyond "pending". Defaults to pending-only.
+  @$pb.TagNumber(2)
+  $pb.PbList<$core.String> get statuses => $_getList(1);
+
+  @$pb.TagNumber(3)
+  $core.int get limit => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set limit($core.int value) => $_setSignedInt32(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasLimit() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearLimit() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.int get offset => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set offset($core.int value) => $_setSignedInt32(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasOffset() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearOffset() => $_clearField(4);
+}
+
+class ListPendingResponse extends $pb.GeneratedMessage {
+  factory ListPendingResponse({
+    $core.Iterable<ScratchpadEntry>? entries,
+    $core.int? total,
+  }) {
+    final result = create();
+    if (entries != null) result.entries.addAll(entries);
+    if (total != null) result.total = total;
+    return result;
+  }
+
+  ListPendingResponse._();
+
+  factory ListPendingResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ListPendingResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ListPendingResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..pPM<ScratchpadEntry>(1, _omitFieldNames ? '' : 'entries',
+        subBuilder: ScratchpadEntry.create)
+    ..aI(2, _omitFieldNames ? '' : 'total')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListPendingResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListPendingResponse copyWith(void Function(ListPendingResponse) updates) =>
+      super.copyWith((message) => updates(message as ListPendingResponse))
+          as ListPendingResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ListPendingResponse create() => ListPendingResponse._();
+  @$core.override
+  ListPendingResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ListPendingResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ListPendingResponse>(create);
+  static ListPendingResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<ScratchpadEntry> get entries => $_getList(0);
+
+  @$pb.TagNumber(2)
+  $core.int get total => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set total($core.int value) => $_setSignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasTotal() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearTotal() => $_clearField(2);
+}
+
+class RejectEntryRequest extends $pb.GeneratedMessage {
+  factory RejectEntryRequest({
+    $core.String? entryId,
+    $core.String? reason,
+  }) {
+    final result = create();
+    if (entryId != null) result.entryId = entryId;
+    if (reason != null) result.reason = reason;
+    return result;
+  }
+
+  RejectEntryRequest._();
+
+  factory RejectEntryRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory RejectEntryRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'RejectEntryRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'entryId')
+    ..aOS(2, _omitFieldNames ? '' : 'reason')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RejectEntryRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RejectEntryRequest copyWith(void Function(RejectEntryRequest) updates) =>
+      super.copyWith((message) => updates(message as RejectEntryRequest))
+          as RejectEntryRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static RejectEntryRequest create() => RejectEntryRequest._();
+  @$core.override
+  RejectEntryRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static RejectEntryRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<RejectEntryRequest>(create);
+  static RejectEntryRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get entryId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set entryId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasEntryId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearEntryId() => $_clearField(1);
+
+  /// Optional reason — persisted alongside the entry for auditability
+  /// and shown in the rejected filter of the Scratchpad tab.
+  @$pb.TagNumber(2)
+  $core.String get reason => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set reason($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasReason() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearReason() => $_clearField(2);
+}
+
+class EditAndPromoteRequest extends $pb.GeneratedMessage {
+  factory EditAndPromoteRequest({
+    $core.String? entryId,
+    $core.String? editedKind,
+    $core.String? editedLabel,
+    $core.String? editedContentMd,
+    $core.Iterable<$core.MapEntry<$core.String, $core.String>>? editedAttrs,
+  }) {
+    final result = create();
+    if (entryId != null) result.entryId = entryId;
+    if (editedKind != null) result.editedKind = editedKind;
+    if (editedLabel != null) result.editedLabel = editedLabel;
+    if (editedContentMd != null) result.editedContentMd = editedContentMd;
+    if (editedAttrs != null) result.editedAttrs.addEntries(editedAttrs);
+    return result;
+  }
+
+  EditAndPromoteRequest._();
+
+  factory EditAndPromoteRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory EditAndPromoteRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'EditAndPromoteRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'entryId')
+    ..aOS(2, _omitFieldNames ? '' : 'editedKind')
+    ..aOS(3, _omitFieldNames ? '' : 'editedLabel')
+    ..aOS(4, _omitFieldNames ? '' : 'editedContentMd')
+    ..m<$core.String, $core.String>(5, _omitFieldNames ? '' : 'editedAttrs',
+        entryClassName: 'EditAndPromoteRequest.EditedAttrsEntry',
+        keyFieldType: $pb.PbFieldType.OS,
+        valueFieldType: $pb.PbFieldType.OS,
+        packageName: const $pb.PackageName('fleetkanban.v1'))
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  EditAndPromoteRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  EditAndPromoteRequest copyWith(
+          void Function(EditAndPromoteRequest) updates) =>
+      super.copyWith((message) => updates(message as EditAndPromoteRequest))
+          as EditAndPromoteRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EditAndPromoteRequest create() => EditAndPromoteRequest._();
+  @$core.override
+  EditAndPromoteRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static EditAndPromoteRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<EditAndPromoteRequest>(create);
+  static EditAndPromoteRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get entryId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set entryId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasEntryId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearEntryId() => $_clearField(1);
+
+  /// Optional overrides — empty keeps the scratchpad value.
+  @$pb.TagNumber(2)
+  $core.String get editedKind => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set editedKind($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasEditedKind() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearEditedKind() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get editedLabel => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set editedLabel($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasEditedLabel() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearEditedLabel() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get editedContentMd => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set editedContentMd($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasEditedContentMd() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearEditedContentMd() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $pb.PbMap<$core.String, $core.String> get editedAttrs => $_getMap(4);
+}
+
+class SnoozeRequest extends $pb.GeneratedMessage {
+  factory SnoozeRequest({
+    $core.String? entryId,
+    $core.int? days,
+  }) {
+    final result = create();
+    if (entryId != null) result.entryId = entryId;
+    if (days != null) result.days = days;
+    return result;
+  }
+
+  SnoozeRequest._();
+
+  factory SnoozeRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory SnoozeRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SnoozeRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'entryId')
+    ..aI(2, _omitFieldNames ? '' : 'days')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SnoozeRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SnoozeRequest copyWith(void Function(SnoozeRequest) updates) =>
+      super.copyWith((message) => updates(message as SnoozeRequest))
+          as SnoozeRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SnoozeRequest create() => SnoozeRequest._();
+  @$core.override
+  SnoozeRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static SnoozeRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SnoozeRequest>(create);
+  static SnoozeRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get entryId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set entryId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasEntryId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearEntryId() => $_clearField(1);
+
+  /// Server clamps to [1h, 30d]. Typical UI choices: 1d, 7d, 30d.
+  @$pb.TagNumber(2)
+  $core.int get days => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set days($core.int value) => $_setSignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasDays() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearDays() => $_clearField(2);
+}
+
+class ScratchpadChangeEvent extends $pb.GeneratedMessage {
+  factory ScratchpadChangeEvent({
+    $fixnum.Int64? seq,
+    $core.String? op,
+    $core.String? entryId,
+    $core.String? repoId,
+    $2.Timestamp? occurredAt,
+  }) {
+    final result = create();
+    if (seq != null) result.seq = seq;
+    if (op != null) result.op = op;
+    if (entryId != null) result.entryId = entryId;
+    if (repoId != null) result.repoId = repoId;
+    if (occurredAt != null) result.occurredAt = occurredAt;
+    return result;
+  }
+
+  ScratchpadChangeEvent._();
+
+  factory ScratchpadChangeEvent.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ScratchpadChangeEvent.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ScratchpadChangeEvent',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aInt64(1, _omitFieldNames ? '' : 'seq')
+    ..aOS(2, _omitFieldNames ? '' : 'op')
+    ..aOS(3, _omitFieldNames ? '' : 'entryId')
+    ..aOS(4, _omitFieldNames ? '' : 'repoId')
+    ..aOM<$2.Timestamp>(5, _omitFieldNames ? '' : 'occurredAt',
+        subBuilder: $2.Timestamp.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ScratchpadChangeEvent clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ScratchpadChangeEvent copyWith(
+          void Function(ScratchpadChangeEvent) updates) =>
+      super.copyWith((message) => updates(message as ScratchpadChangeEvent))
+          as ScratchpadChangeEvent;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ScratchpadChangeEvent create() => ScratchpadChangeEvent._();
+  @$core.override
+  ScratchpadChangeEvent createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ScratchpadChangeEvent getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ScratchpadChangeEvent>(create);
+  static ScratchpadChangeEvent? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $fixnum.Int64 get seq => $_getI64(0);
+  @$pb.TagNumber(1)
+  set seq($fixnum.Int64 value) => $_setInt64(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasSeq() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSeq() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get op => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set op($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasOp() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearOp() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get entryId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set entryId($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasEntryId() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearEntryId() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get repoId => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set repoId($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasRepoId() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearRepoId() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $2.Timestamp get occurredAt => $_getN(4);
+  @$pb.TagNumber(5)
+  set occurredAt($2.Timestamp value) => $_setField(5, value);
+  @$pb.TagNumber(5)
+  $core.bool hasOccurredAt() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearOccurredAt() => $_clearField(5);
+  @$pb.TagNumber(5)
+  $2.Timestamp ensureOccurredAt() => $_ensure(4);
+}
+
+class OllamaStatus extends $pb.GeneratedMessage {
+  factory OllamaStatus({
+    $core.bool? installed,
+    $core.bool? running,
+    $core.String? baseUrl,
+    $core.String? version,
+    $core.String? message,
+    $core.String? installCommand,
+  }) {
+    final result = create();
+    if (installed != null) result.installed = installed;
+    if (running != null) result.running = running;
+    if (baseUrl != null) result.baseUrl = baseUrl;
+    if (version != null) result.version = version;
+    if (message != null) result.message = message;
+    if (installCommand != null) result.installCommand = installCommand;
+    return result;
+  }
+
+  OllamaStatus._();
+
+  factory OllamaStatus.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory OllamaStatus.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'OllamaStatus',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOB(1, _omitFieldNames ? '' : 'installed')
+    ..aOB(2, _omitFieldNames ? '' : 'running')
+    ..aOS(3, _omitFieldNames ? '' : 'baseUrl')
+    ..aOS(4, _omitFieldNames ? '' : 'version')
+    ..aOS(5, _omitFieldNames ? '' : 'message')
+    ..aOS(6, _omitFieldNames ? '' : 'installCommand')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  OllamaStatus clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  OllamaStatus copyWith(void Function(OllamaStatus) updates) =>
+      super.copyWith((message) => updates(message as OllamaStatus))
+          as OllamaStatus;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static OllamaStatus create() => OllamaStatus._();
+  @$core.override
+  OllamaStatus createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static OllamaStatus getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<OllamaStatus>(create);
+  static OllamaStatus? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.bool get installed => $_getBF(0);
+  @$pb.TagNumber(1)
+  set installed($core.bool value) => $_setBool(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasInstalled() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearInstalled() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.bool get running => $_getBF(1);
+  @$pb.TagNumber(2)
+  set running($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasRunning() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearRunning() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get baseUrl => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set baseUrl($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasBaseUrl() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearBaseUrl() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get version => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set version($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasVersion() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearVersion() => $_clearField(4);
+
+  /// Empty on success; set when the sidecar could not reach Ollama so
+  /// the UI can surface a specific message ("connection refused",
+  /// "not found on PATH").
+  @$pb.TagNumber(5)
+  $core.String get message => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set message($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasMessage() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearMessage() => $_clearField(5);
+
+  /// Canonical install command for the user's OS (winget string on
+  /// Windows). Populated only when installed == false.
+  @$pb.TagNumber(6)
+  $core.String get installCommand => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set installCommand($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasInstallCommand() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearInstallCommand() => $_clearField(6);
+}
+
+class OllamaModel extends $pb.GeneratedMessage {
+  factory OllamaModel({
+    $core.String? name,
+    $fixnum.Int64? sizeBytes,
+    $core.double? sizeGb,
+    $core.String? modifiedAt,
+    $core.bool? isEmbedding,
+    $core.int? embeddingDim,
+    $core.String? description,
+  }) {
+    final result = create();
+    if (name != null) result.name = name;
+    if (sizeBytes != null) result.sizeBytes = sizeBytes;
+    if (sizeGb != null) result.sizeGb = sizeGb;
+    if (modifiedAt != null) result.modifiedAt = modifiedAt;
+    if (isEmbedding != null) result.isEmbedding = isEmbedding;
+    if (embeddingDim != null) result.embeddingDim = embeddingDim;
+    if (description != null) result.description = description;
+    return result;
+  }
+
+  OllamaModel._();
+
+  factory OllamaModel.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory OllamaModel.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'OllamaModel',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'name')
+    ..aInt64(2, _omitFieldNames ? '' : 'sizeBytes')
+    ..aD(3, _omitFieldNames ? '' : 'sizeGb')
+    ..aOS(4, _omitFieldNames ? '' : 'modifiedAt')
+    ..aOB(5, _omitFieldNames ? '' : 'isEmbedding')
+    ..aI(6, _omitFieldNames ? '' : 'embeddingDim')
+    ..aOS(7, _omitFieldNames ? '' : 'description')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  OllamaModel clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  OllamaModel copyWith(void Function(OllamaModel) updates) =>
+      super.copyWith((message) => updates(message as OllamaModel))
+          as OllamaModel;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static OllamaModel create() => OllamaModel._();
+  @$core.override
+  OllamaModel createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static OllamaModel getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<OllamaModel>(create);
+  static OllamaModel? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get name => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set name($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasName() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearName() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get sizeBytes => $_getI64(1);
+  @$pb.TagNumber(2)
+  set sizeBytes($fixnum.Int64 value) => $_setInt64(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasSizeBytes() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearSizeBytes() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.double get sizeGb => $_getN(2);
+  @$pb.TagNumber(3)
+  set sizeGb($core.double value) => $_setDouble(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasSizeGb() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearSizeGb() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get modifiedAt => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set modifiedAt($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasModifiedAt() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearModifiedAt() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.bool get isEmbedding => $_getBF(4);
+  @$pb.TagNumber(5)
+  set isEmbedding($core.bool value) => $_setBool(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasIsEmbedding() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearIsEmbedding() => $_clearField(5);
+
+  /// Set when the model's /api/show response declares embedding.
+  @$pb.TagNumber(6)
+  $core.int get embeddingDim => $_getIZ(5);
+  @$pb.TagNumber(6)
+  set embeddingDim($core.int value) => $_setSignedInt32(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasEmbeddingDim() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearEmbeddingDim() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.String get description => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set description($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasDescription() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearDescription() => $_clearField(7);
+}
+
+class OllamaListModelsResponse extends $pb.GeneratedMessage {
+  factory OllamaListModelsResponse({
+    $core.Iterable<OllamaModel>? models,
+  }) {
+    final result = create();
+    if (models != null) result.models.addAll(models);
+    return result;
+  }
+
+  OllamaListModelsResponse._();
+
+  factory OllamaListModelsResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory OllamaListModelsResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'OllamaListModelsResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..pPM<OllamaModel>(1, _omitFieldNames ? '' : 'models',
+        subBuilder: OllamaModel.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  OllamaListModelsResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  OllamaListModelsResponse copyWith(
+          void Function(OllamaListModelsResponse) updates) =>
+      super.copyWith((message) => updates(message as OllamaListModelsResponse))
+          as OllamaListModelsResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static OllamaListModelsResponse create() => OllamaListModelsResponse._();
+  @$core.override
+  OllamaListModelsResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static OllamaListModelsResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<OllamaListModelsResponse>(create);
+  static OllamaListModelsResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<OllamaModel> get models => $_getList(0);
+}
+
+class OllamaRecommendedModel extends $pb.GeneratedMessage {
+  factory OllamaRecommendedModel({
+    $core.String? name,
+    $core.String? description,
+    $core.String? sizeEstimate,
+    $core.int? embeddingDim,
+    $core.bool? installed,
+    $core.String? role,
+  }) {
+    final result = create();
+    if (name != null) result.name = name;
+    if (description != null) result.description = description;
+    if (sizeEstimate != null) result.sizeEstimate = sizeEstimate;
+    if (embeddingDim != null) result.embeddingDim = embeddingDim;
+    if (installed != null) result.installed = installed;
+    if (role != null) result.role = role;
+    return result;
+  }
+
+  OllamaRecommendedModel._();
+
+  factory OllamaRecommendedModel.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory OllamaRecommendedModel.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'OllamaRecommendedModel',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'name')
+    ..aOS(2, _omitFieldNames ? '' : 'description')
+    ..aOS(3, _omitFieldNames ? '' : 'sizeEstimate')
+    ..aI(4, _omitFieldNames ? '' : 'embeddingDim')
+    ..aOB(5, _omitFieldNames ? '' : 'installed')
+    ..aOS(6, _omitFieldNames ? '' : 'role')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  OllamaRecommendedModel clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  OllamaRecommendedModel copyWith(
+          void Function(OllamaRecommendedModel) updates) =>
+      super.copyWith((message) => updates(message as OllamaRecommendedModel))
+          as OllamaRecommendedModel;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static OllamaRecommendedModel create() => OllamaRecommendedModel._();
+  @$core.override
+  OllamaRecommendedModel createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static OllamaRecommendedModel getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<OllamaRecommendedModel>(create);
+  static OllamaRecommendedModel? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get name => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set name($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasName() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearName() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get description => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set description($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasDescription() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearDescription() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get sizeEstimate => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set sizeEstimate($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasSizeEstimate() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearSizeEstimate() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.int get embeddingDim => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set embeddingDim($core.int value) => $_setSignedInt32(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasEmbeddingDim() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearEmbeddingDim() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.bool get installed => $_getBF(4);
+  @$pb.TagNumber(5)
+  set installed($core.bool value) => $_setBool(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasInstalled() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearInstalled() => $_clearField(5);
+
+  /// "embedding" | "llm"
+  @$pb.TagNumber(6)
+  $core.String get role => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set role($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasRole() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearRole() => $_clearField(6);
+}
+
+class OllamaListRecommendedResponse extends $pb.GeneratedMessage {
+  factory OllamaListRecommendedResponse({
+    $core.Iterable<OllamaRecommendedModel>? models,
+  }) {
+    final result = create();
+    if (models != null) result.models.addAll(models);
+    return result;
+  }
+
+  OllamaListRecommendedResponse._();
+
+  factory OllamaListRecommendedResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory OllamaListRecommendedResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'OllamaListRecommendedResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..pPM<OllamaRecommendedModel>(1, _omitFieldNames ? '' : 'models',
+        subBuilder: OllamaRecommendedModel.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  OllamaListRecommendedResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  OllamaListRecommendedResponse copyWith(
+          void Function(OllamaListRecommendedResponse) updates) =>
+      super.copyWith(
+              (message) => updates(message as OllamaListRecommendedResponse))
+          as OllamaListRecommendedResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static OllamaListRecommendedResponse create() =>
+      OllamaListRecommendedResponse._();
+  @$core.override
+  OllamaListRecommendedResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static OllamaListRecommendedResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<OllamaListRecommendedResponse>(create);
+  static OllamaListRecommendedResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<OllamaRecommendedModel> get models => $_getList(0);
+}
+
+class PullModelRequest extends $pb.GeneratedMessage {
+  factory PullModelRequest({
+    $core.String? name,
+  }) {
+    final result = create();
+    if (name != null) result.name = name;
+    return result;
+  }
+
+  PullModelRequest._();
+
+  factory PullModelRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory PullModelRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PullModelRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'name')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PullModelRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PullModelRequest copyWith(void Function(PullModelRequest) updates) =>
+      super.copyWith((message) => updates(message as PullModelRequest))
+          as PullModelRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static PullModelRequest create() => PullModelRequest._();
+  @$core.override
+  PullModelRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static PullModelRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<PullModelRequest>(create);
+  static PullModelRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get name => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set name($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasName() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearName() => $_clearField(1);
+}
+
+/// OllamaPullProgressEvent is one streamed progress chunk from Ollama's
+/// /api/pull streaming endpoint. Exactly one of status / error / done
+/// is non-empty per event.
+class OllamaPullProgressEvent extends $pb.GeneratedMessage {
+  factory OllamaPullProgressEvent({
+    $core.String? status,
+    $fixnum.Int64? downloaded,
+    $fixnum.Int64? total,
+    $core.String? digest,
+    $core.String? error,
+    $core.bool? done,
+  }) {
+    final result = create();
+    if (status != null) result.status = status;
+    if (downloaded != null) result.downloaded = downloaded;
+    if (total != null) result.total = total;
+    if (digest != null) result.digest = digest;
+    if (error != null) result.error = error;
+    if (done != null) result.done = done;
+    return result;
+  }
+
+  OllamaPullProgressEvent._();
+
+  factory OllamaPullProgressEvent.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory OllamaPullProgressEvent.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'OllamaPullProgressEvent',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'status')
+    ..aInt64(2, _omitFieldNames ? '' : 'downloaded')
+    ..aInt64(3, _omitFieldNames ? '' : 'total')
+    ..aOS(4, _omitFieldNames ? '' : 'digest')
+    ..aOS(5, _omitFieldNames ? '' : 'error')
+    ..aOB(6, _omitFieldNames ? '' : 'done')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  OllamaPullProgressEvent clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  OllamaPullProgressEvent copyWith(
+          void Function(OllamaPullProgressEvent) updates) =>
+      super.copyWith((message) => updates(message as OllamaPullProgressEvent))
+          as OllamaPullProgressEvent;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static OllamaPullProgressEvent create() => OllamaPullProgressEvent._();
+  @$core.override
+  OllamaPullProgressEvent createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static OllamaPullProgressEvent getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<OllamaPullProgressEvent>(create);
+  static OllamaPullProgressEvent? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get status => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set status($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasStatus() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearStatus() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get downloaded => $_getI64(1);
+  @$pb.TagNumber(2)
+  set downloaded($fixnum.Int64 value) => $_setInt64(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasDownloaded() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearDownloaded() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $fixnum.Int64 get total => $_getI64(2);
+  @$pb.TagNumber(3)
+  set total($fixnum.Int64 value) => $_setInt64(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasTotal() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearTotal() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get digest => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set digest($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasDigest() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearDigest() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get error => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set error($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasError() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearError() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.bool get done => $_getBF(5);
+  @$pb.TagNumber(6)
+  set done($core.bool value) => $_setBool(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasDone() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearDone() => $_clearField(6);
 }
 
 const $core.bool _omitFieldNames =

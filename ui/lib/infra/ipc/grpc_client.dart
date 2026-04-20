@@ -28,6 +28,9 @@ class IpcClient {
     required this.model,
     required this.housekeeping,
     required this.insights,
+    required this.context,
+    required this.scratchpad,
+    required this.ollama,
   }) : _channel = channel;
 
   final ClientChannel _channel;
@@ -49,6 +52,15 @@ class IpcClient {
   // rework/failure histograms, per-repository throughput) derived from
   // the tasks table. Read-only.
   final insights_pb.InsightsServiceClient insights;
+  // Context service — property graph, hybrid retrieval, injection
+  // preview, analyzer trigger, and per-repo memory settings.
+  final pb.ContextServiceClient context;
+  // Scratchpad service — trust-gate promotion / reject / snooze and
+  // the pending-entries stream feeding the Context tab badge.
+  final pb.ScratchpadServiceClient scratchpad;
+  // Ollama service — local LLM / embedding server admin used by the
+  // Settings Memory onboarding (status, model list, pull progress).
+  final pb.OllamaServiceClient ollama;
 
   /// Connects to the sidecar described by [endpoint].
   static IpcClient connect(SidecarEndpoint endpoint) {
@@ -82,6 +94,9 @@ class IpcClient {
         channel,
         options: callOptions,
       ),
+      context: pb.ContextServiceClient(channel, options: callOptions),
+      scratchpad: pb.ScratchpadServiceClient(channel, options: callOptions),
+      ollama: pb.OllamaServiceClient(channel, options: callOptions),
     );
   }
 

@@ -2,13 +2,17 @@
 // sidecar's WatchEvents stream into invalidation / live updates.
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:protobuf/well_known_types/google/protobuf/empty.pb.dart'
     show Empty;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../infra/ipc/generated/fleetkanban/v1/fleetkanban.pb.dart' as pb;
 import '../../infra/ipc/providers.dart';
+import 'subtask_summary_dialog.dart'
+    show LogBucket, StageUsage, buildPlanLogForRound, buildReviewLogForRound;
 
 /// Kanban column identity. Five columns — AI Review and Human Review are
 /// independent so the pipeline (Pending → Running → AI Review → Human Review
@@ -50,6 +54,53 @@ KanbanColumnId? columnForStatus(String status) {
 // ---------------------------------------------------------------------------
 // Selection state
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Subtask DAG font scale — persisted user preference for how large the
+// node title / role / model text renders in the SubtaskDagView. Lives
+// here so multiple dialog open cycles (and the new-task dialog
+// preview, eventually) read the same value without each fetching
+// SharedPreferences themselves.
+// ---------------------------------------------------------------------------
+
+const String _dagFontScalePrefKey = 'subtask_dag_font_scale';
+const double dagFontScaleMin = 0.8;
+const double dagFontScaleMax = 2.0;
+const double dagFontScaleStep = 0.1;
+const double dagFontScaleDefault = 1.0;
+
+class DagFontScaleNotifier extends AsyncNotifier<double> {
+  @override
+  Future<double> build() async {
+    final prefs = await SharedPreferences.getInstance();
+    final v = prefs.getDouble(_dagFontScalePrefKey);
+    return _clamp(v ?? dagFontScaleDefault);
+  }
+
+  Future<void> set(double value) async {
+    final clamped = _clamp(value);
+    state = AsyncData(clamped);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_dagFontScalePrefKey, clamped);
+  }
+
+  Future<void> increment() async =>
+      set((state.valueOrNull ?? dagFontScaleDefault) + dagFontScaleStep);
+  Future<void> decrement() async =>
+      set((state.valueOrNull ?? dagFontScaleDefault) - dagFontScaleStep);
+
+  static double _clamp(double v) {
+    if (v < dagFontScaleMin) return dagFontScaleMin;
+    if (v > dagFontScaleMax) return dagFontScaleMax;
+    // Round to 1 decimal to keep persisted values clean.
+    return (v * 10).roundToDouble() / 10;
+  }
+}
+
+final dagFontScaleProvider =
+    AsyncNotifierProvider<DagFontScaleNotifier, double>(
+      DagFontScaleNotifier.new,
+    );
 
 /// Currently selected repository. null until the user picks / registers one.
 final selectedRepoIdProvider = StateProvider<String?>((_) => null);
@@ -283,8 +334,10 @@ bool canTransition({
 }) {
   switch (target) {
     case KanbanColumnId.running:
-      // queued → in_progress via RunTask.
-      return currentStatus == 'queued' || currentStatus == 'planning';
+      // queued → in_progress via RunTask. planning is owned by the planner
+      // goroutine and cannot be promoted by RunTask — the orchestrator moves
+      // planning → in_progress automatically once the plan is persisted.
+      return currentStatus == 'queued';
     case KanbanColumnId.aiReview:
       // No user-initiated path lands a task in ai_review directly; the
       // orchestrator enters that state automatically on runner success.
@@ -368,6 +421,139 @@ final repositoryBranchesProvider = FutureProvider.autoDispose
 // ---------------------------------------------------------------------------
 // Subtasks — AI-produced execution DAG, read-only in the UI.
 // ---------------------------------------------------------------------------
+
+/// Aggregated session.usage events for a task, grouped by stage. Plan
+/// and Review surface as single-bucket entries; Code is summed across
+/// every subtask. Refetched when tasks invalidate so reworks (which
+/// re-emit per-stage usage) are visible without a manual refresh.
+final taskUsageProvider = FutureProvider.autoDispose.family<TaskUsage, String>((
+  ref,
+  taskId,
+) async {
+  final client = ref.watch(ipcClientProvider);
+  final resp = await client.task.taskEvents(
+    pb.TaskEventsRequest(taskId: taskId),
+  );
+  StageUsage? plan;
+  StageUsage? code;
+  StageUsage? review;
+  for (final ev in resp.events) {
+    if (ev.kind != 'session.usage') continue;
+    final u = StageUsage.fromPayload(ev.payload);
+    if (u == null) continue;
+    final stage = _readStage(ev.payload);
+    switch (stage) {
+      case 'plan':
+        // Reworks re-emit plan usage; sum across passes so the user
+        // sees the cumulative cost of every planning attempt.
+        plan = plan == null ? u : plan.plus(u);
+      case 'code':
+        code = code == null ? u : code.plus(u);
+      case 'review':
+        review = review == null ? u : review.plus(u);
+    }
+  }
+  return TaskUsage(plan: plan, code: code, review: review);
+});
+
+class TaskUsage {
+  TaskUsage({this.plan, this.code, this.review});
+  final StageUsage? plan;
+  final StageUsage? code;
+  final StageUsage? review;
+
+  bool get isEmpty => plan == null && code == null && review == null;
+
+  StageUsage get total {
+    StageUsage acc = StageUsage(
+      model: '',
+      premiumRequests: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      durationMs: 0,
+      calls: 0,
+    );
+    if (plan != null) acc = acc.plus(plan!);
+    if (code != null) acc = acc.plus(code!);
+    if (review != null) acc = acc.plus(review!);
+    return acc;
+  }
+}
+
+String _readStage(String payload) {
+  if (payload.isEmpty) return '';
+  try {
+    final m = jsonDecode(payload);
+    if (m is Map<String, dynamic>) {
+      final s = m['stage'];
+      if (s is String) return s;
+    }
+  } catch (_) {}
+  return '';
+}
+
+/// Per-round plan.summary text for a task.
+///
+/// Post-2026-04 the sidecar emits plan.summary as JSON `{round, text}`
+/// so each Plan node in the subtask DAG can display the summary from
+/// its own round — previously the UI showed the latest summary on
+/// every Plan node, which made Re-Run rounds indistinguishable.
+/// Legacy plain-text payloads fall back to round 1.
+///
+/// Returns an empty map when the planner never emitted a summary.
+final taskPlanSummaryProvider = FutureProvider.autoDispose
+    .family<Map<int, String>, String>((ref, taskId) async {
+      final client = ref.watch(ipcClientProvider);
+      final resp = await client.task.taskEvents(
+        pb.TaskEventsRequest(taskId: taskId),
+      );
+      final out = <int, String>{};
+      for (final ev in resp.events) {
+        if (ev.kind != 'plan.summary') continue;
+        final (round, text) = _decodePlanSummaryPayload(ev.payload);
+        if (text.isEmpty) continue;
+        out[round] = text;
+      }
+      return out;
+    });
+
+/// Chronological log of planner-session events for a specific round.
+/// Drives the Plan node's stage-detail log view so the user sees the
+/// planner's reasoning + tool calls + final output in sequence.
+final taskPlanLogProvider = FutureProvider.autoDispose
+    .family<LogBucket, ({String taskId, int round})>((ref, key) async {
+      final client = ref.watch(ipcClientProvider);
+      final resp = await client.task.taskEvents(
+        pb.TaskEventsRequest(taskId: key.taskId),
+      );
+      return buildPlanLogForRound(resp.events, key.round);
+    });
+
+/// Chronological log of reviewer-session events for a specific round.
+/// Events are bracketed by `ai_review.start` / `ai_review.decision`
+/// (same round).
+final taskReviewLogProvider = FutureProvider.autoDispose
+    .family<LogBucket, ({String taskId, int round})>((ref, key) async {
+      final client = ref.watch(ipcClientProvider);
+      final resp = await client.task.taskEvents(
+        pb.TaskEventsRequest(taskId: key.taskId),
+      );
+      return buildReviewLogForRound(resp.events, key.round);
+    });
+
+(int, String) _decodePlanSummaryPayload(String payload) {
+  if (payload.isEmpty) return (1, '');
+  try {
+    final v = jsonDecode(payload);
+    if (v is Map<String, dynamic>) {
+      final round = (v['round'] as num?)?.toInt() ?? 1;
+      final text = (v['text'] as String?) ?? '';
+      return (round < 1 ? 1 : round, text);
+    }
+  } catch (_) {}
+  return (1, payload);
+}
 
 /// Subtask list for a parent task. Family key = parent task id.
 ///

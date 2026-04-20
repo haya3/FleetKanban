@@ -637,11 +637,27 @@ func (m *Manager) CurrentBranch(ctx context.Context, repoPath string) (string, e
 // to host the branch as long as finalization did not delete it.
 var ErrWorktreeMissing = errors.New("worktree: worktree directory no longer exists on disk")
 
-// Diff returns a unified diff of HEAD against baseBranch, executed inside
-// wtPath. The returned string is suitable for diff2html rendering.
+// Diff returns a unified diff of the working tree against the merge-base
+// of HEAD and baseBranch, executed inside wtPath. The returned string is
+// suitable for diff2html rendering.
 //
-// We use the three-dot form (base...HEAD) so the diff shows only changes
-// introduced on the task branch, ignoring fast-forwarded base commits.
+// IMPORTANT: we deliberately diff against the merge-base (not the
+// 3-dot `base...HEAD` form) so the result includes uncommitted changes —
+// the agent typically edits files without committing, and 3-dot would
+// silently report an empty diff for those tasks. Comparing against
+// merge-base also excludes base-branch commits made after the task
+// branch was created, so we still get the same "show only what this
+// task changed" semantics as 3-dot for committed work.
+//
+// UNTRACKED FILES: `git diff <commit>` only inspects tracked files, so
+// brand-new files the agent created without `git add` would otherwise
+// vanish from the UI until Finalize Keep auto-commits them. We run
+// `git add --intent-to-add --all` first so new files show up as
+// full-content additions. --intent-to-add only records an empty
+// blob in the index; no content is actually staged, so the
+// subsequent commit (on Finalize) behaves identically to not having
+// run it.
+//
 // --no-color keeps the output parser-friendly regardless of user config.
 //
 // If wtPath does not exist on disk (user deleted it, or Finalize already
@@ -658,22 +674,46 @@ func (m *Manager) Diff(ctx context.Context, wtPath, baseBranch string) (string, 
 	if _, statErr := os.Stat(abs); os.IsNotExist(statErr) {
 		return "", ErrWorktreeMissing
 	}
+
+	// Mark untracked files as intent-to-add so `git diff` emits them.
+	// Best-effort: failures here are logged internally by git but
+	// shouldn't abort the diff (the worst case is we miss a few new
+	// files in the UI, which is strictly better than erroring out).
+	_, _ = runGit(ctx, m.gitBin, abs, "add", "--intent-to-add", "--all")
+
+	mb, err := mergeBase(ctx, m.gitBin, abs, baseBranch, "HEAD")
+	if err != nil {
+		// Fall back to 2-dot diff against baseBranch when merge-base
+		// fails (typically: baseBranch ref no longer exists, or HEAD
+		// is detached without ancestry). 2-dot at least surfaces
+		// uncommitted changes for the common case.
+		out, derr := runGit(ctx, m.gitBin, abs,
+			"diff", "--no-color", baseBranch)
+		if derr != nil {
+			return "", fmt.Errorf("worktree: diff (merge-base failed: %v): %w", err, derr)
+		}
+		return string(out), nil
+	}
 	out, err := runGit(ctx, m.gitBin, abs,
-		"diff", "--no-color", baseBranch+"...HEAD")
+		"diff", "--no-color", mb)
 	if err != nil {
 		return "", fmt.Errorf("worktree: diff: %w", err)
 	}
 	return string(out), nil
 }
 
-// DiffBranch returns a unified diff of branch against baseBranch, executed
-// from the main repository at repoPath (not a worktree). Used as the
-// fallback when a task's worktree has already been removed but its branch
-// is still present in the repository (Keep / Merge finalization, or external
-// worktree cleanup).
+// DiffBranch returns a unified diff of branch against the merge-base of
+// branch and baseBranch, executed from the main repository at repoPath
+// (not a worktree). Used as the fallback when a task's worktree has
+// already been removed but its branch is still present in the repository
+// (Keep / Merge finalization, or external worktree cleanup).
 //
-// Uses the same three-dot form as Diff so only commits introduced on the
-// task branch are shown.
+// Operates purely on refs — there is no working tree to read uncommitted
+// changes from, so the result reflects only what was committed before
+// the worktree was torn down. This is why orchestrator.Finalize auto-
+// commits any pending changes on the task branch right before removing
+// the worktree (see commitPending below): without that step, agents that
+// never committed would surface an empty diff after Keep.
 func (m *Manager) DiffBranch(ctx context.Context, repoPath, baseBranch, branch string) (string, error) {
 	if repoPath == "" || baseBranch == "" || branch == "" {
 		return "", errors.New("worktree: repoPath, baseBranch and branch are required")
@@ -682,12 +722,79 @@ func (m *Manager) DiffBranch(ctx context.Context, repoPath, baseBranch, branch s
 	if err != nil {
 		return "", err
 	}
+	mb, err := mergeBase(ctx, m.gitBin, repoAbs, baseBranch, branch)
+	if err != nil {
+		out, derr := runGit(ctx, m.gitBin, repoAbs,
+			"diff", "--no-color", baseBranch, branch)
+		if derr != nil {
+			return "", fmt.Errorf("worktree: diff-branch (merge-base failed: %v): %w", err, derr)
+		}
+		return string(out), nil
+	}
 	out, err := runGit(ctx, m.gitBin, repoAbs,
-		"diff", "--no-color", baseBranch+"..."+branch)
+		"diff", "--no-color", mb, branch)
 	if err != nil {
 		return "", fmt.Errorf("worktree: diff-branch: %w", err)
 	}
 	return string(out), nil
+}
+
+// mergeBase returns the merge-base SHA of two refs, used by Diff and
+// DiffBranch to anchor diffs at "the point where this branch diverged
+// from base" so post-divergence base commits don't pollute the result.
+func mergeBase(ctx context.Context, gitBin, dir, a, b string) (string, error) {
+	out, err := runGit(ctx, gitBin, dir, "merge-base", a, b)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// CommitPending stages every change in the worktree and creates a commit
+// with the given message. No-op when the working tree is clean. Used by
+// orchestrator.Finalize so Keep / Merge tasks always have committed work
+// to surface (in DiffBranch and Merge respectively) even when the agent
+// never ran `git commit` itself.
+//
+// Returns true when a commit was actually created so callers can decide
+// whether to log/event the auto-commit.
+func (m *Manager) CommitPending(ctx context.Context, wtPath, message string) (bool, error) {
+	if wtPath == "" {
+		return false, errors.New("worktree: wtPath is required")
+	}
+	abs, err := resolveRepo(wtPath)
+	if err != nil {
+		return false, err
+	}
+	if _, statErr := os.Stat(abs); os.IsNotExist(statErr) {
+		return false, ErrWorktreeMissing
+	}
+	// Quick check: if there are no changes (committed or otherwise),
+	// bail before touching the repo. `git status --porcelain` prints
+	// one line per change and nothing when clean.
+	st, err := runGit(ctx, m.gitBin, abs, "status", "--porcelain")
+	if err != nil {
+		return false, fmt.Errorf("worktree: status: %w", err)
+	}
+	if strings.TrimSpace(string(st)) == "" {
+		return false, nil
+	}
+	if _, err := runGit(ctx, m.gitBin, abs, "add", "-A"); err != nil {
+		return false, fmt.Errorf("worktree: add: %w", err)
+	}
+	if message == "" {
+		message = "FleetKanban: auto-commit pending changes"
+	}
+	// Commit with --allow-empty-message guard via -m, and configure
+	// author/committer locally so users without global git identity
+	// (or worktrees explicitly stripped of one) still succeed.
+	if _, err := runGit(ctx, m.gitBin, abs,
+		"-c", "user.name=FleetKanban",
+		"-c", "user.email=fleetkanban@local",
+		"commit", "-m", message); err != nil {
+		return false, fmt.Errorf("worktree: commit: %w", err)
+	}
+	return true, nil
 }
 
 // rootFor returns the directory under which the next worktree for repoAbs

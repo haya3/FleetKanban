@@ -107,7 +107,8 @@ class _AccountCard extends ConsumerWidget {
         ),
         const Divider(),
         account.when(
-          loading: () => const _LoadingRow(label: 'Loading GitHub account info…'),
+          loading: () =>
+              const _LoadingRow(label: 'Loading GitHub account info…'),
           error: (e, _) => _KVRow(
             label: 'GitHub',
             value: 'Error: $e',

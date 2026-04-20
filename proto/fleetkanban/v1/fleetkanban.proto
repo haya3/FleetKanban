@@ -110,6 +110,23 @@ service RepositoryService {
   // FailedPrecondition when the repository already has commits — callers
   // should refresh their cached `has_commits` flag and hide the button.
   rpc CreateInitialCommit (IdRequest) returns (Repository);
+
+  // StashUncommitted runs `git stash push --include-untracked` in the
+  // repository's main working tree. Used by the Merge retry dialog
+  // when the task's base branch is checked out with dirty changes
+  // that block the merge. Returns stashed=false when the tree is
+  // already clean (no error).
+  rpc StashUncommitted (IdRequest) returns (StashUncommittedResponse);
+}
+
+message StashUncommittedResponse {
+  // True when git actually created a stash entry; false when the
+  // working tree was already clean.
+  bool   stashed = 1;
+  // Git's own message (e.g. "Saved working directory and index state ...").
+  // Surfaced in the UI toast so the user sees the stash label and can
+  // match it later via `git stash list`.
+  string message = 2;
 }
 
 service ModelService {
@@ -209,6 +226,38 @@ service SystemService {
   // Blocks for the duration of the install — 1–3 minutes typical — so
   // the UI should reserve headroom in any client-side gRPC timeout.
   rpc InstallPrecondition (InstallPreconditionRequest)  returns (InstallPreconditionResponse);
+
+  // GetAgentSettings / SetAgentSettings expose user-controlled prompt
+  // and language preferences. A non-empty prompt field fully replaces
+  // the corresponding built-in system message; empty falls back to the
+  // built-in. Output language is always appended on top.
+  rpc GetAgentSettings (google.protobuf.Empty) returns (AgentSettings);
+  rpc SetAgentSettings (AgentSettings)         returns (AgentSettings);
+
+  // GetDefaultAgentPrompts returns the sidecar's built-in plan / code /
+  // review system messages. The UI pre-populates the Settings text
+  // boxes with these values on first open so the user can see the
+  // full default prompt and decide whether to keep, tweak, or rewrite
+  // it — saving then persists whatever the user has in the box as an
+  // override. (AgentSettings returns the raw override, which may be
+  // empty; this RPC provides the display baseline.)
+  rpc GetDefaultAgentPrompts (google.protobuf.Empty) returns (AgentSettings);
+}
+
+// AgentSettings holds per-stage prompt overrides the user wants
+// FleetKanban to inject into every Copilot session, plus a free-form
+// output language directive (e.g. "Japanese", "Spanish", "casual
+// English"). Empty fields are no-ops; the agent runs with the
+// built-in defaults only.
+message AgentSettings {
+  string plan_prompt    = 1;
+  string code_prompt    = 2;
+  string review_prompt  = 3;
+  // Free-form natural-language identifier the agent uses to choose
+  // the language of its summaries / explanations / feedback. The
+  // sidecar passes this verbatim — the AI is expected to recognise
+  // values like "日本語", "Japanese", "Português brasileiro", etc.
+  string output_language = 4;
 }
 
 // WorktreeService exposes the contents of the per-repo `git worktree list`
@@ -340,6 +389,20 @@ message Subtask {
   // Model used to execute this subtask (Code stage). Empty until the
   // executor actually runs the subtask.
   string code_model = 10;
+  // Round is the 1-based iteration counter within the parent task.
+  // Round 1 is the planner's first decomposition; AI / Human REWORK and
+  // User Re-run each create a fresh round at max+1, with the previous
+  // round's subtasks left in place as history. The orchestrator only
+  // executes the latest round; the UI stacks earlier rounds above as
+  // visual context for the rework loop.
+  int32 round = 11;
+  // Prompt is the concrete instruction the planner wrote for this
+  // subtask — multi-sentence, naming specific files/behaviour/verification
+  // steps. BuildSubtaskPrompt folds it into the Coder's session prompt so
+  // the executor has precise intent instead of guessing from the Title.
+  // Empty for legacy / manual subtasks; BuildSubtaskPrompt falls back to
+  // a title-only template.
+  string prompt = 12;
 }
 
 message Repository {
@@ -757,4 +820,600 @@ message RemoveWorktreeRequest {
   // When true, the fleetkanban/<task-id> branch is also deleted. Only honored
   // for worktrees that live under the fleetkanban/ namespace.
   bool   delete_branch = 3;
+}
+
+// ---------------------------------------------------------------------------
+// ContextService — repository-bound graph memory
+// ---------------------------------------------------------------------------
+//
+// The Context feature stores structured knowledge about a registered
+// repository as a property graph (ctx_node + ctx_edge + ctx_closure),
+// vector embeddings (ctx_node_vec), and temporal facts (ctx_fact).
+// Entries arrive through three channels: static analysis, the observer
+// tapping session events, and manual user edits. Search is hybrid
+// (BM25 + vector cosine + graph-neighborhood boost, fused via RRF) and
+// feeds the three-tier injection pipeline (Passive / Reactive / Active)
+// that prepends memory to Copilot prompts.
+//
+// Kind / rel / source_kind strings are intentionally NOT proto enums,
+// matching AgentEvent.kind's convention: values are persisted verbatim
+// and interpreted per-kind by the UI, so adding new kinds does not
+// require a proto bump.
+service ContextService {
+  rpc GetOverview          (RepoIdRequest)              returns (ContextOverview);
+  rpc SearchContext        (SearchContextRequest)       returns (SearchContextResponse);
+  rpc ListNodes            (ListNodesRequest)           returns (ListNodesResponse);
+  rpc GetNode              (NodeIdRequest)              returns (ContextNodeDetail);
+  rpc CreateNode           (CreateNodeRequest)          returns (ContextNode);
+  rpc UpdateNode           (UpdateNodeRequest)          returns (ContextNode);
+  rpc DeleteNode           (NodeIdRequest)              returns (google.protobuf.Empty);
+  rpc PinNode              (PinNodeRequest)             returns (google.protobuf.Empty);
+
+  rpc ListEdges            (ListEdgesRequest)           returns (ListEdgesResponse);
+  rpc CreateEdge           (CreateEdgeRequest)          returns (ContextEdge);
+  rpc DeleteEdge           (EdgeIdRequest)              returns (google.protobuf.Empty);
+
+  rpc ListFacts            (ListFactsRequest)           returns (ListFactsResponse);
+
+  // PreviewInjection assembles the Passive-tier injection that WOULD be
+  // prepended to a Copilot session for the given task right now, so the
+  // user can audit what memory the agent will see. Does not side-effect.
+  rpc PreviewInjection     (PreviewInjectionRequest)    returns (InjectionPreview);
+
+  // AnalyzeRepository spawns a Copilot session that reads the repo and
+  // emits CLAUDE.md-style architectural summary entries into the
+  // scratchpad with source_kind="analyzer". The RPC returns immediately
+  // and progress is observed via the WatchContextChanges stream. User
+  // must promote individual entries from the Scratchpad tab to persist.
+  rpc AnalyzeRepository    (AnalyzeRepoRequest)         returns (google.protobuf.Empty);
+
+  // RebuildEmbeddings recomputes ctx_node_vec for every enabled node
+  // in the repo using the current embedding provider. Safe to call
+  // after enabling Memory or switching provider. Returns the count of
+  // rebuilt and skipped nodes so the UI can surface a toast.
+  rpc RebuildEmbeddings    (RepoIdRequest)              returns (RebuildEmbeddingsResponse);
+
+  // RebuildClosure recomputes the closure table — the redundant
+  // projection used by graph-neighborhood boost. Exposed for the
+  // "Rebuild closure" admin button on the Overview tab.
+  rpc RebuildClosure       (RepoIdRequest)              returns (google.protobuf.Empty);
+
+  // RebuildCodeGraph walks the repository filesystem and upserts
+  // File nodes + imports edges directly from source. Cheap — no LLM
+  // calls — so the UI typically runs it after Analyze or when the
+  // user notices new files are missing from Browse. Returns a
+  // summary so the UI can render a toast.
+  rpc RebuildCodeGraph     (RepoIdRequest)              returns (RebuildCodeGraphResponse);
+
+  rpc GetMemorySettings    (RepoIdRequest)              returns (MemorySettings);
+  rpc UpdateMemorySettings (UpdateMemorySettingsRequest) returns (MemorySettings);
+
+  // WatchContextChanges streams node / edge / fact / scratchpad updates
+  // scoped to a repository so the Context UI can refresh incrementally
+  // without polling. Analogous to TaskService.WatchEvents.
+  rpc WatchContextChanges  (WatchContextRequest)        returns (stream ContextChangeEvent);
+}
+
+// ScratchpadService manages pending memory entries waiting for a trust
+// gate decision. The observer and analyzer push candidates here; the
+// user promotes, rejects, edits, or snoozes them from the Context
+// scratchpad tab. Auto-promotion can be enabled per-repo for
+// high-confidence entries via MemorySettings.
+service ScratchpadService {
+  rpc ListPending    (ListPendingRequest)    returns (ListPendingResponse);
+  rpc GetEntry       (EntryIdRequest)        returns (ScratchpadEntry);
+  rpc PromoteEntry   (EntryIdRequest)        returns (ContextNode);
+  rpc RejectEntry    (RejectEntryRequest)    returns (google.protobuf.Empty);
+  rpc EditAndPromote (EditAndPromoteRequest) returns (ContextNode);
+  rpc SnoozeEntry    (SnoozeRequest)         returns (google.protobuf.Empty);
+  rpc WatchPending   (RepoIdRequest)         returns (stream ScratchpadChangeEvent);
+}
+
+// OllamaService wraps the local Ollama HTTP API (default
+// http://localhost:11434) so the UI can detect installation, list and
+// pull embedding / LLM models, and stream pull progress. Used by the
+// Settings onboarding flow when the user selects Ollama as the
+// embedding or LLM provider.
+service OllamaService {
+  rpc GetOllamaStatus          (google.protobuf.Empty)  returns (OllamaStatus);
+  // ListInstalledModels rather than ListModels — ModelService.ListModels
+  // already claims the Go method name ListModels on the sidecar Server
+  // struct, so the names must be unique for method resolution.
+  rpc ListInstalledModels      (google.protobuf.Empty)  returns (OllamaListModelsResponse);
+  rpc GetRecommendedModels     (google.protobuf.Empty)  returns (OllamaListRecommendedResponse);
+  rpc PullOllamaModel          (PullModelRequest)       returns (stream OllamaPullProgressEvent);
+}
+
+// ---------------------------------------------------------------------------
+// ContextService domain messages
+// ---------------------------------------------------------------------------
+
+// ContextNode is one entity in the property graph. kind / source_kind
+// are strings; see service-level comment. content_md is Markdown that
+// is rendered directly in the Browse tab and serialized into injected
+// prompts. attrs is a free-form map for kind-specific metadata (e.g.
+// File nodes may carry "path" and "language"; Decision nodes may carry
+// "decision_id" and "rationale_url").
+message ContextNode {
+  string id           = 1;
+  string repo_id      = 2;
+  // File | Module | Function | Class | Concept | Decision | Constraint | Tag
+  string kind         = 3;
+  string label        = 4;
+  string content_md   = 5;
+  map<string, string> attrs = 6;
+  // manual | observer | analyzer | static-analysis | session-summary
+  string source_kind  = 7;
+  float  confidence   = 8;
+  bool   enabled      = 9;
+  bool   pinned       = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+// ContextEdge is one directed relationship between two nodes. `rel`
+// values the sidecar recognises today:
+//   imports | calls | contains | dependsOn | relatedTo
+//   conflictsWith | coAccessedWith | supersedes | tagged
+// Additional rels can be added without a proto bump — the UI renders
+// unknown rels as a plain chip labelled with the string.
+message ContextEdge {
+  string id          = 1;
+  string repo_id     = 2;
+  string src_node_id = 3;
+  string dst_node_id = 4;
+  string rel         = 5;
+  map<string, string> attrs = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+// ContextFact is a bi-temporal predicate anchored on a subject node.
+// valid_from / valid_to bracket the wall-clock interval during which
+// the fact is considered true; valid_to nil means "still active".
+// `supersedes` links to the id of the fact this one replaces so the
+// Facts Timeline can render succession chains (e.g. "SendGrid → Resend").
+message ContextFact {
+  string id              = 1;
+  string repo_id         = 2;
+  string subject_node_id = 3;
+  string predicate       = 4;
+  string object_text     = 5;
+  google.protobuf.Timestamp valid_from = 6;
+  google.protobuf.Timestamp valid_to   = 7;   // nil = still active
+  string supersedes      = 8;
+  google.protobuf.Timestamp created_at = 9;
+}
+
+// ContextNodeDetail is the full-fidelity payload returned by GetNode.
+// Neighbors is the 1-hop closure of the node (both in- and out-edges
+// resolved to ContextNode summaries) so the detail pane does not need
+// a second round-trip to render "related items".
+message ContextNodeDetail {
+  ContextNode         node         = 1;
+  repeated ContextEdge out_edges   = 2;  // where node is src
+  repeated ContextEdge in_edges    = 3;  // where node is dst
+  repeated ContextNode neighbors   = 4;  // resolved counterparts of edges
+  repeated ContextFact facts       = 5;  // facts anchored on this node
+  // Provenance — which session / task introduced this node. Empty when
+  // source_kind == manual.
+  string source_task_id = 6;
+  string source_session_id = 7;
+}
+
+// ContextOverview is the Overview tab's aggregate view. Counts are
+// filtered by repo_id. byte_size fields approximate on-disk storage
+// for the Overview storage card (vectors dominate).
+message ContextOverview {
+  string repo_id = 1;
+  // Per-kind node counts, keyed by kind string (e.g. "File", "Concept").
+  map<string, int32> node_counts_by_kind = 2;
+  // Per-rel edge counts, keyed by rel string (e.g. "imports", "calls").
+  map<string, int32> edge_counts_by_rel  = 3;
+  int32 active_fact_count   = 4;
+  int32 expired_fact_count  = 5;
+  int32 pending_scratchpad_count  = 6;
+  int32 promoted_scratchpad_count = 7;
+  int32 rejected_scratchpad_count = 8;
+  int32 vector_count     = 9;
+  int32 vector_dim       = 10;
+  int64 vector_bytes     = 11;
+  // Number of tasks / sessions the observer has processed for this
+  // repo. Surfaced in the Overview as "28 sessions of learning".
+  int32 observed_session_count = 12;
+  // Whether memory is currently enabled for this repo — mirrors
+  // MemorySettings.enabled so the Overview card does not need a
+  // second call.
+  bool enabled = 13;
+}
+
+message RepoIdRequest { string repo_id = 1; }
+message NodeIdRequest { string node_id = 1; }
+message EdgeIdRequest { string edge_id = 1; }
+message EntryIdRequest { string entry_id = 1; }
+
+message SearchContextRequest {
+  string repo_id = 1;
+  string query   = 2;
+  // Which retrieval channel(s) to return. Fused is the default and
+  // represents the production hybrid pipeline; the other three are
+  // exposed so the Search tab can show why results differ (debug
+  // view). Empty → all four populated.
+  //   "semantic" | "keyword" | "fused" | "all"
+  string mode    = 3;
+  // Limit per channel. 0 → server default (20).
+  int32  limit   = 4;
+  // Optional filter on node kind (AND across entries).
+  repeated string kinds = 5;
+  // Optional filter on enabled flag. Unset → include both.
+  bool only_enabled = 6;
+}
+
+// SearchHit is one result with its channel-specific score and the
+// reason it surfaced (for the debug / trust view).
+message SearchHit {
+  ContextNode node       = 1;
+  float       score      = 2;
+  // Best rank across channels (1-based). 0 when the node was only
+  // introduced via graph-neighborhood boost.
+  int32       rank       = 3;
+  // "semantic" | "keyword" | "graph-boost" | "fused"
+  string      channel    = 4;
+  // Free-form reason for debug UI ("matched 'auth' in label",
+  // "cosine 0.83 against query embedding", "1-hop from decision-08").
+  string      reason     = 5;
+}
+
+message SearchContextResponse {
+  // One bucket per channel requested. Channel string mirrors
+  // SearchHit.channel so callers can pattern-match.
+  map<string, SearchHitList> channels = 1;
+  // Total unique nodes across all channels (the Fused bucket's
+  // deduplicated count after RRF).
+  int32 total_unique = 2;
+}
+
+message SearchHitList {
+  repeated SearchHit hits = 1;
+}
+
+message ListNodesRequest {
+  string repo_id = 1;
+  // Optional filter — empty = all kinds.
+  repeated string kinds = 2;
+  // Optional pagination. 0 → server default (200).
+  int32  limit  = 3;
+  int32  offset = 4;
+  // Sort: "updated_at" (default, desc) | "label" (asc) | "confidence" (desc)
+  string sort   = 5;
+  // Optional filter on source_kind.
+  repeated string source_kinds = 6;
+  // When set, only nodes that include the substring in label OR
+  // content_md are returned. Use SearchContext for ranked search;
+  // this is for simple Browse-tab filtering.
+  string label_contains = 7;
+  // Filter on pinned / enabled flags. Unset → include both.
+  // Tri-state encoded via int32: 0=either, 1=only true, 2=only false.
+  int32 pinned_filter  = 8;
+  int32 enabled_filter = 9;
+}
+
+message ListNodesResponse {
+  repeated ContextNode nodes = 1;
+  int32 total = 2;
+}
+
+message CreateNodeRequest {
+  string repo_id    = 1;
+  string kind       = 2;
+  string label      = 3;
+  string content_md = 4;
+  map<string, string> attrs = 5;
+  // Defaults to "manual" if omitted — the only legitimate value for
+  // UI-originated creations. Non-manual source_kinds are accepted so
+  // the analyzer / observer can write directly.
+  string source_kind = 6;
+  float  confidence  = 7;
+}
+
+message UpdateNodeRequest {
+  string node_id    = 1;
+  // Only non-empty string fields and explicitly-set oneof fields are
+  // applied. Encoding "clear this field" for optional strings would
+  // require wrappers; keep semantics simple by rejecting empty label
+  // updates (UpdateNode with empty label → InvalidArgument).
+  string label      = 2;
+  string content_md = 3;
+  map<string, string> attrs = 4;
+  // Tri-state: 0=unchanged, 1=enable, 2=disable. Same shape for pinned.
+  int32 enabled_op  = 5;
+  int32 pinned_op   = 6;
+  float confidence  = 7;  // 0 → unchanged
+}
+
+message PinNodeRequest {
+  string node_id = 1;
+  bool   pinned  = 2;
+}
+
+message ListEdgesRequest {
+  string repo_id     = 1;
+  // Optional: only edges incident to this node (either direction).
+  string node_id     = 2;
+  // Optional filter on rel string.
+  repeated string rels = 3;
+  int32  limit   = 4;
+  int32  offset  = 5;
+}
+
+message ListEdgesResponse {
+  repeated ContextEdge edges = 1;
+  int32 total = 2;
+}
+
+message CreateEdgeRequest {
+  string repo_id     = 1;
+  string src_node_id = 2;
+  string dst_node_id = 3;
+  string rel         = 4;
+  map<string, string> attrs = 5;
+}
+
+message ListFactsRequest {
+  string repo_id = 1;
+  // Optional filter — only facts for this subject node.
+  string subject_node_id = 2;
+  // When true, include facts whose valid_to is in the past. Defaults
+  // to false (only currently-active facts).
+  bool include_expired = 3;
+  int32 limit  = 4;
+  int32 offset = 5;
+}
+
+message ListFactsResponse {
+  repeated ContextFact facts = 1;
+  int32 total = 2;
+}
+
+// InjectionSource lists one memory item that contributed to an
+// injected prompt. source_ref is ContextNode.id or ContextFact.id
+// depending on source_type. Ordering mirrors the Markdown that was
+// rendered, so the UI can display sources as a numbered sidebar.
+message InjectionSource {
+  string source_type = 1;   // "node" | "fact"
+  string source_ref  = 2;
+  string label       = 3;
+  string channel     = 4;   // "passive" | "reactive" | "active"
+  int32  tokens      = 5;   // estimated tokens contributed
+  float  relevance   = 6;   // final score post-RRF + boost
+}
+
+message InjectionPreview {
+  // The assembled Markdown block that would be prepended to the
+  // Copilot system prompt. Empty when memory is disabled for the repo.
+  string system_prompt = 1;
+  // Ordered contributions so the UI can render a sidebar.
+  repeated InjectionSource sources = 2;
+  // Rough token estimate so the UI can compare against the Passive
+  // budget from MemorySettings.
+  int32 estimated_tokens = 3;
+  // Injection tier this preview represents.
+  // "passive" | "reactive" | "active"
+  string tier = 4;
+}
+
+message PreviewInjectionRequest {
+  string repo_id  = 1;
+  // Either task_id (use its goal / base branch / review feedback) OR
+  // raw_prompt (for a hypothetical task the user is about to create).
+  // Exactly one must be set.
+  string task_id    = 2;
+  string raw_prompt = 3;
+  // Which tier to preview. Defaults to "passive".
+  string tier       = 4;
+}
+
+message RebuildEmbeddingsResponse {
+  int32 rebuilt = 1;
+  int32 skipped = 2;
+}
+
+message RebuildCodeGraphResponse {
+  int32 files_scanned  = 1;
+  int32 nodes_created  = 2;
+  int32 nodes_updated  = 3;
+  int32 edges_created  = 4;
+}
+
+message AnalyzeRepoRequest {
+  string repo_id = 1;
+  // When true, re-analyze even if an analyzer run already finished for
+  // this repo. Defaults to false so "Analyze this repository" is
+  // idempotent in normal operation.
+  bool force = 2;
+  // Optional override: the LLM model used for the analyzer session.
+  // Falls back to MemorySettings.llm_model when empty.
+  string model = 3;
+}
+
+message MemorySettings {
+  string repo_id = 1;
+  bool   enabled = 2;
+  // Ollama | openai | voyage | google | openrouter | azure_openai
+  string embedding_provider = 3;
+  string embedding_model    = 4;
+  int32  embedding_dim      = 5;
+  string llm_provider       = 6;
+  string llm_model          = 7;
+  // Token budget for the Passive tier injection block. Hits above
+  // this budget are truncated from the lowest-ranked tail.
+  int32  passive_token_budget = 8;
+  // Hops to expand the top-ranked semantic + keyword hits when
+  // computing graph-neighborhood boost. 0 disables the boost.
+  int32  top_k_neighbors    = 9;
+  // When true, scratchpad entries whose confidence >= threshold skip
+  // the trust gate and become ContextNodes directly. Default false.
+  bool   auto_promote_high_confidence = 10;
+  float  auto_promote_threshold       = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+message UpdateMemorySettingsRequest {
+  // settings.repo_id is required. All other fields are applied as-is
+  // (including zero values); to ignore a field, fetch, mutate, and
+  // resend — the semantics mirror SetConcurrency.
+  MemorySettings settings = 1;
+}
+
+// WatchContextRequest resumes a stream by passing the server sequence
+// of the last observed change per change-kind. Unset → send only
+// future changes (no backfill).
+message WatchContextRequest {
+  string repo_id = 1;
+  map<string, int64> since_seq_by_kind = 2;   // "node" | "edge" | "fact" | "scratchpad"
+}
+
+message ContextChangeEvent {
+  int64  seq   = 1;
+  string kind  = 2;  // "node" | "edge" | "fact" | "scratchpad" | "analyzer"
+  string op    = 3;  // "create" | "update" | "delete" | "start" | "complete" | "error"
+  string id    = 4;  // node / edge / fact / scratchpad entry id
+  string repo_id = 5;
+  google.protobuf.Timestamp occurred_at = 6;
+  // Human-readable detail. Populated for analyzer error events so the
+  // UI can render the failure message (with a copy button) inline
+  // rather than forcing the user to tail the sidecar log.
+  string message = 7;
+}
+
+// ---------------------------------------------------------------------------
+// ScratchpadService domain messages
+// ---------------------------------------------------------------------------
+
+message ScratchpadEntry {
+  string id                  = 1;
+  string repo_id             = 2;
+  string proposed_kind       = 3;
+  string proposed_label      = 4;
+  string proposed_content_md = 5;
+  // observer-signal | analyzer | session-summary | manual-draft
+  string source_kind         = 6;
+  // Origin task / session for debug / trust UI. Empty when the
+  // observer aggregated multiple sessions.
+  string source_ref          = 7;
+  // Free-form signal strings ("repeated file co-access (8x)",
+  // "explicit reference in session summary", "matches dead-end
+  // pattern X"). Rendered as chips in the Scratchpad card.
+  repeated string signals    = 8;
+  float  confidence          = 9;
+  // pending | promoted | rejected | snoozed
+  string status              = 10;
+  google.protobuf.Timestamp snoozed_until = 11;
+  google.protobuf.Timestamp created_at    = 12;
+  google.protobuf.Timestamp updated_at    = 13;
+}
+
+message ListPendingRequest {
+  string repo_id = 1;
+  // Include statuses beyond "pending". Defaults to pending-only.
+  repeated string statuses = 2;
+  int32  limit   = 3;
+  int32  offset  = 4;
+}
+
+message ListPendingResponse {
+  repeated ScratchpadEntry entries = 1;
+  int32 total = 2;
+}
+
+message RejectEntryRequest {
+  string entry_id = 1;
+  // Optional reason — persisted alongside the entry for auditability
+  // and shown in the rejected filter of the Scratchpad tab.
+  string reason   = 2;
+}
+
+message EditAndPromoteRequest {
+  string entry_id            = 1;
+  // Optional overrides — empty keeps the scratchpad value.
+  string edited_kind         = 2;
+  string edited_label        = 3;
+  string edited_content_md   = 4;
+  map<string, string> edited_attrs = 5;
+}
+
+message SnoozeRequest {
+  string entry_id   = 1;
+  // Server clamps to [1h, 30d]. Typical UI choices: 1d, 7d, 30d.
+  int32  days       = 2;
+}
+
+message ScratchpadChangeEvent {
+  int64  seq        = 1;
+  string op         = 2;  // "create" | "promote" | "reject" | "snooze" | "update"
+  string entry_id   = 3;
+  string repo_id    = 4;
+  google.protobuf.Timestamp occurred_at = 5;
+}
+
+// ---------------------------------------------------------------------------
+// OllamaService domain messages
+// ---------------------------------------------------------------------------
+
+message OllamaStatus {
+  bool   installed     = 1;
+  bool   running       = 2;
+  string base_url      = 3;
+  string version       = 4;
+  // Empty on success; set when the sidecar could not reach Ollama so
+  // the UI can surface a specific message ("connection refused",
+  // "not found on PATH").
+  string message       = 5;
+  // Canonical install command for the user's OS (winget string on
+  // Windows). Populated only when installed == false.
+  string install_command = 6;
+}
+
+message OllamaModel {
+  string name         = 1;
+  int64  size_bytes   = 2;
+  double size_gb      = 3;
+  string modified_at  = 4;
+  bool   is_embedding = 5;
+  // Set when the model's /api/show response declares embedding.
+  int32  embedding_dim = 6;
+  string description  = 7;
+}
+
+message OllamaListModelsResponse {
+  repeated OllamaModel models = 1;
+}
+
+message OllamaRecommendedModel {
+  string name          = 1;
+  string description   = 2;
+  string size_estimate = 3;   // e.g. "621 MB"
+  int32  embedding_dim = 4;
+  bool   installed     = 5;
+  // "embedding" | "llm"
+  string role          = 6;
+}
+
+message OllamaListRecommendedResponse {
+  repeated OllamaRecommendedModel models = 1;
+}
+
+message PullModelRequest {
+  string name = 1;
+}
+
+// OllamaPullProgressEvent is one streamed progress chunk from Ollama's
+// /api/pull streaming endpoint. Exactly one of status / error / done
+// is non-empty per event.
+message OllamaPullProgressEvent {
+  string status    = 1;   // "downloading layer abc", "verifying", ...
+  int64  downloaded = 2;
+  int64  total     = 3;
+  string digest    = 4;
+  string error     = 5;
+  bool   done      = 6;
 }

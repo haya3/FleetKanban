@@ -42,16 +42,24 @@ type AgentRunner interface {
 	// Run drives a single whole-task Copilot session (legacy / Planner=nil
 	// path). modelUsed echoes the Code-stage model resolved inside the
 	// runner so the orchestrator can record it on Task.Model when the
-	// task had no explicit override.
-	Run(ctx context.Context, t *task.Task, out chan<- *task.AgentEvent) (modelUsed string, err error)
+	// task had no explicit override. usage carries the session's total
+	// premium-request / token / duration aggregate (zero-valued when
+	// the session emitted no usage events, e.g. aborted before first
+	// LLM call) so the orchestrator can publish an EventSessionUsage
+	// for the UI's per-stage cost display.
+	Run(ctx context.Context, t *task.Task, out chan<- *task.AgentEvent) (modelUsed string, usage task.SessionUsage, err error)
 
 	// RunSubtask drives one Copilot session scoped to sub within the parent
 	// task's worktree. The agent role named on sub is injected into the
 	// session's system prompt so the planner's decomposition actually
-	// propagates to execution. Semantics of `out` and the return value
+	// propagates to execution. subCtx carries the plan summary + prior
+	// subtask summaries the orchestrator assembled so the runner can
+	// hand the Coder agent context instead of making it re-explore the
+	// repo from scratch. Semantics of `out` and the return value
 	// match Run; modelUsed is recorded on Subtask.CodeModel so the UI can
-	// surface a per-subtask Code-stage badge.
-	RunSubtask(ctx context.Context, t *task.Task, sub *task.Subtask, out chan<- *task.AgentEvent) (modelUsed string, err error)
+	// surface a per-subtask Code-stage badge. usage is the same SessionUsage
+	// shape Run returns.
+	RunSubtask(ctx context.Context, t *task.Task, sub *task.Subtask, subCtx task.SubtaskRunContext, out chan<- *task.AgentEvent) (modelUsed string, usage task.SessionUsage, err error)
 }
 
 // Planner decomposes a task into an ordered Subtask DAG. Implementations
@@ -67,7 +75,22 @@ type AgentRunner interface {
 // is empty) that resolved id is returned; when t.PlanModel is honoured
 // verbatim it is echoed back unchanged.
 type Planner interface {
-	Plan(ctx context.Context, t *task.Task) (subs []*task.Subtask, modelUsed string, err error)
+	// Plan returns the decomposed DAG, the model id that produced it, a
+	// short human-readable summary of the planner's investigation
+	// findings + decomposition rationale, and the planning session's
+	// usage totals. The summary is surfaced via a `plan.summary`
+	// AgentEvent so the UI can show users WHAT the planner looked at
+	// and WHY this shape was chosen. usage feeds the per-stage cost
+	// display via EventSessionUsage. Empty summary is allowed (soft
+	// warning) so a planner that forgot the summary block still
+	// yields a usable DAG.
+	//
+	// Streaming contract (mirrors AgentRunner.Run): implementations
+	// MUST forward assistant.delta / assistant.reasoning.delta /
+	// tool.start / tool.end events on `out` as the SDK emits them so
+	// the UI can live-render the planner's "thinking". `out` is
+	// closed by the implementation before returning.
+	Plan(ctx context.Context, t *task.Task, out chan<- *task.AgentEvent) (subs []*task.Subtask, modelUsed string, summary string, usage task.SessionUsage, err error)
 }
 
 // SubtaskRepo is the slice of the subtask store the orchestrator needs
@@ -76,8 +99,14 @@ type Planner interface {
 // skip re-planning on reworks. Update persists per-subtask status
 // transitions (pending → doing → done/failed).
 type SubtaskRepo interface {
-	CreatePlan(ctx context.Context, parentID string, subs []*task.Subtask) error
-	ListByTask(ctx context.Context, parentID string) ([]*task.Subtask, error)
+	// CreatePlan inserts the new round of subtasks and returns the
+	// round number that was assigned (max+1, atomic in the store).
+	// Previous rounds are preserved as history.
+	CreatePlan(ctx context.Context, parentID string, subs []*task.Subtask) (int, error)
+	// ListLatestRound returns subtasks belonging to the highest round
+	// for parentID. The orchestrator drives execution off this so each
+	// rework cycle only runs the freshly-planned subtasks.
+	ListLatestRound(ctx context.Context, parentID string) ([]*task.Subtask, error)
 	Update(ctx context.Context, sub *task.Subtask) error
 }
 
@@ -108,6 +137,11 @@ type EventRepo interface {
 	Append(ctx context.Context, e *task.AgentEvent) error
 	AppendBatch(ctx context.Context, events []*task.AgentEvent) error
 	AppendAutoSeq(ctx context.Context, e *task.AgentEvent) error
+	// ListByTask returns events for taskID with seq > sinceSeq,
+	// capped at limit (0 = no cap). Used by the orchestrator to
+	// reconstruct plan.summary and prior-subtask context before
+	// kicking off each Code session.
+	ListByTask(ctx context.Context, taskID string, sinceSeq int64, limit int) ([]*task.AgentEvent, error)
 }
 
 // RepositoryRepo looks up the filesystem path for a repository ID.
@@ -131,15 +165,25 @@ type WorktreeService interface {
 	// into base — the worktree was already torn down at Keep time, so we
 	// only need to clean the branch up.
 	DeleteBranch(ctx context.Context, repoPath, branch string) error
+	// CommitPending stages and commits any pending changes in the worktree.
+	// Used by Finalize Keep / Merge so the task branch always has the
+	// agent's edits captured as commits before the worktree is torn down —
+	// without this step, agents that never ran `git commit` themselves
+	// would leave the post-finalize branch (and DiffBranch result) empty.
+	// Returns true when a commit was actually created.
+	CommitPending(ctx context.Context, wtPath, message string) (bool, error)
 }
 
 // ReviewDecision is the verdict produced by an AIReviewer after inspecting
 // a task's diff. Approve=true advances the task to human_review; Approve=
 // false saves Feedback onto the task and loops it back to queued for a
-// rework pass.
+// rework pass. Summary is the reviewer's pre-decision rationale (what
+// was checked, findings) — captured so the UI can show WHY the
+// reviewer approved / rejected even when Feedback is empty.
 type ReviewDecision struct {
 	Approve  bool
 	Feedback string
+	Summary  string
 }
 
 // AIReviewer inspects a completed task's diff and produces a decision.
@@ -160,13 +204,20 @@ type ReviewDecision struct {
 // task is auto-advanced to human_review after a short delay, preserving
 // the original Phase 1 behavior for environments without Copilot auth.
 type AIReviewer interface {
-	// Review returns the decision plus the model id that actually produced
-	// it — the orchestrator records modelUsed on Task.ReviewModel so the
-	// UI can surface which model ran the Review stage. Resolution rules
-	// mirror Planner.Plan: Task.ReviewModel is honoured when non-empty,
-	// otherwise the reviewer falls back to its configured default and
-	// returns the resolved id.
-	Review(ctx context.Context, t *task.Task, diff, prevFeedback string, reworkCount int) (decision ReviewDecision, modelUsed string, err error)
+	// Review returns the decision, the model id that actually produced
+	// it, and the review session's usage totals. modelUsed is recorded
+	// on Task.ReviewModel so the UI can surface which model ran the
+	// Review stage; usage is forwarded as EventSessionUsage so the
+	// per-stage cost display has Review numbers too. Resolution rules
+	// mirror Planner.Plan.
+	//
+	// Streaming contract (mirrors AgentRunner.Run): implementations
+	// MUST forward assistant.delta / assistant.reasoning.delta /
+	// tool.start / tool.end events on `out` as the SDK emits them so
+	// the UI can live-render the reviewer's "thinking" — without this
+	// path the Review tab in the stage detail dialog has nothing to
+	// show. `out` is closed by the implementation before returning.
+	Review(ctx context.Context, t *task.Task, diff, prevFeedback string, reworkCount int, out chan<- *task.AgentEvent) (decision ReviewDecision, modelUsed string, usage task.SessionUsage, err error)
 }
 
 // EventSink receives every persisted event. Typical implementation: forward

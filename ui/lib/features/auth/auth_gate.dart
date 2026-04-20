@@ -92,7 +92,10 @@ class _AuthErrorScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Center(
-              child: FilledButton(onPressed: onRetry, child: const Text('Retry')),
+              child: FilledButton(
+                onPressed: onRetry,
+                child: const Text('Retry'),
+              ),
             ),
           ],
         ),

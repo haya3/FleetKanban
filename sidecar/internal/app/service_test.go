@@ -49,19 +49,19 @@ type fakeRunner struct {
 	lines []string
 }
 
-func (f *fakeRunner) Run(ctx context.Context, t *task.Task, out chan<- *task.AgentEvent) (string, error) {
+func (f *fakeRunner) Run(ctx context.Context, t *task.Task, out chan<- *task.AgentEvent) (string, task.SessionUsage, error) {
 	defer close(out)
 	for _, l := range f.lines {
 		select {
 		case <-ctx.Done():
-			return "", ctx.Err()
+			return "", task.SessionUsage{}, ctx.Err()
 		case out <- &task.AgentEvent{Kind: task.EventAssistantDelta, Payload: l}:
 		}
 	}
-	return "", nil
+	return "", task.SessionUsage{}, nil
 }
 
-func (f *fakeRunner) RunSubtask(ctx context.Context, t *task.Task, sub *task.Subtask, out chan<- *task.AgentEvent) (string, error) {
+func (f *fakeRunner) RunSubtask(ctx context.Context, t *task.Task, sub *task.Subtask, _ task.SubtaskRunContext, out chan<- *task.AgentEvent) (string, task.SessionUsage, error) {
 	return f.Run(ctx, t, out)
 }
 
@@ -442,12 +442,12 @@ func TestService_DeleteTask_RejectsInProgress(t *testing.T) {
 // runnerFn adapts a function to orchestrator.AgentRunner for tests.
 type runnerFn func(ctx context.Context, t *task.Task, out chan<- *task.AgentEvent) error
 
-func (f runnerFn) Run(ctx context.Context, t *task.Task, out chan<- *task.AgentEvent) (string, error) {
-	return "", f(ctx, t, out)
+func (f runnerFn) Run(ctx context.Context, t *task.Task, out chan<- *task.AgentEvent) (string, task.SessionUsage, error) {
+	return "", task.SessionUsage{}, f(ctx, t, out)
 }
 
-func (f runnerFn) RunSubtask(ctx context.Context, t *task.Task, _ *task.Subtask, out chan<- *task.AgentEvent) (string, error) {
-	return "", f(ctx, t, out)
+func (f runnerFn) RunSubtask(ctx context.Context, t *task.Task, _ *task.Subtask, _ task.SubtaskRunContext, out chan<- *task.AgentEvent) (string, task.SessionUsage, error) {
+	return "", task.SessionUsage{}, f(ctx, t, out)
 }
 
 // TestService_SubmitReview_ReworkFlowsFeedbackToNextPrompt guards the full

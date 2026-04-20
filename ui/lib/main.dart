@@ -32,10 +32,40 @@ Future<void> main() async {
     dark: PlatformDispatcher.instance.platformBrightness == Brightness.dark,
   );
 
+  // Global error plumbing. ErrorWidget.builder renders a copyable red
+  // screen so users can paste the stack trace into an issue / AI chat;
+  // FlutterError.onError also echoes to stderr so the log tail picks
+  // it up alongside sidecar messages.
+  ErrorWidget.builder = (details) => _GlobalErrorScreen(details: details);
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    try {
+      stderr.writeln('=== FlutterError ===');
+      stderr.writeln(details.exceptionAsString());
+      if (details.stack != null) {
+        stderr.writeln(details.stack.toString());
+      }
+    } catch (_) {
+      // stderr is best-effort; do not escalate.
+    }
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    try {
+      stderr.writeln('=== PlatformDispatcher.onError ===');
+      stderr.writeln('$error');
+      stderr.writeln('$stack');
+    } catch (_) {}
+    return true;
+  };
+
   doWhenWindowReady(() {
     final win = appWindow;
     win.minSize = const Size(960, 640);
-    win.size = const Size(1280, 800);
+    // Kanban has 6 columns + NavigationView compact rail + per-card stage
+    // stepper: 1280 leaves cards clipped and the detail dialog (900 wide)
+    // barely fits. 1600×1000 lands the default inside a reasonable chunk of
+    // the FHD viewport without overflowing common 1920×1080 setups.
+    win.size = const Size(1600, 1000);
     win.alignment = Alignment.center;
     win.title = 'FleetKanban';
     win.show();
@@ -96,6 +126,52 @@ class _MicaAwareAppState extends State<_MicaAwareApp>
 
   @override
   Widget build(BuildContext context) => const FleetKanbanApp();
+}
+
+/// Replaces Flutter's default red error banner with a Fluent-themed
+/// panel whose body is a CopyableErrorText. Fires for any uncaught
+/// build / layout / paint exception in any widget in the tree.
+class _GlobalErrorScreen extends StatelessWidget {
+  const _GlobalErrorScreen({required this.details});
+  final FlutterErrorDetails details;
+
+  @override
+  Widget build(BuildContext context) {
+    final body =
+        '${details.exceptionAsString()}\n\n${details.stack ?? 'no stack available'}';
+    return FluentTheme(
+      data: FluentThemeData(brightness: Brightness.light),
+      child: Container(
+        color: const Color(0xFFFFF4F4),
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Row(
+              children: [
+                Icon(FluentIcons.error, color: Color(0xFFC42B1C)),
+                SizedBox(width: 8),
+                Text(
+                  'Widget error',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Flexible(
+              child: SingleChildScrollView(
+                child: CopyableErrorText(
+                  text: body,
+                  reportTitle: 'Flutter widget error',
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _StartupErrorScreen extends StatelessWidget {

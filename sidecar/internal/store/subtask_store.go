@@ -18,7 +18,7 @@ func NewSubtaskStore(db *DB) *SubtaskStore { return &SubtaskStore{db: db} }
 
 // Create inserts a new subtask row. OrderIdx is honored as-is; callers
 // wanting "append at end" semantics should look up the current max and
-// pass max+1 (see App service).
+// pass max+1 (see App service). Round defaults to 1 when not set.
 func (s *SubtaskStore) Create(ctx context.Context, sub *task.Subtask) error {
 	if err := sub.Validate(); err != nil {
 		return err
@@ -32,13 +32,17 @@ func (s *SubtaskStore) Create(ctx context.Context, sub *task.Subtask) error {
 	if err != nil {
 		return err
 	}
+	round := sub.Round
+	if round <= 0 {
+		round = 1
+	}
 	_, err = s.db.write.ExecContext(ctx, `
 INSERT INTO subtasks(
     id, task_id, title, agent_role, depends_on, status, order_idx,
-    code_model, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    code_model, round, prompt, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		sub.ID, sub.TaskID, sub.Title, sub.AgentRole, deps,
-		string(sub.Status), sub.OrderIdx, sub.CodeModel, created, now,
+		string(sub.Status), sub.OrderIdx, sub.CodeModel, round, sub.Prompt, created, now,
 	)
 	if err != nil {
 		return fmt.Errorf("subtask: insert: %w", err)
@@ -46,15 +50,17 @@ INSERT INTO subtasks(
 	return nil
 }
 
-// ListByTask returns every subtask belonging to parentID, ordered by
-// order_idx ascending (created_at as tiebreaker).
+// ListByTask returns every subtask belonging to parentID across all
+// rounds, ordered by round then order_idx. The UI uses this to render
+// the iteration history; the orchestrator should use ListLatestRound
+// to drive execution so older rounds aren't re-run.
 func (s *SubtaskStore) ListByTask(ctx context.Context, parentID string) ([]*task.Subtask, error) {
 	rows, err := s.db.read.QueryContext(ctx, `
 SELECT id, task_id, title, agent_role, depends_on, status, order_idx,
-       code_model, created_at, updated_at
+       code_model, round, prompt, created_at, updated_at
   FROM subtasks
  WHERE task_id = ?
- ORDER BY order_idx ASC, created_at ASC`, parentID)
+ ORDER BY round ASC, order_idx ASC, created_at ASC`, parentID)
 	if err != nil {
 		return nil, fmt.Errorf("subtask: list: %w", err)
 	}
@@ -71,11 +77,53 @@ SELECT id, task_id, title, agent_role, depends_on, status, order_idx,
 	return out, rows.Err()
 }
 
+// ListLatestRound returns subtasks belonging to the maximum round of
+// parentID. Used by the orchestrator's runSubtaskLoop so each
+// rework cycle only re-runs the freshly-planned subtasks instead of
+// looping over every past round's history. Returns nil (not an error)
+// when the parent has no subtasks at all.
+func (s *SubtaskStore) ListLatestRound(ctx context.Context, parentID string) ([]*task.Subtask, error) {
+	rows, err := s.db.read.QueryContext(ctx, `
+SELECT id, task_id, title, agent_role, depends_on, status, order_idx,
+       code_model, round, prompt, created_at, updated_at
+  FROM subtasks
+ WHERE task_id = ?
+   AND round = (SELECT COALESCE(MAX(round), 0) FROM subtasks WHERE task_id = ?)
+ ORDER BY order_idx ASC, created_at ASC`, parentID, parentID)
+	if err != nil {
+		return nil, fmt.Errorf("subtask: list latest round: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*task.Subtask
+	for rows.Next() {
+		sub, err := scanSubtask(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, sub)
+	}
+	return out, rows.Err()
+}
+
+// MaxRound returns the highest round number recorded for parentID, or
+// 0 when no subtasks exist. Callers that want the next round number
+// use MaxRound+1.
+func (s *SubtaskStore) MaxRound(ctx context.Context, parentID string) (int, error) {
+	row := s.db.read.QueryRowContext(ctx,
+		`SELECT COALESCE(MAX(round), 0) FROM subtasks WHERE task_id = ?`, parentID)
+	var v int
+	if err := row.Scan(&v); err != nil {
+		return 0, fmt.Errorf("subtask: max round: %w", err)
+	}
+	return v, nil
+}
+
 // Get loads a subtask by ID.
 func (s *SubtaskStore) Get(ctx context.Context, id string) (*task.Subtask, error) {
 	row := s.db.read.QueryRowContext(ctx, `
 SELECT id, task_id, title, agent_role, depends_on, status, order_idx,
-       code_model, created_at, updated_at
+       code_model, round, prompt, created_at, updated_at
   FROM subtasks WHERE id = ?`, id)
 	return scanSubtask(row)
 }
@@ -97,10 +145,11 @@ UPDATE subtasks SET
     status     = ?,
     order_idx  = ?,
     code_model = ?,
+    prompt     = ?,
     updated_at = ?
 WHERE id = ?`,
 		sub.Title, sub.AgentRole, deps, string(sub.Status),
-		sub.OrderIdx, sub.CodeModel, nowUTC(), sub.ID)
+		sub.OrderIdx, sub.CodeModel, sub.Prompt, nowUTC(), sub.ID)
 	if err != nil {
 		return fmt.Errorf("subtask: update: %w", err)
 	}
@@ -155,67 +204,97 @@ UPDATE subtasks SET order_idx = ?, updated_at = ?
 	return tx.Commit()
 }
 
-// CreatePlan atomically replaces the plan for parentID with subs. Existing
-// subtasks under the parent are deleted first so the planner can be retried
-// without accumulating stale nodes; all inserts then run inside one tx so
-// a partial plan never becomes visible.
+// CreatePlan atomically inserts a new round of subtasks for parentID.
+// Round numbers are auto-assigned as MaxRound(parentID)+1 so previous
+// rounds remain intact for history (the UI stacks them visually). All
+// inserts run inside one tx so a partial plan never becomes visible.
 //
 // CreatedAt on each Subtask is honoured when non-zero; otherwise the tx
 // timestamp is used. IDs must already be assigned (callers generate ULIDs
 // before emitting the DAG so depends_on references can point at siblings).
-func (s *SubtaskStore) CreatePlan(ctx context.Context, parentID string, subs []*task.Subtask) error {
+//
+// Returns the round number that was used so callers can correlate the
+// new subtasks with the planning event they just emitted.
+func (s *SubtaskStore) CreatePlan(ctx context.Context, parentID string, subs []*task.Subtask) (int, error) {
 	if parentID == "" {
-		return errors.New("subtask: CreatePlan: parent task id is required")
+		return 0, errors.New("subtask: CreatePlan: parent task id is required")
 	}
 	for _, sub := range subs {
 		if sub.TaskID != parentID {
-			return fmt.Errorf("subtask: CreatePlan: subtask %s belongs to %s, not %s",
+			return 0, fmt.Errorf("subtask: CreatePlan: subtask %s belongs to %s, not %s",
 				sub.ID, sub.TaskID, parentID)
 		}
 		if err := sub.Validate(); err != nil {
-			return err
+			return 0, err
 		}
 	}
 
 	tx, err := s.db.write.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("subtask: CreatePlan begin: %w", err)
+		return 0, fmt.Errorf("subtask: CreatePlan begin: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	if _, err := tx.ExecContext(ctx,
-		`DELETE FROM subtasks WHERE task_id = ?`, parentID); err != nil {
-		return fmt.Errorf("subtask: CreatePlan clear: %w", err)
+	// Read max round inside the transaction so concurrent CreatePlan
+	// calls (shouldn't happen — orchestrator dispatches per-task — but
+	// be safe) get distinct round numbers.
+	var maxRound int
+	if err := tx.QueryRowContext(ctx,
+		`SELECT COALESCE(MAX(round), 0) FROM subtasks WHERE task_id = ?`,
+		parentID).Scan(&maxRound); err != nil {
+		return 0, fmt.Errorf("subtask: CreatePlan max round: %w", err)
 	}
+	round := maxRound + 1
 
 	now := nowUTC()
 	stmt, err := tx.PrepareContext(ctx, `
 INSERT INTO subtasks(
     id, task_id, title, agent_role, depends_on, status, order_idx,
-    code_model, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    code_model, round, prompt, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
-		return fmt.Errorf("subtask: CreatePlan prepare: %w", err)
+		return 0, fmt.Errorf("subtask: CreatePlan prepare: %w", err)
 	}
 	defer stmt.Close()
 
 	for _, sub := range subs {
 		deps, err := encodeDeps(sub.DependsOn)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		created := formatTime(sub.CreatedAt)
 		if created == "" {
 			created = now
 		}
+		// Stamp the round on the in-memory struct so callers can
+		// reflect it on subsequent Update writes (status flips
+		// during execution).
+		sub.Round = round
 		if _, err := stmt.ExecContext(ctx,
 			sub.ID, sub.TaskID, sub.Title, sub.AgentRole, deps,
-			string(sub.Status), sub.OrderIdx, sub.CodeModel, created, now,
+			string(sub.Status), sub.OrderIdx, sub.CodeModel, round, sub.Prompt, created, now,
 		); err != nil {
-			return fmt.Errorf("subtask: CreatePlan insert %s: %w", sub.ID, err)
+			return 0, fmt.Errorf("subtask: CreatePlan insert %s: %w", sub.ID, err)
 		}
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("subtask: CreatePlan commit: %w", err)
+	}
+	return round, nil
+}
+
+// DeleteByTask removes every subtask belonging to parentID across all
+// rounds. Currently unused in the orchestrator (rework now creates a
+// new round instead of wiping), but kept for cascade-from-task
+// deletion paths and tests.
+func (s *SubtaskStore) DeleteByTask(ctx context.Context, parentID string) (int64, error) {
+	res, err := s.db.write.ExecContext(ctx,
+		`DELETE FROM subtasks WHERE task_id = ?`, parentID)
+	if err != nil {
+		return 0, fmt.Errorf("subtask: delete by task: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
 }
 
 // MaxOrderIdx returns the maximum order_idx for a parent task, or -1 if no
@@ -239,7 +318,7 @@ func scanSubtask(sc scanner) (*task.Subtask, error) {
 		updatedAt string
 	)
 	err := sc.Scan(&sub.ID, &sub.TaskID, &sub.Title, &sub.AgentRole,
-		&deps, &status, &sub.OrderIdx, &sub.CodeModel, &createdAt, &updatedAt)
+		&deps, &status, &sub.OrderIdx, &sub.CodeModel, &sub.Round, &sub.Prompt, &createdAt, &updatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}

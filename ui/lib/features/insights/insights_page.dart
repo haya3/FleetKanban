@@ -262,7 +262,9 @@ class _ReworkCard extends StatelessWidget {
       children: [
         for (final b in buckets)
           _HistogramRow(
-            label: b.reworkCount == 0 ? 'First-pass' : 'Rework x${b.reworkCount}',
+            label: b.reworkCount == 0
+                ? 'First-pass'
+                : 'Rework x${b.reworkCount}',
             value: b.taskCount,
             maxValue: maxCount,
           ),

@@ -32,15 +32,39 @@ func MapSessionEvent(e copilot.SessionEvent) *task.AgentEvent {
 		}
 
 	case *copilot.ToolExecutionStartData:
+		// Persist a compact argument preview so the UI can show WHAT
+		// was viewed / searched / reported, not just that a `view`
+		// happened. Large payloads are clipped (the preview is
+		// user-facing, not parseable).
 		return &task.AgentEvent{
-			Kind:    task.EventToolStart,
-			Payload: mustJSON(map[string]any{"name": d.ToolName, "id": d.ToolCallID}),
+			Kind: task.EventToolStart,
+			Payload: mustJSON(map[string]any{
+				"name": d.ToolName,
+				"id":   d.ToolCallID,
+				"args": compactArgs(d.Arguments, 400),
+			}),
 		}
 
 	case *copilot.ToolExecutionCompleteData:
+		// tool.end carries ok + either a short error or a short
+		// result preview. Same rationale as tool.start: the UI needs
+		// enough detail to describe what happened without having to
+		// re-request the raw SDK event.
+		errStr, resStr, _ := toolEndSummary(d, 200)
+		payload := map[string]any{
+			"name": toolName(d),
+			"id":   d.ToolCallID,
+			"ok":   d.Success,
+		}
+		if errStr != "" {
+			payload["err"] = errStr
+		}
+		if resStr != "" {
+			payload["result"] = resStr
+		}
 		return &task.AgentEvent{
 			Kind:    task.EventToolEnd,
-			Payload: mustJSON(map[string]any{"name": toolName(d), "id": d.ToolCallID, "ok": d.Success}),
+			Payload: mustJSON(payload),
 		}
 
 	case *copilot.AssistantMessageData:
@@ -97,6 +121,59 @@ func mustJSON(v any) string {
 		panic("copilot: JSON encode: " + err.Error())
 	}
 	return string(b)
+}
+
+// compactArgs produces a short JSON preview of a tool's arguments,
+// suitable for slog attributes. Returns "" when args is nil, clips
+// to maxLen characters with a trailing "…" marker so a giant view
+// request (whole-file base64 content, for example) does not blow up
+// the log file.
+func compactArgs(args any, maxLen int) string {
+	if args == nil {
+		return ""
+	}
+	b, err := json.Marshal(args)
+	if err != nil {
+		return fmt.Sprintf("<encode error: %v>", err)
+	}
+	if len(b) <= maxLen {
+		return string(b)
+	}
+	return string(b[:maxLen]) + "…"
+}
+
+// toolEndSummary extracts a compact description of a ToolExecutionComplete
+// event: the error string on failure, a short textual preview of the
+// result on success, plus any telemetry counts the SDK attached
+// (grep match counts, codeql check counts, etc.). Kept terse so the
+// default sidecar log line is still human-grep-able.
+func toolEndSummary(d *copilot.ToolExecutionCompleteData, maxLen int) (errStr, resultStr, telemetryStr string) {
+	if d == nil {
+		return "", "", ""
+	}
+	if d.Error != nil {
+		if b, err := json.Marshal(d.Error); err == nil {
+			errStr = clip(string(b), maxLen)
+		}
+	}
+	if d.Result != nil {
+		if b, err := json.Marshal(d.Result); err == nil {
+			resultStr = clip(string(b), maxLen)
+		}
+	}
+	if len(d.ToolTelemetry) > 0 {
+		if b, err := json.Marshal(d.ToolTelemetry); err == nil {
+			telemetryStr = clip(string(b), maxLen)
+		}
+	}
+	return
+}
+
+func clip(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "…"
 }
 
 // SessionMapper wraps MapSessionEvent with per-session line-buffering state

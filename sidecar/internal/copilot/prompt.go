@@ -78,24 +78,81 @@ Required steps (mandatory):
 // SanitizeSingleLine so a newline in any of them cannot break out of
 // its slot and inject new instructions into the enclosing prompt.
 func BuildSubtaskPrompt(t *task.Task, sub *task.Subtask) string {
+	return BuildSubtaskPromptWithContext(t, sub, task.SubtaskRunContext{})
+}
+
+// BuildSubtaskPromptWithContext is BuildSubtaskPrompt's richer form.
+// Orchestrator calls this after collecting plan.summary and prior
+// subtask.end events so each Coder starts primed with "what we know
+// about the repo" and "what the previous subtasks already built".
+func BuildSubtaskPromptWithContext(t *task.Task, sub *task.Subtask, c task.SubtaskRunContext) string {
 	role := SanitizeSingleLine(sub.AgentRole)
 	if role == "" {
 		role = "agent"
 	}
 	title := SanitizeSingleLine(sub.Title)
 
+	// Planner-authored concrete instruction. Multi-line, so goes through
+	// SanitizeGoal (not SingleLine) to preserve paragraph structure. Empty
+	// for legacy / manual subtasks — the template handles that case with
+	// the title-only fallback below.
+	instruction := SanitizeGoal(sub.Prompt)
+
+	var instructionBlock string
+	if instruction != "" {
+		instructionBlock = fmt.Sprintf(`
+
+Subtask instruction (from planner — follow this precisely):
+%s`, instruction)
+	}
+
+	var planBlock string
+	if ps := SanitizeGoal(c.PlanSummary); ps != "" {
+		planBlock = fmt.Sprintf(`
+
+Planner's investigation summary (context — do not re-explore what's already known):
+%s`, ps)
+	}
+
+	var priorBlock string
+	if len(c.PriorSummaries) > 0 {
+		var b strings.Builder
+		b.WriteString("\n\nPrevious subtasks in this task (already done — their changes are live in the worktree):")
+		for i, p := range c.PriorSummaries {
+			b.WriteString(fmt.Sprintf("\n  %d. [%s] %s\n     %s",
+				i+1,
+				SanitizeSingleLine(p.Role),
+				SanitizeSingleLine(p.Title),
+				SanitizeSingleLine(p.Summary)))
+		}
+		priorBlock = b.String()
+	}
+
+	verificationNote := "  - If the instruction does not specify a verification step, skip running tests / builds — the final subtask verifies the whole change."
+	if c.IsFinalSubtask {
+		verificationNote = "  - THIS IS THE FINAL SUBTASK. Run the full verification (build, tests) the instruction specifies before declaring done."
+	}
+
 	base := fmt.Sprintf(`You are a FleetKanban %s agent.
 Working directory (cwd): %s
 
-Parent task goal: %s
+Parent task goal: %s%s%s
 
-Current subtask (title): %s
+Current subtask (title): %s%s
 
 Constraints:
   - Do not modify files outside the cwd.
-  - You may assume that outputs from other subtasks already exist within this worktree.
-  - After completing this subtask, provide a concise summary of what was done.`,
-		role, t.WorktreePath, SanitizeSingleLine(t.Goal), title)
+  - The worktree already contains any edits made by prior subtasks. Respect them; do not undo or duplicate.
+%s
+  - After completing this subtask, provide a concise summary of what was done in one paragraph — this is the handoff note the next subtask and the reviewer read.`,
+		role,
+		t.WorktreePath,
+		SanitizeSingleLine(t.Goal),
+		planBlock,
+		priorBlock,
+		title,
+		instructionBlock,
+		verificationNote)
 
 	if fb := SanitizeGoal(t.ReviewFeedback); fb != "" {
 		// Subtask-scoped rework note: most fields apply per-subtask, but

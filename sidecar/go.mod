@@ -3,6 +3,7 @@ module github.com/FleetKanban/fleetkanban
 go 1.25.0
 
 require (
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/github/copilot-sdk/go v0.2.2
 	github.com/klauspost/compress v1.18.5
 	github.com/oklog/ulid/v2 v2.1.1

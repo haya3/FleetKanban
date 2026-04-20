@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -40,6 +41,26 @@ type AuthStatus struct {
 // transition the task to failed(auth).
 var ErrNotAuthenticated = fmt.Errorf("copilot: not authenticated")
 
+// AgentSettings mirrors app.AgentSettings but lives in the copilot
+// package to avoid a circular dependency. Carries the user's
+// per-stage prompt overrides plus a free-form output-language
+// directive that planner / runner / reviewer fold into their
+// system messages at session creation time.
+type AgentSettings struct {
+	PlanPrompt     string
+	CodePrompt     string
+	ReviewPrompt   string
+	OutputLanguage string
+}
+
+// SettingsLookup returns the latest AgentSettings. Called once per
+// Copilot session so the user can edit prompts in the UI and have
+// the change apply to the next task without a sidecar restart.
+// Implementations should be cheap (a single SQLite read) and
+// non-blocking; failures should return zero values + nil error so
+// the agent stays runnable on a settings glitch.
+type SettingsLookup func(context.Context) (AgentSettings, error)
+
 // RuntimeConfig configures a Runtime.
 type RuntimeConfig struct {
 	// GitHubToken is a PAT. When non-empty it takes priority over the logged-in
@@ -48,6 +69,15 @@ type RuntimeConfig struct {
 	// LogLevel for the embedded CLI server ("error", "warn", "info", "debug").
 	// Defaults to "error" to keep the application logs clean.
 	LogLevel string
+	// Settings, when non-nil, is called by planner / runner / reviewer
+	// at session creation to fetch the user's prompt + language
+	// preferences. nil disables overrides (built-in defaults only).
+	Settings SettingsLookup
+	// Memory, when non-nil, is called by the runner at session start
+	// to build the Passive injection block prepended to every Copilot
+	// prompt. nil disables memory injection entirely — existing tasks
+	// continue to run against the built-in prompts only.
+	Memory MemoryInjector
 }
 
 // Runtime owns the single SDK Client and its lifecycle. It is safe for
@@ -355,8 +385,40 @@ func startDetached(newConsole bool, dir, name string, args ...string) error {
 func (r *Runtime) NewRunner(cfg RunnerConfig) (*Runner, error) {
 	r.mu.RLock()
 	c := r.client
+	settings := r.cfg.Settings
+	memory := r.cfg.Memory
 	r.mu.RUnlock()
+	cfg.settings = settings
+	cfg.memory = memory
 	return newRunner(c, cfg)
+}
+
+// agentSettingsOrEmpty returns the lookup result or zero on any
+// error / nil-lookup. Centralised so callers get consistent
+// fallback semantics without scattered nil checks.
+func agentSettingsOrEmpty(ctx context.Context, lookup SettingsLookup) AgentSettings {
+	if lookup == nil {
+		return AgentSettings{}
+	}
+	s, err := lookup(ctx)
+	if err != nil {
+		return AgentSettings{}
+	}
+	return s
+}
+
+// languageAddendum returns the output-language directive to append to
+// any stage's system message, or empty when no language preference is
+// set. Kept separate from the stage prompt because language is
+// orthogonal — it applies regardless of whether the user customised
+// the main prompt or left it at the built-in default.
+func languageAddendum(language string) string {
+	l := strings.TrimSpace(language)
+	if l == "" {
+		return ""
+	}
+	return "\n\nAll natural-language output (summaries, explanations, feedback) must be written in: " + l +
+		". Code, identifiers, file paths, and any structured/JSON output remain in their original form."
 }
 
 // resolveCLIPath returns the path to the Copilot CLI binary.

@@ -191,7 +191,9 @@ Future<void> _confirmAndRemove(
               Checkbox(
                 checked: deleteBranch,
                 onChanged: (v) => setLocal(() => deleteBranch = v ?? false),
-                content: Text('Also delete the fleetkanban/${entry.taskId} branch'),
+                content: Text(
+                  'Also delete the fleetkanban/${entry.taskId} branch',
+                ),
               ),
             ],
           ],

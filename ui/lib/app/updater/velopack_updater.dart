@@ -55,10 +55,8 @@ class VelopackUpdaterException implements Exception {
 }
 
 class VelopackUpdater {
-  VelopackUpdater({
-    required this.currentVersion,
-    String? installRootOverride,
-  }) : _installRootOverride = installRootOverride;
+  VelopackUpdater({required this.currentVersion, String? installRootOverride})
+    : _installRootOverride = installRootOverride;
 
   final String currentVersion;
   final String? _installRootOverride;
@@ -71,7 +69,9 @@ class VelopackUpdater {
     }
     final self = File(Platform.resolvedExecutable);
     final candidate = self.parent.parent;
-    final updater = File('${candidate.path}${Platform.pathSeparator}Update.exe');
+    final updater = File(
+      '${candidate.path}${Platform.pathSeparator}Update.exe',
+    );
     return updater.existsSync() ? candidate : null;
   }
 
@@ -114,15 +114,13 @@ class VelopackUpdater {
       final latest = tag.startsWith('v') ? tag.substring(1) : tag;
       final assets = (json['assets'] as List<dynamic>? ?? [])
           .cast<Map<String, dynamic>>();
-      final fullAsset = assets.firstWhere(
-        (a) {
-          final name = (a['name'] as String?) ?? '';
-          return name.startsWith('$_packageId-') && name.endsWith('-full.nupkg');
-        },
-        orElse: () => <String, dynamic>{},
-      );
+      final fullAsset = assets.firstWhere((a) {
+        final name = (a['name'] as String?) ?? '';
+        return name.startsWith('$_packageId-') && name.endsWith('-full.nupkg');
+      }, orElse: () => <String, dynamic>{});
       final downloadUrl = fullAsset['browser_download_url'] as String?;
-      final isNewer = latest.isNotEmpty &&
+      final isNewer =
+          latest.isNotEmpty &&
           _compareSemver(latest, currentVersion) > 0 &&
           downloadUrl != null;
       return UpdateCheckResult(
@@ -178,17 +176,13 @@ class VelopackUpdater {
       throw VelopackUpdaterException('install root not found');
     }
     final updater = '${root.path}${Platform.pathSeparator}Update.exe';
-    await Process.start(
-      updater,
-      [
-        'apply',
-        '--waitPid',
-        '$pid',
-        '-p',
-        pkgPath.path,
-      ],
-      mode: ProcessStartMode.detached,
-    );
+    await Process.start(updater, [
+      'apply',
+      '--waitPid',
+      '$pid',
+      '-p',
+      pkgPath.path,
+    ], mode: ProcessStartMode.detached);
     await Future<void>.delayed(const Duration(milliseconds: 300));
     exit(0);
   }

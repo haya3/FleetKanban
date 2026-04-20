@@ -642,6 +642,18 @@ class RepositoryServiceClient extends $grpc.Client {
     return $createUnaryCall(_$createInitialCommit, request, options: options);
   }
 
+  /// StashUncommitted runs `git stash push --include-untracked` in the
+  /// repository's main working tree. Used by the Merge retry dialog
+  /// when the task's base branch is checked out with dirty changes
+  /// that block the merge. Returns stashed=false when the tree is
+  /// already clean (no error).
+  $grpc.ResponseFuture<$0.StashUncommittedResponse> stashUncommitted(
+    $0.IdRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$stashUncommitted, request, options: options);
+  }
+
   // method descriptors
 
   static final _$registerRepository =
@@ -679,6 +691,11 @@ class RepositoryServiceClient extends $grpc.Client {
           '/fleetkanban.v1.RepositoryService/CreateInitialCommit',
           ($0.IdRequest value) => value.writeToBuffer(),
           $0.Repository.fromBuffer);
+  static final _$stashUncommitted =
+      $grpc.ClientMethod<$0.IdRequest, $0.StashUncommittedResponse>(
+          '/fleetkanban.v1.RepositoryService/StashUncommitted',
+          ($0.IdRequest value) => value.writeToBuffer(),
+          $0.StashUncommittedResponse.fromBuffer);
 }
 
 @$pb.GrpcServiceName('fleetkanban.v1.RepositoryService')
@@ -742,6 +759,13 @@ abstract class RepositoryServiceBase extends $grpc.Service {
         false,
         ($core.List<$core.int> value) => $0.IdRequest.fromBuffer(value),
         ($0.Repository value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.IdRequest, $0.StashUncommittedResponse>(
+        'StashUncommitted',
+        stashUncommitted_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.IdRequest.fromBuffer(value),
+        ($0.StashUncommittedResponse value) => value.writeToBuffer()));
   }
 
   $async.Future<$0.Repository> registerRepository_Pre($grpc.ServiceCall $call,
@@ -801,6 +825,14 @@ abstract class RepositoryServiceBase extends $grpc.Service {
   }
 
   $async.Future<$0.Repository> createInitialCommit(
+      $grpc.ServiceCall call, $0.IdRequest request);
+
+  $async.Future<$0.StashUncommittedResponse> stashUncommitted_Pre(
+      $grpc.ServiceCall $call, $async.Future<$0.IdRequest> $request) async {
+    return stashUncommitted($call, await $request);
+  }
+
+  $async.Future<$0.StashUncommittedResponse> stashUncommitted(
       $grpc.ServiceCall call, $0.IdRequest request);
 }
 
@@ -1344,6 +1376,39 @@ class SystemServiceClient extends $grpc.Client {
     return $createUnaryCall(_$installPrecondition, request, options: options);
   }
 
+  /// GetAgentSettings / SetAgentSettings expose user-controlled prompt
+  /// and language preferences. A non-empty prompt field fully replaces
+  /// the corresponding built-in system message; empty falls back to the
+  /// built-in. Output language is always appended on top.
+  $grpc.ResponseFuture<$0.AgentSettings> getAgentSettings(
+    $1.Empty request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$getAgentSettings, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.AgentSettings> setAgentSettings(
+    $0.AgentSettings request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$setAgentSettings, request, options: options);
+  }
+
+  /// GetDefaultAgentPrompts returns the sidecar's built-in plan / code /
+  /// review system messages. The UI pre-populates the Settings text
+  /// boxes with these values on first open so the user can see the
+  /// full default prompt and decide whether to keep, tweak, or rewrite
+  /// it — saving then persists whatever the user has in the box as an
+  /// override. (AgentSettings returns the raw override, which may be
+  /// empty; this RPC provides the display baseline.)
+  $grpc.ResponseFuture<$0.AgentSettings> getDefaultAgentPrompts(
+    $1.Empty request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$getDefaultAgentPrompts, request,
+        options: options);
+  }
+
   // method descriptors
 
   static final _$getConcurrency = $grpc.ClientMethod<$1.Empty, $0.IntValue>(
@@ -1372,6 +1437,21 @@ class SystemServiceClient extends $grpc.Client {
       '/fleetkanban.v1.SystemService/InstallPrecondition',
       ($0.InstallPreconditionRequest value) => value.writeToBuffer(),
       $0.InstallPreconditionResponse.fromBuffer);
+  static final _$getAgentSettings =
+      $grpc.ClientMethod<$1.Empty, $0.AgentSettings>(
+          '/fleetkanban.v1.SystemService/GetAgentSettings',
+          ($1.Empty value) => value.writeToBuffer(),
+          $0.AgentSettings.fromBuffer);
+  static final _$setAgentSettings =
+      $grpc.ClientMethod<$0.AgentSettings, $0.AgentSettings>(
+          '/fleetkanban.v1.SystemService/SetAgentSettings',
+          ($0.AgentSettings value) => value.writeToBuffer(),
+          $0.AgentSettings.fromBuffer);
+  static final _$getDefaultAgentPrompts =
+      $grpc.ClientMethod<$1.Empty, $0.AgentSettings>(
+          '/fleetkanban.v1.SystemService/GetDefaultAgentPrompts',
+          ($1.Empty value) => value.writeToBuffer(),
+          $0.AgentSettings.fromBuffer);
 }
 
 @$pb.GrpcServiceName('fleetkanban.v1.SystemService')
@@ -1423,6 +1503,27 @@ abstract class SystemServiceBase extends $grpc.Service {
         ($core.List<$core.int> value) =>
             $0.InstallPreconditionRequest.fromBuffer(value),
         ($0.InstallPreconditionResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$1.Empty, $0.AgentSettings>(
+        'GetAgentSettings',
+        getAgentSettings_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $1.Empty.fromBuffer(value),
+        ($0.AgentSettings value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.AgentSettings, $0.AgentSettings>(
+        'SetAgentSettings',
+        setAgentSettings_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.AgentSettings.fromBuffer(value),
+        ($0.AgentSettings value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$1.Empty, $0.AgentSettings>(
+        'GetDefaultAgentPrompts',
+        getDefaultAgentPrompts_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $1.Empty.fromBuffer(value),
+        ($0.AgentSettings value) => value.writeToBuffer()));
   }
 
   $async.Future<$0.IntValue> getConcurrency_Pre(
@@ -1472,6 +1573,30 @@ abstract class SystemServiceBase extends $grpc.Service {
 
   $async.Future<$0.InstallPreconditionResponse> installPrecondition(
       $grpc.ServiceCall call, $0.InstallPreconditionRequest request);
+
+  $async.Future<$0.AgentSettings> getAgentSettings_Pre(
+      $grpc.ServiceCall $call, $async.Future<$1.Empty> $request) async {
+    return getAgentSettings($call, await $request);
+  }
+
+  $async.Future<$0.AgentSettings> getAgentSettings(
+      $grpc.ServiceCall call, $1.Empty request);
+
+  $async.Future<$0.AgentSettings> setAgentSettings_Pre(
+      $grpc.ServiceCall $call, $async.Future<$0.AgentSettings> $request) async {
+    return setAgentSettings($call, await $request);
+  }
+
+  $async.Future<$0.AgentSettings> setAgentSettings(
+      $grpc.ServiceCall call, $0.AgentSettings request);
+
+  $async.Future<$0.AgentSettings> getDefaultAgentPrompts_Pre(
+      $grpc.ServiceCall $call, $async.Future<$1.Empty> $request) async {
+    return getDefaultAgentPrompts($call, await $request);
+  }
+
+  $async.Future<$0.AgentSettings> getDefaultAgentPrompts(
+      $grpc.ServiceCall call, $1.Empty request);
 }
 
 /// WorktreeService exposes the contents of the per-repo `git worktree list`
@@ -1556,4 +1681,991 @@ abstract class WorktreeServiceBase extends $grpc.Service {
 
   $async.Future<$1.Empty> removeWorktree(
       $grpc.ServiceCall call, $0.RemoveWorktreeRequest request);
+}
+
+/// ---------------------------------------------------------------------------
+/// ContextService — repository-bound graph memory
+/// ---------------------------------------------------------------------------
+///
+/// The Context feature stores structured knowledge about a registered
+/// repository as a property graph (ctx_node + ctx_edge + ctx_closure),
+/// vector embeddings (ctx_node_vec), and temporal facts (ctx_fact).
+/// Entries arrive through three channels: static analysis, the observer
+/// tapping session events, and manual user edits. Search is hybrid
+/// (BM25 + vector cosine + graph-neighborhood boost, fused via RRF) and
+/// feeds the three-tier injection pipeline (Passive / Reactive / Active)
+/// that prepends memory to Copilot prompts.
+///
+/// Kind / rel / source_kind strings are intentionally NOT proto enums,
+/// matching AgentEvent.kind's convention: values are persisted verbatim
+/// and interpreted per-kind by the UI, so adding new kinds does not
+/// require a proto bump.
+@$pb.GrpcServiceName('fleetkanban.v1.ContextService')
+class ContextServiceClient extends $grpc.Client {
+  /// The hostname for this service.
+  static const $core.String defaultHost = '';
+
+  /// OAuth scopes needed for the client.
+  static const $core.List<$core.String> oauthScopes = [
+    '',
+  ];
+
+  ContextServiceClient(super.channel, {super.options, super.interceptors});
+
+  $grpc.ResponseFuture<$0.ContextOverview> getOverview(
+    $0.RepoIdRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$getOverview, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.SearchContextResponse> searchContext(
+    $0.SearchContextRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$searchContext, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.ListNodesResponse> listNodes(
+    $0.ListNodesRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$listNodes, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.ContextNodeDetail> getNode(
+    $0.NodeIdRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$getNode, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.ContextNode> createNode(
+    $0.CreateNodeRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$createNode, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.ContextNode> updateNode(
+    $0.UpdateNodeRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$updateNode, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$1.Empty> deleteNode(
+    $0.NodeIdRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$deleteNode, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$1.Empty> pinNode(
+    $0.PinNodeRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$pinNode, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.ListEdgesResponse> listEdges(
+    $0.ListEdgesRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$listEdges, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.ContextEdge> createEdge(
+    $0.CreateEdgeRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$createEdge, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$1.Empty> deleteEdge(
+    $0.EdgeIdRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$deleteEdge, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.ListFactsResponse> listFacts(
+    $0.ListFactsRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$listFacts, request, options: options);
+  }
+
+  /// PreviewInjection assembles the Passive-tier injection that WOULD be
+  /// prepended to a Copilot session for the given task right now, so the
+  /// user can audit what memory the agent will see. Does not side-effect.
+  $grpc.ResponseFuture<$0.InjectionPreview> previewInjection(
+    $0.PreviewInjectionRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$previewInjection, request, options: options);
+  }
+
+  /// AnalyzeRepository spawns a Copilot session that reads the repo and
+  /// emits CLAUDE.md-style architectural summary entries into the
+  /// scratchpad with source_kind="analyzer". The RPC returns immediately
+  /// and progress is observed via the WatchContextChanges stream. User
+  /// must promote individual entries from the Scratchpad tab to persist.
+  $grpc.ResponseFuture<$1.Empty> analyzeRepository(
+    $0.AnalyzeRepoRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$analyzeRepository, request, options: options);
+  }
+
+  /// RebuildEmbeddings recomputes ctx_node_vec for every enabled node
+  /// in the repo using the current embedding provider. Safe to call
+  /// after enabling Memory or switching provider. Returns the count of
+  /// rebuilt and skipped nodes so the UI can surface a toast.
+  $grpc.ResponseFuture<$0.RebuildEmbeddingsResponse> rebuildEmbeddings(
+    $0.RepoIdRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$rebuildEmbeddings, request, options: options);
+  }
+
+  /// RebuildClosure recomputes the closure table — the redundant
+  /// projection used by graph-neighborhood boost. Exposed for the
+  /// "Rebuild closure" admin button on the Overview tab.
+  $grpc.ResponseFuture<$1.Empty> rebuildClosure(
+    $0.RepoIdRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$rebuildClosure, request, options: options);
+  }
+
+  /// RebuildCodeGraph walks the repository filesystem and upserts
+  /// File nodes + imports edges directly from source. Cheap — no LLM
+  /// calls — so the UI typically runs it after Analyze or when the
+  /// user notices new files are missing from Browse. Returns a
+  /// summary so the UI can render a toast.
+  $grpc.ResponseFuture<$0.RebuildCodeGraphResponse> rebuildCodeGraph(
+    $0.RepoIdRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$rebuildCodeGraph, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.MemorySettings> getMemorySettings(
+    $0.RepoIdRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$getMemorySettings, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.MemorySettings> updateMemorySettings(
+    $0.UpdateMemorySettingsRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$updateMemorySettings, request, options: options);
+  }
+
+  /// WatchContextChanges streams node / edge / fact / scratchpad updates
+  /// scoped to a repository so the Context UI can refresh incrementally
+  /// without polling. Analogous to TaskService.WatchEvents.
+  $grpc.ResponseStream<$0.ContextChangeEvent> watchContextChanges(
+    $0.WatchContextRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createStreamingCall(
+        _$watchContextChanges, $async.Stream.fromIterable([request]),
+        options: options);
+  }
+
+  // method descriptors
+
+  static final _$getOverview =
+      $grpc.ClientMethod<$0.RepoIdRequest, $0.ContextOverview>(
+          '/fleetkanban.v1.ContextService/GetOverview',
+          ($0.RepoIdRequest value) => value.writeToBuffer(),
+          $0.ContextOverview.fromBuffer);
+  static final _$searchContext =
+      $grpc.ClientMethod<$0.SearchContextRequest, $0.SearchContextResponse>(
+          '/fleetkanban.v1.ContextService/SearchContext',
+          ($0.SearchContextRequest value) => value.writeToBuffer(),
+          $0.SearchContextResponse.fromBuffer);
+  static final _$listNodes =
+      $grpc.ClientMethod<$0.ListNodesRequest, $0.ListNodesResponse>(
+          '/fleetkanban.v1.ContextService/ListNodes',
+          ($0.ListNodesRequest value) => value.writeToBuffer(),
+          $0.ListNodesResponse.fromBuffer);
+  static final _$getNode =
+      $grpc.ClientMethod<$0.NodeIdRequest, $0.ContextNodeDetail>(
+          '/fleetkanban.v1.ContextService/GetNode',
+          ($0.NodeIdRequest value) => value.writeToBuffer(),
+          $0.ContextNodeDetail.fromBuffer);
+  static final _$createNode =
+      $grpc.ClientMethod<$0.CreateNodeRequest, $0.ContextNode>(
+          '/fleetkanban.v1.ContextService/CreateNode',
+          ($0.CreateNodeRequest value) => value.writeToBuffer(),
+          $0.ContextNode.fromBuffer);
+  static final _$updateNode =
+      $grpc.ClientMethod<$0.UpdateNodeRequest, $0.ContextNode>(
+          '/fleetkanban.v1.ContextService/UpdateNode',
+          ($0.UpdateNodeRequest value) => value.writeToBuffer(),
+          $0.ContextNode.fromBuffer);
+  static final _$deleteNode = $grpc.ClientMethod<$0.NodeIdRequest, $1.Empty>(
+      '/fleetkanban.v1.ContextService/DeleteNode',
+      ($0.NodeIdRequest value) => value.writeToBuffer(),
+      $1.Empty.fromBuffer);
+  static final _$pinNode = $grpc.ClientMethod<$0.PinNodeRequest, $1.Empty>(
+      '/fleetkanban.v1.ContextService/PinNode',
+      ($0.PinNodeRequest value) => value.writeToBuffer(),
+      $1.Empty.fromBuffer);
+  static final _$listEdges =
+      $grpc.ClientMethod<$0.ListEdgesRequest, $0.ListEdgesResponse>(
+          '/fleetkanban.v1.ContextService/ListEdges',
+          ($0.ListEdgesRequest value) => value.writeToBuffer(),
+          $0.ListEdgesResponse.fromBuffer);
+  static final _$createEdge =
+      $grpc.ClientMethod<$0.CreateEdgeRequest, $0.ContextEdge>(
+          '/fleetkanban.v1.ContextService/CreateEdge',
+          ($0.CreateEdgeRequest value) => value.writeToBuffer(),
+          $0.ContextEdge.fromBuffer);
+  static final _$deleteEdge = $grpc.ClientMethod<$0.EdgeIdRequest, $1.Empty>(
+      '/fleetkanban.v1.ContextService/DeleteEdge',
+      ($0.EdgeIdRequest value) => value.writeToBuffer(),
+      $1.Empty.fromBuffer);
+  static final _$listFacts =
+      $grpc.ClientMethod<$0.ListFactsRequest, $0.ListFactsResponse>(
+          '/fleetkanban.v1.ContextService/ListFacts',
+          ($0.ListFactsRequest value) => value.writeToBuffer(),
+          $0.ListFactsResponse.fromBuffer);
+  static final _$previewInjection =
+      $grpc.ClientMethod<$0.PreviewInjectionRequest, $0.InjectionPreview>(
+          '/fleetkanban.v1.ContextService/PreviewInjection',
+          ($0.PreviewInjectionRequest value) => value.writeToBuffer(),
+          $0.InjectionPreview.fromBuffer);
+  static final _$analyzeRepository =
+      $grpc.ClientMethod<$0.AnalyzeRepoRequest, $1.Empty>(
+          '/fleetkanban.v1.ContextService/AnalyzeRepository',
+          ($0.AnalyzeRepoRequest value) => value.writeToBuffer(),
+          $1.Empty.fromBuffer);
+  static final _$rebuildEmbeddings =
+      $grpc.ClientMethod<$0.RepoIdRequest, $0.RebuildEmbeddingsResponse>(
+          '/fleetkanban.v1.ContextService/RebuildEmbeddings',
+          ($0.RepoIdRequest value) => value.writeToBuffer(),
+          $0.RebuildEmbeddingsResponse.fromBuffer);
+  static final _$rebuildClosure =
+      $grpc.ClientMethod<$0.RepoIdRequest, $1.Empty>(
+          '/fleetkanban.v1.ContextService/RebuildClosure',
+          ($0.RepoIdRequest value) => value.writeToBuffer(),
+          $1.Empty.fromBuffer);
+  static final _$rebuildCodeGraph =
+      $grpc.ClientMethod<$0.RepoIdRequest, $0.RebuildCodeGraphResponse>(
+          '/fleetkanban.v1.ContextService/RebuildCodeGraph',
+          ($0.RepoIdRequest value) => value.writeToBuffer(),
+          $0.RebuildCodeGraphResponse.fromBuffer);
+  static final _$getMemorySettings =
+      $grpc.ClientMethod<$0.RepoIdRequest, $0.MemorySettings>(
+          '/fleetkanban.v1.ContextService/GetMemorySettings',
+          ($0.RepoIdRequest value) => value.writeToBuffer(),
+          $0.MemorySettings.fromBuffer);
+  static final _$updateMemorySettings =
+      $grpc.ClientMethod<$0.UpdateMemorySettingsRequest, $0.MemorySettings>(
+          '/fleetkanban.v1.ContextService/UpdateMemorySettings',
+          ($0.UpdateMemorySettingsRequest value) => value.writeToBuffer(),
+          $0.MemorySettings.fromBuffer);
+  static final _$watchContextChanges =
+      $grpc.ClientMethod<$0.WatchContextRequest, $0.ContextChangeEvent>(
+          '/fleetkanban.v1.ContextService/WatchContextChanges',
+          ($0.WatchContextRequest value) => value.writeToBuffer(),
+          $0.ContextChangeEvent.fromBuffer);
+}
+
+@$pb.GrpcServiceName('fleetkanban.v1.ContextService')
+abstract class ContextServiceBase extends $grpc.Service {
+  $core.String get $name => 'fleetkanban.v1.ContextService';
+
+  ContextServiceBase() {
+    $addMethod($grpc.ServiceMethod<$0.RepoIdRequest, $0.ContextOverview>(
+        'GetOverview',
+        getOverview_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.RepoIdRequest.fromBuffer(value),
+        ($0.ContextOverview value) => value.writeToBuffer()));
+    $addMethod(
+        $grpc.ServiceMethod<$0.SearchContextRequest, $0.SearchContextResponse>(
+            'SearchContext',
+            searchContext_Pre,
+            false,
+            false,
+            ($core.List<$core.int> value) =>
+                $0.SearchContextRequest.fromBuffer(value),
+            ($0.SearchContextResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.ListNodesRequest, $0.ListNodesResponse>(
+        'ListNodes',
+        listNodes_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.ListNodesRequest.fromBuffer(value),
+        ($0.ListNodesResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.NodeIdRequest, $0.ContextNodeDetail>(
+        'GetNode',
+        getNode_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.NodeIdRequest.fromBuffer(value),
+        ($0.ContextNodeDetail value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.CreateNodeRequest, $0.ContextNode>(
+        'CreateNode',
+        createNode_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.CreateNodeRequest.fromBuffer(value),
+        ($0.ContextNode value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.UpdateNodeRequest, $0.ContextNode>(
+        'UpdateNode',
+        updateNode_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.UpdateNodeRequest.fromBuffer(value),
+        ($0.ContextNode value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.NodeIdRequest, $1.Empty>(
+        'DeleteNode',
+        deleteNode_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.NodeIdRequest.fromBuffer(value),
+        ($1.Empty value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.PinNodeRequest, $1.Empty>(
+        'PinNode',
+        pinNode_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.PinNodeRequest.fromBuffer(value),
+        ($1.Empty value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.ListEdgesRequest, $0.ListEdgesResponse>(
+        'ListEdges',
+        listEdges_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.ListEdgesRequest.fromBuffer(value),
+        ($0.ListEdgesResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.CreateEdgeRequest, $0.ContextEdge>(
+        'CreateEdge',
+        createEdge_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.CreateEdgeRequest.fromBuffer(value),
+        ($0.ContextEdge value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.EdgeIdRequest, $1.Empty>(
+        'DeleteEdge',
+        deleteEdge_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.EdgeIdRequest.fromBuffer(value),
+        ($1.Empty value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.ListFactsRequest, $0.ListFactsResponse>(
+        'ListFacts',
+        listFacts_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.ListFactsRequest.fromBuffer(value),
+        ($0.ListFactsResponse value) => value.writeToBuffer()));
+    $addMethod(
+        $grpc.ServiceMethod<$0.PreviewInjectionRequest, $0.InjectionPreview>(
+            'PreviewInjection',
+            previewInjection_Pre,
+            false,
+            false,
+            ($core.List<$core.int> value) =>
+                $0.PreviewInjectionRequest.fromBuffer(value),
+            ($0.InjectionPreview value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.AnalyzeRepoRequest, $1.Empty>(
+        'AnalyzeRepository',
+        analyzeRepository_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) =>
+            $0.AnalyzeRepoRequest.fromBuffer(value),
+        ($1.Empty value) => value.writeToBuffer()));
+    $addMethod(
+        $grpc.ServiceMethod<$0.RepoIdRequest, $0.RebuildEmbeddingsResponse>(
+            'RebuildEmbeddings',
+            rebuildEmbeddings_Pre,
+            false,
+            false,
+            ($core.List<$core.int> value) => $0.RepoIdRequest.fromBuffer(value),
+            ($0.RebuildEmbeddingsResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.RepoIdRequest, $1.Empty>(
+        'RebuildClosure',
+        rebuildClosure_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.RepoIdRequest.fromBuffer(value),
+        ($1.Empty value) => value.writeToBuffer()));
+    $addMethod(
+        $grpc.ServiceMethod<$0.RepoIdRequest, $0.RebuildCodeGraphResponse>(
+            'RebuildCodeGraph',
+            rebuildCodeGraph_Pre,
+            false,
+            false,
+            ($core.List<$core.int> value) => $0.RepoIdRequest.fromBuffer(value),
+            ($0.RebuildCodeGraphResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.RepoIdRequest, $0.MemorySettings>(
+        'GetMemorySettings',
+        getMemorySettings_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.RepoIdRequest.fromBuffer(value),
+        ($0.MemorySettings value) => value.writeToBuffer()));
+    $addMethod(
+        $grpc.ServiceMethod<$0.UpdateMemorySettingsRequest, $0.MemorySettings>(
+            'UpdateMemorySettings',
+            updateMemorySettings_Pre,
+            false,
+            false,
+            ($core.List<$core.int> value) =>
+                $0.UpdateMemorySettingsRequest.fromBuffer(value),
+            ($0.MemorySettings value) => value.writeToBuffer()));
+    $addMethod(
+        $grpc.ServiceMethod<$0.WatchContextRequest, $0.ContextChangeEvent>(
+            'WatchContextChanges',
+            watchContextChanges_Pre,
+            false,
+            true,
+            ($core.List<$core.int> value) =>
+                $0.WatchContextRequest.fromBuffer(value),
+            ($0.ContextChangeEvent value) => value.writeToBuffer()));
+  }
+
+  $async.Future<$0.ContextOverview> getOverview_Pre(
+      $grpc.ServiceCall $call, $async.Future<$0.RepoIdRequest> $request) async {
+    return getOverview($call, await $request);
+  }
+
+  $async.Future<$0.ContextOverview> getOverview(
+      $grpc.ServiceCall call, $0.RepoIdRequest request);
+
+  $async.Future<$0.SearchContextResponse> searchContext_Pre(
+      $grpc.ServiceCall $call,
+      $async.Future<$0.SearchContextRequest> $request) async {
+    return searchContext($call, await $request);
+  }
+
+  $async.Future<$0.SearchContextResponse> searchContext(
+      $grpc.ServiceCall call, $0.SearchContextRequest request);
+
+  $async.Future<$0.ListNodesResponse> listNodes_Pre($grpc.ServiceCall $call,
+      $async.Future<$0.ListNodesRequest> $request) async {
+    return listNodes($call, await $request);
+  }
+
+  $async.Future<$0.ListNodesResponse> listNodes(
+      $grpc.ServiceCall call, $0.ListNodesRequest request);
+
+  $async.Future<$0.ContextNodeDetail> getNode_Pre(
+      $grpc.ServiceCall $call, $async.Future<$0.NodeIdRequest> $request) async {
+    return getNode($call, await $request);
+  }
+
+  $async.Future<$0.ContextNodeDetail> getNode(
+      $grpc.ServiceCall call, $0.NodeIdRequest request);
+
+  $async.Future<$0.ContextNode> createNode_Pre($grpc.ServiceCall $call,
+      $async.Future<$0.CreateNodeRequest> $request) async {
+    return createNode($call, await $request);
+  }
+
+  $async.Future<$0.ContextNode> createNode(
+      $grpc.ServiceCall call, $0.CreateNodeRequest request);
+
+  $async.Future<$0.ContextNode> updateNode_Pre($grpc.ServiceCall $call,
+      $async.Future<$0.UpdateNodeRequest> $request) async {
+    return updateNode($call, await $request);
+  }
+
+  $async.Future<$0.ContextNode> updateNode(
+      $grpc.ServiceCall call, $0.UpdateNodeRequest request);
+
+  $async.Future<$1.Empty> deleteNode_Pre(
+      $grpc.ServiceCall $call, $async.Future<$0.NodeIdRequest> $request) async {
+    return deleteNode($call, await $request);
+  }
+
+  $async.Future<$1.Empty> deleteNode(
+      $grpc.ServiceCall call, $0.NodeIdRequest request);
+
+  $async.Future<$1.Empty> pinNode_Pre($grpc.ServiceCall $call,
+      $async.Future<$0.PinNodeRequest> $request) async {
+    return pinNode($call, await $request);
+  }
+
+  $async.Future<$1.Empty> pinNode(
+      $grpc.ServiceCall call, $0.PinNodeRequest request);
+
+  $async.Future<$0.ListEdgesResponse> listEdges_Pre($grpc.ServiceCall $call,
+      $async.Future<$0.ListEdgesRequest> $request) async {
+    return listEdges($call, await $request);
+  }
+
+  $async.Future<$0.ListEdgesResponse> listEdges(
+      $grpc.ServiceCall call, $0.ListEdgesRequest request);
+
+  $async.Future<$0.ContextEdge> createEdge_Pre($grpc.ServiceCall $call,
+      $async.Future<$0.CreateEdgeRequest> $request) async {
+    return createEdge($call, await $request);
+  }
+
+  $async.Future<$0.ContextEdge> createEdge(
+      $grpc.ServiceCall call, $0.CreateEdgeRequest request);
+
+  $async.Future<$1.Empty> deleteEdge_Pre(
+      $grpc.ServiceCall $call, $async.Future<$0.EdgeIdRequest> $request) async {
+    return deleteEdge($call, await $request);
+  }
+
+  $async.Future<$1.Empty> deleteEdge(
+      $grpc.ServiceCall call, $0.EdgeIdRequest request);
+
+  $async.Future<$0.ListFactsResponse> listFacts_Pre($grpc.ServiceCall $call,
+      $async.Future<$0.ListFactsRequest> $request) async {
+    return listFacts($call, await $request);
+  }
+
+  $async.Future<$0.ListFactsResponse> listFacts(
+      $grpc.ServiceCall call, $0.ListFactsRequest request);
+
+  $async.Future<$0.InjectionPreview> previewInjection_Pre(
+      $grpc.ServiceCall $call,
+      $async.Future<$0.PreviewInjectionRequest> $request) async {
+    return previewInjection($call, await $request);
+  }
+
+  $async.Future<$0.InjectionPreview> previewInjection(
+      $grpc.ServiceCall call, $0.PreviewInjectionRequest request);
+
+  $async.Future<$1.Empty> analyzeRepository_Pre($grpc.ServiceCall $call,
+      $async.Future<$0.AnalyzeRepoRequest> $request) async {
+    return analyzeRepository($call, await $request);
+  }
+
+  $async.Future<$1.Empty> analyzeRepository(
+      $grpc.ServiceCall call, $0.AnalyzeRepoRequest request);
+
+  $async.Future<$0.RebuildEmbeddingsResponse> rebuildEmbeddings_Pre(
+      $grpc.ServiceCall $call, $async.Future<$0.RepoIdRequest> $request) async {
+    return rebuildEmbeddings($call, await $request);
+  }
+
+  $async.Future<$0.RebuildEmbeddingsResponse> rebuildEmbeddings(
+      $grpc.ServiceCall call, $0.RepoIdRequest request);
+
+  $async.Future<$1.Empty> rebuildClosure_Pre(
+      $grpc.ServiceCall $call, $async.Future<$0.RepoIdRequest> $request) async {
+    return rebuildClosure($call, await $request);
+  }
+
+  $async.Future<$1.Empty> rebuildClosure(
+      $grpc.ServiceCall call, $0.RepoIdRequest request);
+
+  $async.Future<$0.RebuildCodeGraphResponse> rebuildCodeGraph_Pre(
+      $grpc.ServiceCall $call, $async.Future<$0.RepoIdRequest> $request) async {
+    return rebuildCodeGraph($call, await $request);
+  }
+
+  $async.Future<$0.RebuildCodeGraphResponse> rebuildCodeGraph(
+      $grpc.ServiceCall call, $0.RepoIdRequest request);
+
+  $async.Future<$0.MemorySettings> getMemorySettings_Pre(
+      $grpc.ServiceCall $call, $async.Future<$0.RepoIdRequest> $request) async {
+    return getMemorySettings($call, await $request);
+  }
+
+  $async.Future<$0.MemorySettings> getMemorySettings(
+      $grpc.ServiceCall call, $0.RepoIdRequest request);
+
+  $async.Future<$0.MemorySettings> updateMemorySettings_Pre(
+      $grpc.ServiceCall $call,
+      $async.Future<$0.UpdateMemorySettingsRequest> $request) async {
+    return updateMemorySettings($call, await $request);
+  }
+
+  $async.Future<$0.MemorySettings> updateMemorySettings(
+      $grpc.ServiceCall call, $0.UpdateMemorySettingsRequest request);
+
+  $async.Stream<$0.ContextChangeEvent> watchContextChanges_Pre(
+      $grpc.ServiceCall $call,
+      $async.Future<$0.WatchContextRequest> $request) async* {
+    yield* watchContextChanges($call, await $request);
+  }
+
+  $async.Stream<$0.ContextChangeEvent> watchContextChanges(
+      $grpc.ServiceCall call, $0.WatchContextRequest request);
+}
+
+/// ScratchpadService manages pending memory entries waiting for a trust
+/// gate decision. The observer and analyzer push candidates here; the
+/// user promotes, rejects, edits, or snoozes them from the Context
+/// scratchpad tab. Auto-promotion can be enabled per-repo for
+/// high-confidence entries via MemorySettings.
+@$pb.GrpcServiceName('fleetkanban.v1.ScratchpadService')
+class ScratchpadServiceClient extends $grpc.Client {
+  /// The hostname for this service.
+  static const $core.String defaultHost = '';
+
+  /// OAuth scopes needed for the client.
+  static const $core.List<$core.String> oauthScopes = [
+    '',
+  ];
+
+  ScratchpadServiceClient(super.channel, {super.options, super.interceptors});
+
+  $grpc.ResponseFuture<$0.ListPendingResponse> listPending(
+    $0.ListPendingRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$listPending, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.ScratchpadEntry> getEntry(
+    $0.EntryIdRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$getEntry, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.ContextNode> promoteEntry(
+    $0.EntryIdRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$promoteEntry, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$1.Empty> rejectEntry(
+    $0.RejectEntryRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$rejectEntry, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.ContextNode> editAndPromote(
+    $0.EditAndPromoteRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$editAndPromote, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$1.Empty> snoozeEntry(
+    $0.SnoozeRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$snoozeEntry, request, options: options);
+  }
+
+  $grpc.ResponseStream<$0.ScratchpadChangeEvent> watchPending(
+    $0.RepoIdRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createStreamingCall(
+        _$watchPending, $async.Stream.fromIterable([request]),
+        options: options);
+  }
+
+  // method descriptors
+
+  static final _$listPending =
+      $grpc.ClientMethod<$0.ListPendingRequest, $0.ListPendingResponse>(
+          '/fleetkanban.v1.ScratchpadService/ListPending',
+          ($0.ListPendingRequest value) => value.writeToBuffer(),
+          $0.ListPendingResponse.fromBuffer);
+  static final _$getEntry =
+      $grpc.ClientMethod<$0.EntryIdRequest, $0.ScratchpadEntry>(
+          '/fleetkanban.v1.ScratchpadService/GetEntry',
+          ($0.EntryIdRequest value) => value.writeToBuffer(),
+          $0.ScratchpadEntry.fromBuffer);
+  static final _$promoteEntry =
+      $grpc.ClientMethod<$0.EntryIdRequest, $0.ContextNode>(
+          '/fleetkanban.v1.ScratchpadService/PromoteEntry',
+          ($0.EntryIdRequest value) => value.writeToBuffer(),
+          $0.ContextNode.fromBuffer);
+  static final _$rejectEntry =
+      $grpc.ClientMethod<$0.RejectEntryRequest, $1.Empty>(
+          '/fleetkanban.v1.ScratchpadService/RejectEntry',
+          ($0.RejectEntryRequest value) => value.writeToBuffer(),
+          $1.Empty.fromBuffer);
+  static final _$editAndPromote =
+      $grpc.ClientMethod<$0.EditAndPromoteRequest, $0.ContextNode>(
+          '/fleetkanban.v1.ScratchpadService/EditAndPromote',
+          ($0.EditAndPromoteRequest value) => value.writeToBuffer(),
+          $0.ContextNode.fromBuffer);
+  static final _$snoozeEntry = $grpc.ClientMethod<$0.SnoozeRequest, $1.Empty>(
+      '/fleetkanban.v1.ScratchpadService/SnoozeEntry',
+      ($0.SnoozeRequest value) => value.writeToBuffer(),
+      $1.Empty.fromBuffer);
+  static final _$watchPending =
+      $grpc.ClientMethod<$0.RepoIdRequest, $0.ScratchpadChangeEvent>(
+          '/fleetkanban.v1.ScratchpadService/WatchPending',
+          ($0.RepoIdRequest value) => value.writeToBuffer(),
+          $0.ScratchpadChangeEvent.fromBuffer);
+}
+
+@$pb.GrpcServiceName('fleetkanban.v1.ScratchpadService')
+abstract class ScratchpadServiceBase extends $grpc.Service {
+  $core.String get $name => 'fleetkanban.v1.ScratchpadService';
+
+  ScratchpadServiceBase() {
+    $addMethod(
+        $grpc.ServiceMethod<$0.ListPendingRequest, $0.ListPendingResponse>(
+            'ListPending',
+            listPending_Pre,
+            false,
+            false,
+            ($core.List<$core.int> value) =>
+                $0.ListPendingRequest.fromBuffer(value),
+            ($0.ListPendingResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.EntryIdRequest, $0.ScratchpadEntry>(
+        'GetEntry',
+        getEntry_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.EntryIdRequest.fromBuffer(value),
+        ($0.ScratchpadEntry value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.EntryIdRequest, $0.ContextNode>(
+        'PromoteEntry',
+        promoteEntry_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.EntryIdRequest.fromBuffer(value),
+        ($0.ContextNode value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.RejectEntryRequest, $1.Empty>(
+        'RejectEntry',
+        rejectEntry_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) =>
+            $0.RejectEntryRequest.fromBuffer(value),
+        ($1.Empty value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.EditAndPromoteRequest, $0.ContextNode>(
+        'EditAndPromote',
+        editAndPromote_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) =>
+            $0.EditAndPromoteRequest.fromBuffer(value),
+        ($0.ContextNode value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.SnoozeRequest, $1.Empty>(
+        'SnoozeEntry',
+        snoozeEntry_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.SnoozeRequest.fromBuffer(value),
+        ($1.Empty value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.RepoIdRequest, $0.ScratchpadChangeEvent>(
+        'WatchPending',
+        watchPending_Pre,
+        false,
+        true,
+        ($core.List<$core.int> value) => $0.RepoIdRequest.fromBuffer(value),
+        ($0.ScratchpadChangeEvent value) => value.writeToBuffer()));
+  }
+
+  $async.Future<$0.ListPendingResponse> listPending_Pre($grpc.ServiceCall $call,
+      $async.Future<$0.ListPendingRequest> $request) async {
+    return listPending($call, await $request);
+  }
+
+  $async.Future<$0.ListPendingResponse> listPending(
+      $grpc.ServiceCall call, $0.ListPendingRequest request);
+
+  $async.Future<$0.ScratchpadEntry> getEntry_Pre($grpc.ServiceCall $call,
+      $async.Future<$0.EntryIdRequest> $request) async {
+    return getEntry($call, await $request);
+  }
+
+  $async.Future<$0.ScratchpadEntry> getEntry(
+      $grpc.ServiceCall call, $0.EntryIdRequest request);
+
+  $async.Future<$0.ContextNode> promoteEntry_Pre($grpc.ServiceCall $call,
+      $async.Future<$0.EntryIdRequest> $request) async {
+    return promoteEntry($call, await $request);
+  }
+
+  $async.Future<$0.ContextNode> promoteEntry(
+      $grpc.ServiceCall call, $0.EntryIdRequest request);
+
+  $async.Future<$1.Empty> rejectEntry_Pre($grpc.ServiceCall $call,
+      $async.Future<$0.RejectEntryRequest> $request) async {
+    return rejectEntry($call, await $request);
+  }
+
+  $async.Future<$1.Empty> rejectEntry(
+      $grpc.ServiceCall call, $0.RejectEntryRequest request);
+
+  $async.Future<$0.ContextNode> editAndPromote_Pre($grpc.ServiceCall $call,
+      $async.Future<$0.EditAndPromoteRequest> $request) async {
+    return editAndPromote($call, await $request);
+  }
+
+  $async.Future<$0.ContextNode> editAndPromote(
+      $grpc.ServiceCall call, $0.EditAndPromoteRequest request);
+
+  $async.Future<$1.Empty> snoozeEntry_Pre(
+      $grpc.ServiceCall $call, $async.Future<$0.SnoozeRequest> $request) async {
+    return snoozeEntry($call, await $request);
+  }
+
+  $async.Future<$1.Empty> snoozeEntry(
+      $grpc.ServiceCall call, $0.SnoozeRequest request);
+
+  $async.Stream<$0.ScratchpadChangeEvent> watchPending_Pre(
+      $grpc.ServiceCall $call,
+      $async.Future<$0.RepoIdRequest> $request) async* {
+    yield* watchPending($call, await $request);
+  }
+
+  $async.Stream<$0.ScratchpadChangeEvent> watchPending(
+      $grpc.ServiceCall call, $0.RepoIdRequest request);
+}
+
+/// OllamaService wraps the local Ollama HTTP API (default
+/// http://localhost:11434) so the UI can detect installation, list and
+/// pull embedding / LLM models, and stream pull progress. Used by the
+/// Settings onboarding flow when the user selects Ollama as the
+/// embedding or LLM provider.
+@$pb.GrpcServiceName('fleetkanban.v1.OllamaService')
+class OllamaServiceClient extends $grpc.Client {
+  /// The hostname for this service.
+  static const $core.String defaultHost = '';
+
+  /// OAuth scopes needed for the client.
+  static const $core.List<$core.String> oauthScopes = [
+    '',
+  ];
+
+  OllamaServiceClient(super.channel, {super.options, super.interceptors});
+
+  $grpc.ResponseFuture<$0.OllamaStatus> getOllamaStatus(
+    $1.Empty request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$getOllamaStatus, request, options: options);
+  }
+
+  /// ListInstalledModels rather than ListModels — ModelService.ListModels
+  /// already claims the Go method name ListModels on the sidecar Server
+  /// struct, so the names must be unique for method resolution.
+  $grpc.ResponseFuture<$0.OllamaListModelsResponse> listInstalledModels(
+    $1.Empty request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$listInstalledModels, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.OllamaListRecommendedResponse> getRecommendedModels(
+    $1.Empty request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$getRecommendedModels, request, options: options);
+  }
+
+  $grpc.ResponseStream<$0.OllamaPullProgressEvent> pullOllamaModel(
+    $0.PullModelRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createStreamingCall(
+        _$pullOllamaModel, $async.Stream.fromIterable([request]),
+        options: options);
+  }
+
+  // method descriptors
+
+  static final _$getOllamaStatus =
+      $grpc.ClientMethod<$1.Empty, $0.OllamaStatus>(
+          '/fleetkanban.v1.OllamaService/GetOllamaStatus',
+          ($1.Empty value) => value.writeToBuffer(),
+          $0.OllamaStatus.fromBuffer);
+  static final _$listInstalledModels =
+      $grpc.ClientMethod<$1.Empty, $0.OllamaListModelsResponse>(
+          '/fleetkanban.v1.OllamaService/ListInstalledModels',
+          ($1.Empty value) => value.writeToBuffer(),
+          $0.OllamaListModelsResponse.fromBuffer);
+  static final _$getRecommendedModels =
+      $grpc.ClientMethod<$1.Empty, $0.OllamaListRecommendedResponse>(
+          '/fleetkanban.v1.OllamaService/GetRecommendedModels',
+          ($1.Empty value) => value.writeToBuffer(),
+          $0.OllamaListRecommendedResponse.fromBuffer);
+  static final _$pullOllamaModel =
+      $grpc.ClientMethod<$0.PullModelRequest, $0.OllamaPullProgressEvent>(
+          '/fleetkanban.v1.OllamaService/PullOllamaModel',
+          ($0.PullModelRequest value) => value.writeToBuffer(),
+          $0.OllamaPullProgressEvent.fromBuffer);
+}
+
+@$pb.GrpcServiceName('fleetkanban.v1.OllamaService')
+abstract class OllamaServiceBase extends $grpc.Service {
+  $core.String get $name => 'fleetkanban.v1.OllamaService';
+
+  OllamaServiceBase() {
+    $addMethod($grpc.ServiceMethod<$1.Empty, $0.OllamaStatus>(
+        'GetOllamaStatus',
+        getOllamaStatus_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $1.Empty.fromBuffer(value),
+        ($0.OllamaStatus value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$1.Empty, $0.OllamaListModelsResponse>(
+        'ListInstalledModels',
+        listInstalledModels_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $1.Empty.fromBuffer(value),
+        ($0.OllamaListModelsResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$1.Empty, $0.OllamaListRecommendedResponse>(
+        'GetRecommendedModels',
+        getRecommendedModels_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $1.Empty.fromBuffer(value),
+        ($0.OllamaListRecommendedResponse value) => value.writeToBuffer()));
+    $addMethod(
+        $grpc.ServiceMethod<$0.PullModelRequest, $0.OllamaPullProgressEvent>(
+            'PullOllamaModel',
+            pullOllamaModel_Pre,
+            false,
+            true,
+            ($core.List<$core.int> value) =>
+                $0.PullModelRequest.fromBuffer(value),
+            ($0.OllamaPullProgressEvent value) => value.writeToBuffer()));
+  }
+
+  $async.Future<$0.OllamaStatus> getOllamaStatus_Pre(
+      $grpc.ServiceCall $call, $async.Future<$1.Empty> $request) async {
+    return getOllamaStatus($call, await $request);
+  }
+
+  $async.Future<$0.OllamaStatus> getOllamaStatus(
+      $grpc.ServiceCall call, $1.Empty request);
+
+  $async.Future<$0.OllamaListModelsResponse> listInstalledModels_Pre(
+      $grpc.ServiceCall $call, $async.Future<$1.Empty> $request) async {
+    return listInstalledModels($call, await $request);
+  }
+
+  $async.Future<$0.OllamaListModelsResponse> listInstalledModels(
+      $grpc.ServiceCall call, $1.Empty request);
+
+  $async.Future<$0.OllamaListRecommendedResponse> getRecommendedModels_Pre(
+      $grpc.ServiceCall $call, $async.Future<$1.Empty> $request) async {
+    return getRecommendedModels($call, await $request);
+  }
+
+  $async.Future<$0.OllamaListRecommendedResponse> getRecommendedModels(
+      $grpc.ServiceCall call, $1.Empty request);
+
+  $async.Stream<$0.OllamaPullProgressEvent> pullOllamaModel_Pre(
+      $grpc.ServiceCall $call,
+      $async.Future<$0.PullModelRequest> $request) async* {
+    yield* pullOllamaModel($call, await $request);
+  }
+
+  $async.Stream<$0.OllamaPullProgressEvent> pullOllamaModel(
+      $grpc.ServiceCall call, $0.PullModelRequest request);
 }

@@ -2,6 +2,8 @@
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:protobuf/well_known_types/google/protobuf/empty.pb.dart'
+    show Empty;
 
 import '../../app/error_display.dart';
 import '../../infra/ipc/generated/fleetkanban/v1/fleetkanban.pb.dart' as pb;
@@ -137,6 +139,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   'Plan / Review values are stored in preparation for future stage separation.',
               child: _StageModelPickers(),
             ),
+            const _Section(
+              title: 'Agent prompts',
+              subtitle:
+                  'Each block is appended to the corresponding stage\'s built-in '
+                  'system message. Use it to add house-rules, persona, or '
+                  'codebase conventions you want every Plan / Code / Review '
+                  'session to follow. Empty fields are no-ops.\n'
+                  'The output language hint is forwarded verbatim — write it '
+                  'in any natural form ("日本語", "Japanese", "casual English", '
+                  '"Português brasileiro") and the agent will recognise it.',
+              child: _AgentPromptsEditor(),
+            ),
             _Section(
               title: 'GitHub access tokens (multiple saved, labeled)',
               subtitle:
@@ -213,6 +227,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ),
             ),
             const _CopilotAuthSection(),
+            const _MemorySection(),
             const HousekeepingSection(),
           ],
         ),
@@ -267,6 +282,198 @@ class _TokenTable extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _AgentPromptsEditor extends ConsumerStatefulWidget {
+  const _AgentPromptsEditor();
+
+  @override
+  ConsumerState<_AgentPromptsEditor> createState() =>
+      _AgentPromptsEditorState();
+}
+
+class _AgentPromptsEditorState extends ConsumerState<_AgentPromptsEditor> {
+  final _planController = TextEditingController();
+  final _codeController = TextEditingController();
+  final _reviewController = TextEditingController();
+  final _languageController = TextEditingController();
+  bool _seeded = false;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _planController.dispose();
+    _codeController.dispose();
+    _reviewController.dispose();
+    _languageController.dispose();
+    super.dispose();
+  }
+
+  void _seedFrom(pb.AgentSettings saved, pb.AgentSettings defaults) {
+    if (_seeded) return;
+    _seeded = true;
+    // Saved override takes priority; when the user has never touched a
+    // field the built-in default is shown verbatim so they can see what
+    // the agent is getting and decide whether to tweak it.
+    _planController.text = saved.planPrompt.isNotEmpty
+        ? saved.planPrompt
+        : defaults.planPrompt;
+    _codeController.text = saved.codePrompt.isNotEmpty
+        ? saved.codePrompt
+        : defaults.codePrompt;
+    _reviewController.text = saved.reviewPrompt.isNotEmpty
+        ? saved.reviewPrompt
+        : defaults.reviewPrompt;
+    _languageController.text = saved.outputLanguage;
+  }
+
+  Future<void> _resetToDefault(
+    TextEditingController ctrl,
+    String defaultText,
+  ) async {
+    setState(() => ctrl.text = defaultText);
+  }
+
+  Future<void> _save() async {
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await ref
+          .read(agentSettingsProvider.notifier)
+          .save(
+            planPrompt: _planController.text,
+            codePrompt: _codeController.text,
+            reviewPrompt: _reviewController.text,
+            outputLanguage: _languageController.text,
+          );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = '$e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final settingsAsync = ref.watch(agentSettingsProvider);
+    final defaultsAsync = ref.watch(defaultAgentPromptsProvider);
+    return settingsAsync.when(
+      loading: () => const SizedBox(height: 40, child: ProgressBar()),
+      error: (e, _) => CopyableErrorText(
+        text: '$e',
+        reportTitle: 'Settings / agent prompts fetch',
+      ),
+      data: (saved) {
+        return defaultsAsync.when(
+          loading: () => const SizedBox(height: 40, child: ProgressBar()),
+          error: (e, _) => CopyableErrorText(
+            text: '$e',
+            reportTitle: 'Settings / default agent prompts fetch',
+          ),
+          data: (defaults) {
+            _seedFrom(saved, defaults);
+            Widget promptField(
+              String label,
+              TextEditingController ctrl,
+              String defaultText,
+            ) {
+              return Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            label,
+                            style: theme.typography.caption?.copyWith(
+                              color: theme.resources.textFillColorSecondary,
+                            ),
+                          ),
+                        ),
+                        HyperlinkButton(
+                          onPressed: _saving
+                              ? null
+                              : () => _resetToDefault(ctrl, defaultText),
+                          child: const Text('Reset to default'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    TextBox(
+                      controller: ctrl,
+                      maxLines: 10,
+                      minLines: 4,
+                      enabled: !_saving,
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                promptField(
+                  'Plan prompt',
+                  _planController,
+                  defaults.planPrompt,
+                ),
+                promptField(
+                  'Code prompt',
+                  _codeController,
+                  defaults.codePrompt,
+                ),
+                promptField(
+                  'Review prompt',
+                  _reviewController,
+                  defaults.reviewPrompt,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Output language',
+                  style: theme.typography.caption?.copyWith(
+                    color: theme.resources.textFillColorSecondary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                TextBox(
+                  controller: _languageController,
+                  placeholder:
+                      'e.g. 日本語 / Japanese / casual English (leave blank for default)',
+                  enabled: !_saving,
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    if (_error != null)
+                      Expanded(
+                        child: Text(
+                          _error!,
+                          style: const TextStyle(color: Color(0xFFC42B1C)),
+                        ),
+                      )
+                    else
+                      const Spacer(),
+                    FilledButton(
+                      onPressed: _saving ? null : _save,
+                      child: Text(_saving ? 'Saving…' : 'Save'),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -467,8 +674,10 @@ class _RegisteredRepositoryList extends ConsumerWidget {
     final repositories = ref.watch(kanbanRepositoriesProvider);
     return repositories.when(
       loading: () => const SizedBox(height: 40, child: ProgressBar()),
-      error: (e, _) =>
-          CopyableErrorText(text: '$e', reportTitle: 'Settings / registered repositories fetch'),
+      error: (e, _) => CopyableErrorText(
+        text: '$e',
+        reportTitle: 'Settings / registered repositories fetch',
+      ),
       data: (repos) {
         if (repos.isEmpty) {
           return const Text('No repositories registered yet.');
@@ -651,7 +860,10 @@ class _RepoPinRowState extends ConsumerState<_RepoPinRow> {
           if (_error != null)
             Padding(
               padding: const EdgeInsets.only(top: 6),
-              child: ErrorInfoBar(title: 'Failed to update base branch', message: _error!),
+              child: ErrorInfoBar(
+                title: 'Failed to update base branch',
+                message: _error!,
+              ),
             ),
         ],
       ),
@@ -710,7 +922,9 @@ class _CopilotAuthSectionState extends ConsumerState<_CopilotAuthSection> {
     final subtitle = auth.when(
       data: (a) => a.authenticated
           ? 'Signed in as ${a.user}'
-          : (a.message.isNotEmpty ? 'Not authenticated — ${a.message}' : 'Not authenticated'),
+          : (a.message.isNotEmpty
+                ? 'Not authenticated — ${a.message}'
+                : 'Not authenticated'),
       loading: () => 'Checking…',
       error: (e, _) => 'Failed to fetch status: $e',
     );
@@ -785,11 +999,14 @@ class _CopilotAuthSectionState extends ConsumerState<_CopilotAuthSection> {
               Button(
                 onPressed: disabled
                     ? null
-                    : () =>
-                          _run(_AuthBusy.recheck, 'Failed to re-check auth status', () async {
-                            ref.invalidate(copilotAuthProvider);
-                            await ref.read(copilotAuthProvider.future);
-                          }),
+                    : () => _run(
+                        _AuthBusy.recheck,
+                        'Failed to re-check auth status',
+                        () async {
+                          ref.invalidate(copilotAuthProvider);
+                          await ref.read(copilotAuthProvider.future);
+                        },
+                      ),
                 child: _AuthButtonLabel(
                   text: 'Re-check',
                   busy: _busy == _AuthBusy.recheck,
@@ -866,6 +1083,483 @@ class _Section extends StatelessWidget {
           child,
         ],
       ),
+    );
+  }
+}
+
+// _MemorySection exposes the per-repo Memory toggle + embedding
+// provider picker + Ollama onboarding stubs. Memory is opt-in per
+// repository, matching the "no autonomous action" policy — nothing
+// is injected into a Copilot session until the user enables it here
+// for a specific repo.
+class _MemorySection extends ConsumerStatefulWidget {
+  const _MemorySection();
+  @override
+  ConsumerState<_MemorySection> createState() => _MemorySectionState();
+}
+
+class _MemorySectionState extends ConsumerState<_MemorySection> {
+  String? _repoId;
+
+  @override
+  Widget build(BuildContext context) {
+    final repos = ref.watch(repositoriesProvider);
+    return _Section(
+      title: 'Memory (Context graph)',
+      subtitle:
+          'Per-repository Graph Memory. Enable it here to have FleetKanban '
+          'inject repository-specific context into Copilot prompts. Disabled '
+          'by default on every newly registered repository.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: repos.when(
+              loading: () => const ProgressRing(),
+              error: (e, _) => Text('Error: $e'),
+              data: (list) {
+                if (list.isEmpty) {
+                  return const Text(
+                    'Register a repository first to configure Memory.',
+                  );
+                }
+                _repoId ??= list.first.id;
+                return ComboBox<String>(
+                  value: list.any((r) => r.id == _repoId) ? _repoId : null,
+                  placeholder: const Text('Select repository'),
+                  items: [
+                    for (final r in list)
+                      ComboBoxItem<String>(
+                        value: r.id,
+                        child: Text(r.displayName),
+                      ),
+                  ],
+                  onChanged: (v) => setState(() => _repoId = v),
+                );
+              },
+            ),
+          ),
+          if (_repoId != null && _repoId!.isNotEmpty)
+            _MemorySettingsPanel(repoId: _repoId!),
+          const Padding(
+            padding: EdgeInsets.only(top: 16),
+            child: _OllamaOnboardingPanel(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MemorySettingsPanel extends ConsumerStatefulWidget {
+  const _MemorySettingsPanel({required this.repoId});
+  final String repoId;
+  @override
+  ConsumerState<_MemorySettingsPanel> createState() =>
+      _MemorySettingsPanelState();
+}
+
+class _MemorySettingsPanelState extends ConsumerState<_MemorySettingsPanel> {
+  bool _saving = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final client = ref.read(ipcClientProvider);
+    return FutureBuilder<pb.MemorySettings>(
+      future: client.context.getMemorySettings(
+        pb.RepoIdRequest(repoId: widget.repoId),
+      ),
+      builder: (context, snap) {
+        if (!snap.hasData) {
+          return const ProgressRing();
+        }
+        final set = snap.data!;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                ToggleSwitch(
+                  checked: set.enabled,
+                  content: Text(
+                    set.enabled ? 'Memory enabled' : 'Memory disabled',
+                  ),
+                  onChanged: _saving
+                      ? null
+                      : (v) async {
+                          setState(() => _saving = true);
+                          final copy = set.deepCopy()..enabled = v;
+                          await client.context.updateMemorySettings(
+                            pb.UpdateMemorySettingsRequest(settings: copy),
+                          );
+                          if (mounted) setState(() => _saving = false);
+                        },
+                ),
+                const SizedBox(width: 16),
+                Text(
+                  set.enabled
+                      ? 'Copilot sessions on this repo receive Passive '
+                            'injection.'
+                      : 'Sessions run with the built-in prompts only.',
+                  style: theme.typography.caption?.copyWith(
+                    color: theme.resources.textFillColorSecondary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _ProviderRow(
+              label: 'Embedding provider',
+              value: set.embeddingProvider,
+              options: const ['ollama', 'openai', 'voyage', 'google'],
+              onChanged: (v) async {
+                final copy = set.deepCopy()..embeddingProvider = v;
+                await client.context.updateMemorySettings(
+                  pb.UpdateMemorySettingsRequest(settings: copy),
+                );
+                setState(() {});
+              },
+            ),
+            _ProviderRow(
+              label: 'Embedding model',
+              value: set.embeddingModel,
+              freeText: true,
+              onChanged: (v) async {
+                final copy = set.deepCopy()..embeddingModel = v;
+                await client.context.updateMemorySettings(
+                  pb.UpdateMemorySettingsRequest(settings: copy),
+                );
+                setState(() {});
+              },
+            ),
+            _ProviderRow(
+              label: 'LLM provider',
+              value: set.llmProvider,
+              options: const ['openai', 'anthropic', 'ollama'],
+              onChanged: (v) async {
+                final copy = set.deepCopy()..llmProvider = v;
+                await client.context.updateMemorySettings(
+                  pb.UpdateMemorySettingsRequest(settings: copy),
+                );
+                setState(() {});
+              },
+            ),
+            const SizedBox(height: 12),
+            _RebuildEmbeddingsButton(repoId: widget.repoId),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _RebuildEmbeddingsButton extends ConsumerStatefulWidget {
+  const _RebuildEmbeddingsButton({required this.repoId});
+  final String repoId;
+  @override
+  ConsumerState<_RebuildEmbeddingsButton> createState() =>
+      _RebuildEmbeddingsButtonState();
+}
+
+class _RebuildEmbeddingsButtonState
+    extends ConsumerState<_RebuildEmbeddingsButton> {
+  bool _running = false;
+  String? _message;
+
+  Future<void> _run() async {
+    setState(() {
+      _running = true;
+      _message = null;
+    });
+    try {
+      final client = ref.read(ipcClientProvider);
+      final resp = await client.context.rebuildEmbeddings(
+        pb.RepoIdRequest(repoId: widget.repoId),
+      );
+      if (mounted) {
+        setState(
+          () => _message =
+              'Rebuilt ${resp.rebuilt} embedding(s), ${resp.skipped} skipped.',
+        );
+      }
+    } catch (e) {
+      if (mounted) setState(() => _message = 'Failed: $e');
+    } finally {
+      if (mounted) setState(() => _running = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Button(
+          onPressed: _running ? null : _run,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_running)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: ProgressRing(strokeWidth: 2),
+                )
+              else
+                const Icon(FluentIcons.refresh, size: 14),
+              const SizedBox(width: 6),
+              Text(_running ? 'Rebuilding…' : 'Rebuild embeddings'),
+            ],
+          ),
+        ),
+        if (_message != null) ...[
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              _message!,
+              style: FluentTheme.of(context).typography.caption,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ProviderRow extends StatelessWidget {
+  const _ProviderRow({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    this.options,
+    this.freeText = false,
+  });
+  final String label;
+  final String value;
+  final List<String>? options;
+  final bool freeText;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          SizedBox(width: 160, child: Text(label)),
+          const SizedBox(width: 12),
+          if (freeText)
+            Expanded(
+              child: TextBox(
+                controller: TextEditingController(text: value),
+                onSubmitted: onChanged,
+              ),
+            )
+          else
+            ComboBox<String>(
+              value: options!.contains(value) ? value : null,
+              items: [
+                for (final o in options!)
+                  ComboBoxItem<String>(value: o, child: Text(o)),
+              ],
+              onChanged: (v) {
+                if (v != null) onChanged(v);
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OllamaOnboardingPanel extends ConsumerWidget {
+  const _OllamaOnboardingPanel();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final client = ref.read(ipcClientProvider);
+    return FutureBuilder<pb.OllamaStatus>(
+      future: client.ollama.getOllamaStatus(Empty()),
+      builder: (context, snap) {
+        if (!snap.hasData) return const ProgressRing();
+        final st = snap.data!;
+        if (!st.installed) {
+          return InfoBar(
+            title: const Text('Ollama is not installed'),
+            content: Text(
+              'Install Ollama to use local embeddings. Run this command in '
+              'a PowerShell prompt:\n\n${st.installCommand}',
+            ),
+            severity: InfoBarSeverity.warning,
+          );
+        }
+        if (!st.running) {
+          return InfoBar(
+            title: const Text('Ollama is installed but not running'),
+            content: Text(
+              st.message.isEmpty
+                  ? 'Launch Ollama, then reload this page.'
+                  : st.message,
+            ),
+            severity: InfoBarSeverity.warning,
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            InfoBar(
+              title: Text('Ollama is running (v${st.version})'),
+              content: Text(
+                'Endpoint: ${st.baseUrl}. The Context tab\'s Search & Browse '
+                'tabs will use local embeddings when an embedding model is '
+                'pulled.',
+              ),
+              severity: InfoBarSeverity.success,
+            ),
+            const SizedBox(height: 12),
+            const _OllamaModelList(),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// _OllamaModelList surfaces the curated recommendation list alongside
+/// "Pull" buttons. Progress is streamed via OllamaService.PullOllamaModel
+/// and rendered inline.
+class _OllamaModelList extends ConsumerStatefulWidget {
+  const _OllamaModelList();
+  @override
+  ConsumerState<_OllamaModelList> createState() => _OllamaModelListState();
+}
+
+class _OllamaModelListState extends ConsumerState<_OllamaModelList> {
+  final Map<String, String> _progress = {};
+  final Set<String> _pulling = {};
+  int _refreshTick = 0;
+
+  Future<void> _pull(String name) async {
+    if (_pulling.contains(name)) return;
+    setState(() {
+      _pulling.add(name);
+      _progress[name] = 'Starting…';
+    });
+    final client = ref.read(ipcClientProvider);
+    try {
+      await for (final p in client.ollama.pullOllamaModel(
+        pb.PullModelRequest(name: name),
+      )) {
+        if (!mounted) return;
+        final status = p.status.isNotEmpty ? p.status : 'downloading';
+        final pct = p.total > 0 ? ' (${(p.downloaded * 100 ~/ p.total)}%)' : '';
+        setState(() {
+          _progress[name] = p.error.isNotEmpty
+              ? 'Error: ${p.error}'
+              : '$status$pct';
+        });
+        if (p.done) {
+          setState(() => _progress[name] = 'Done');
+          break;
+        }
+        if (p.error.isNotEmpty) break;
+      }
+    } catch (e) {
+      if (mounted) setState(() => _progress[name] = 'Failed: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _pulling.remove(name);
+          _refreshTick++;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final client = ref.read(ipcClientProvider);
+    return FutureBuilder<pb.OllamaListRecommendedResponse>(
+      // Tick is part of the future's closure — we use it to force a
+      // re-fetch after a successful pull so `installed` flips.
+      key: ValueKey(_refreshTick),
+      future: client.ollama.getRecommendedModels(Empty()),
+      builder: (context, snap) {
+        if (!snap.hasData) return const ProgressRing();
+        final models = snap.data!.models;
+        return Card(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Recommended embedding / LLM models',
+                style: FluentTheme.of(context).typography.bodyStrong,
+              ),
+              const SizedBox(height: 8),
+              for (final m in models)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${m.name}  (${m.role})',
+                              style: FluentTheme.of(
+                                context,
+                              ).typography.bodyStrong,
+                            ),
+                            Text(
+                              m.description,
+                              style: FluentTheme.of(context).typography.caption,
+                            ),
+                            Text(
+                              '≈ ${m.sizeEstimate}, dim ${m.embeddingDim}',
+                              style: FluentTheme.of(context).typography.caption
+                                  ?.copyWith(
+                                    color: FluentTheme.of(
+                                      context,
+                                    ).resources.textFillColorTertiary,
+                                  ),
+                            ),
+                            if (_progress.containsKey(m.name))
+                              Text(
+                                _progress[m.name]!,
+                                style: FluentTheme.of(
+                                  context,
+                                ).typography.caption,
+                              ),
+                          ],
+                        ),
+                      ),
+                      if (m.installed)
+                        const Text(
+                          'Installed',
+                          style: TextStyle(
+                            color: Color(0xFF107C10),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        )
+                      else
+                        Button(
+                          onPressed: _pulling.contains(m.name)
+                              ? null
+                              : () => _pull(m.name),
+                          child: Text(
+                            _pulling.contains(m.name) ? 'Pulling…' : 'Pull',
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

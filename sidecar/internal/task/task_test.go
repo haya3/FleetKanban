@@ -229,6 +229,8 @@ func TestEventKind_Valid(t *testing.T) {
 		EventAssistantDelta, EventAssistantReasoningDelta,
 		EventToolStart, EventToolEnd, EventPermissionRequest,
 		EventError, EventSecurityPathEscape,
+		EventPlanSummary, EventSessionUsage, EventFileChanged,
+		EventAIReviewDecision,
 	}
 	for _, k := range valid {
 		assert.True(t, k.Valid(), "%s should be valid", k)

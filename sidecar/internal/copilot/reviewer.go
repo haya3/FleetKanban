@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -40,9 +41,10 @@ const reworkMarker = "REWORK:"
 // policy so a misbehaving reviewer agent cannot mutate code out from
 // under the user.
 type Reviewer struct {
-	client  *copilot.Client
-	model   string
-	timeout time.Duration
+	client   *copilot.Client
+	model    string
+	timeout  time.Duration
+	settings SettingsLookup
 }
 
 // NewReviewer constructs a Reviewer bound to rt's SDK client. When model
@@ -60,7 +62,10 @@ func (r *Runtime) NewReviewer(ctx context.Context, model string) (*Reviewer, err
 		}
 		model = resolved
 	}
-	return &Reviewer{client: client, model: model, timeout: reviewerTimeout}, nil
+	r.mu.RLock()
+	settings := r.cfg.Settings
+	r.mu.RUnlock()
+	return &Reviewer{client: client, model: model, timeout: reviewerTimeout, settings: settings}, nil
 }
 
 // Review implements orchestrator.AIReviewer. Returns Approve=true when the
@@ -78,9 +83,10 @@ func (r *Runtime) NewReviewer(ctx context.Context, model string) (*Reviewer, err
 // cycle (empty on the first pass) so the reviewer can self-check "has
 // my last request been addressed?". reworkCount is the current rework
 // counter used purely as context in the prompt.
-func (r *Reviewer) Review(ctx context.Context, t *task.Task, diff, prevFeedback string, reworkCount int) (orchestrator.ReviewDecision, string, error) {
+func (r *Reviewer) Review(ctx context.Context, t *task.Task, diff, prevFeedback string, reworkCount int, out chan<- *task.AgentEvent) (orchestrator.ReviewDecision, string, task.SessionUsage, error) {
+	defer close(out)
 	if t.WorktreePath == "" {
-		return orchestrator.ReviewDecision{}, "", errors.New("copilot: reviewer: task has no worktree")
+		return orchestrator.ReviewDecision{}, "", task.SessionUsage{}, errors.New("copilot: reviewer: task has no worktree")
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, r.timeout)
@@ -101,7 +107,7 @@ func (r *Reviewer) Review(ctx context.Context, t *task.Task, diff, prevFeedback 
 	// state before ruling on feedback items, which needs reads.
 	guard, err := NewPermissionHandler(t.WorktreePath)
 	if err != nil {
-		return orchestrator.ReviewDecision{}, "", fmt.Errorf("copilot: reviewer permission: %w", err)
+		return orchestrator.ReviewDecision{}, "", task.SessionUsage{}, fmt.Errorf("copilot: reviewer permission: %w", err)
 	}
 	denyWrites := func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
 		if req.Kind == copilot.PermissionRequestKindWrite {
@@ -112,21 +118,21 @@ func (r *Reviewer) Review(ctx context.Context, t *task.Task, diff, prevFeedback 
 		return guard(req, inv)
 	}
 
+	settings := agentSettingsOrEmpty(ctx, r.settings)
+	systemContent := effectivePrompt(settings.ReviewPrompt, DefaultReviewPrompt) +
+		languageAddendum(settings.OutputLanguage)
 	session, err := r.client.CreateSession(ctx, &copilot.SessionConfig{
 		Model:            model,
 		Streaming:        true,
 		WorkingDirectory: t.WorktreePath,
 		SystemMessage: &copilot.SystemMessageConfig{
-			Mode: "replace",
-			Content: "You are a code reviewer. Based on the provided information, your final line must be exactly one of:\n" +
-				approvalMarker + "\n" +
-				reworkMarker + " <1-2 sentences describing what needs to be fixed>\n" +
-				"Do not include APPROVE or REWORK: on any line other than the final line. When in doubt, choose APPROVE and defer to the human reviewer.",
+			Mode:    "replace",
+			Content: systemContent,
 		},
 		OnPermissionRequest: denyWrites,
 	})
 	if err != nil {
-		return orchestrator.ReviewDecision{}, "", fmt.Errorf("copilot: reviewer session: %w", err)
+		return orchestrator.ReviewDecision{}, "", task.SessionUsage{}, fmt.Errorf("copilot: reviewer session: %w", err)
 	}
 	defer func() { _ = session.Disconnect() }()
 
@@ -135,35 +141,133 @@ func (r *Reviewer) Review(ctx context.Context, t *task.Task, diff, prevFeedback 
 	var (
 		transcript strings.Builder
 	)
+	usage := &usageAccumulator{}
+	sessionStart := time.Now()
+	slog.Info("reviewer: session start",
+		"task_id", t.ID,
+		"model", model,
+		"worktree", t.WorktreePath)
+
+	mapper := NewSessionMapper()
 	unsubscribe := session.On(func(e copilot.SessionEvent) {
-		if _, ok := e.Data.(*copilot.SessionIdleData); ok {
+		elapsed := time.Since(sessionStart)
+		switch d := e.Data.(type) {
+		case *copilot.AssistantUsageData:
+			usage.add(d)
+			in := int64(0)
+			if d.InputTokens != nil {
+				in = int64(*d.InputTokens)
+			}
+			outTok := int64(0)
+			if d.OutputTokens != nil {
+				outTok = int64(*d.OutputTokens)
+			}
+			cost := 0.0
+			if d.Cost != nil {
+				cost = *d.Cost
+			}
+			slog.Info("reviewer: llm call",
+				"task_id", t.ID,
+				"elapsed_ms", elapsed.Milliseconds(),
+				"in_tokens", in,
+				"out_tokens", outTok,
+				"premium", cost,
+				"calls_so_far", usage.u.Calls+1)
+			return
+		case *copilot.SessionIdleData:
+			slog.Info("reviewer: idle",
+				"task_id", t.ID,
+				"elapsed_ms", elapsed.Milliseconds(),
+				"total_calls", usage.u.Calls,
+				"total_premium", usage.u.PremiumRequests)
 			select {
 			case idleOnce <- struct{}{}:
 				close(idleCh)
 			default:
 			}
 			return
+		case *copilot.ToolExecutionStartData:
+			slog.Info("reviewer: tool start",
+				"task_id", t.ID,
+				"elapsed_ms", elapsed.Milliseconds(),
+				"tool", d.ToolName,
+				"call_id", d.ToolCallID,
+				"args", compactArgs(d.Arguments, 400))
+		case *copilot.ToolExecutionCompleteData:
+			errStr, resStr, telStr := toolEndSummary(d, 400)
+			attrs := []any{
+				"task_id", t.ID,
+				"elapsed_ms", elapsed.Milliseconds(),
+				"call_id", d.ToolCallID,
+				"ok", d.Success,
+			}
+			if errStr != "" {
+				attrs = append(attrs, "err", errStr)
+			}
+			if resStr != "" {
+				attrs = append(attrs, "result", resStr)
+			}
+			if telStr != "" {
+				attrs = append(attrs, "telemetry", telStr)
+			}
+			slog.Info("reviewer: tool end", attrs...)
+		case *copilot.AssistantIntentData:
+			slog.Info("reviewer: intent",
+				"task_id", t.ID,
+				"elapsed_ms", elapsed.Milliseconds(),
+				"intent", d.Intent)
 		}
-		if ae := MapSessionEvent(e); ae != nil &&
-			ae.Kind == task.EventAssistantDelta {
-			transcript.WriteString(ae.Payload)
+		// Forward every mappable SDK event to the orchestrator's event
+		// channel so the UI has a chronological log of the reviewer's
+		// reasoning, assistant output, and tool calls. Bracketed at
+		// the orchestrator level by ai_review.start / ai_review.decision.
+		for _, ae := range mapper.Map(e) {
+			if ae == nil {
+				continue
+			}
+			if ae.Kind == task.EventAssistantDelta {
+				transcript.WriteString(ae.Payload)
+				transcript.WriteByte('\n')
+			}
+			select {
+			case out <- ae:
+			case <-ctx.Done():
+			}
 		}
 	})
 	defer unsubscribe()
 
 	prompt := buildReviewPrompt(t, diff, prevFeedback, reworkCount)
 	if _, err := session.Send(ctx, copilot.MessageOptions{Prompt: prompt}); err != nil {
-		return orchestrator.ReviewDecision{}, "", fmt.Errorf("copilot: reviewer send: %w", err)
+		return orchestrator.ReviewDecision{}, "", usage.snapshot(), fmt.Errorf("copilot: reviewer send: %w", err)
 	}
 
 	select {
 	case <-idleCh:
 	case <-ctx.Done():
 		_ = session.Disconnect()
-		return orchestrator.ReviewDecision{}, "", ctx.Err()
+		for _, ae := range mapper.Flush() {
+			select {
+			case out <- ae:
+			default:
+			}
+		}
+		return orchestrator.ReviewDecision{}, "", usage.snapshot(), ctx.Err()
 	}
 
-	return parseReviewDecision(transcript.String()), model, nil
+	// Drain any partial lines still buffered in the mapper so the UI
+	// doesn't lose the last few tokens of the reviewer's output.
+	for _, ae := range mapper.Flush() {
+		if ae.Kind == task.EventAssistantDelta {
+			transcript.WriteString(ae.Payload)
+			transcript.WriteByte('\n')
+		}
+		select {
+		case out <- ae:
+		case <-ctx.Done():
+		}
+	}
+	return parseReviewDecision(transcript.String()), model, usage.snapshot(), nil
 }
 
 // buildReviewPrompt constructs the review request. The diff is wrapped in
@@ -219,6 +323,11 @@ Output constraints (mandatory):
 // over rather than triggering another automated rework cycle. This
 // pairs with the orchestrator's rework cap: ambiguity → escalation, not
 // wasted Copilot spins.
+//
+// Everything in the transcript BEFORE the decision line is captured as
+// Summary so the UI can show the reviewer's rationale (what was
+// checked, findings) on the AI Review card — without this, an APPROVE
+// with no feedback would render as an empty card.
 func parseReviewDecision(transcript string) orchestrator.ReviewDecision {
 	trimmed := strings.TrimSpace(transcript)
 	if trimmed == "" {
@@ -227,28 +336,37 @@ func parseReviewDecision(transcript string) orchestrator.ReviewDecision {
 
 	lines := strings.Split(trimmed, "\n")
 	// Walk from the end looking for the first non-blank line.
+	finalIdx := -1
 	var finalLine string
 	for i := len(lines) - 1; i >= 0; i-- {
 		if ln := strings.TrimSpace(lines[i]); ln != "" {
 			finalLine = ln
+			finalIdx = i
 			break
 		}
 	}
 
+	summary := ""
+	if finalIdx > 0 {
+		summary = strings.TrimSpace(strings.Join(lines[:finalIdx], "\n"))
+	}
+
 	switch {
 	case strings.HasPrefix(finalLine, approvalMarker):
-		return orchestrator.ReviewDecision{Approve: true}
+		return orchestrator.ReviewDecision{Approve: true, Summary: summary}
 	case strings.HasPrefix(finalLine, reworkMarker):
 		fb := strings.TrimSpace(strings.TrimPrefix(finalLine, reworkMarker))
 		if fb == "" {
 			fb = "AI Reviewer requested rework without providing details"
 		}
-		return orchestrator.ReviewDecision{Approve: false, Feedback: fb}
+		return orchestrator.ReviewDecision{Approve: false, Feedback: fb, Summary: summary}
 	default:
 		// Unstructured reply: approve so the user gets the task in
 		// human_review. The ambiguous transcript would have been lost
 		// under the old "fall-through to rework" behaviour too — Phase 1
-		// relied on APPROVE/REWORK markers being present.
-		return orchestrator.ReviewDecision{Approve: true}
+		// relied on APPROVE/REWORK markers being present. Keep the
+		// whole text as the summary so the user at least sees what
+		// the reviewer said.
+		return orchestrator.ReviewDecision{Approve: true, Summary: trimmed}
 	}
 }

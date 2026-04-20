@@ -10,6 +10,58 @@ import '../../infra/ipc/providers.dart';
 import '../kanban/providers.dart'
     show kanbanRepositoriesProvider, repositoryBranchesProvider;
 
+/// Built-in default agent prompts, fetched from the sidecar. Used by
+/// the Settings page to pre-populate each editor with the full default
+/// text so the user can see exactly what the planner / runner /
+/// reviewer will use when no override is saved.
+final defaultAgentPromptsProvider = FutureProvider<pb.AgentSettings>((
+  ref,
+) async {
+  final client = ref.watch(ipcClientProvider);
+  return client.system.getDefaultAgentPrompts(Empty());
+});
+
+/// Agent prompt + output language overrides. Persisted on the sidecar
+/// (SettingsStore) so changes apply to every Copilot session without a
+/// restart. The UI exposes 3 multi-line text fields and 1 single-line
+/// language field.
+final agentSettingsProvider =
+    AsyncNotifierProvider<AgentSettingsNotifier, pb.AgentSettings>(
+      AgentSettingsNotifier.new,
+    );
+
+class AgentSettingsNotifier extends AsyncNotifier<pb.AgentSettings> {
+  @override
+  Future<pb.AgentSettings> build() async {
+    final client = ref.watch(ipcClientProvider);
+    return client.system.getAgentSettings(Empty());
+  }
+
+  Future<void> save({
+    String? planPrompt,
+    String? codePrompt,
+    String? reviewPrompt,
+    String? outputLanguage,
+  }) async {
+    final client = ref.read(ipcClientProvider);
+    final current = state.valueOrNull ?? pb.AgentSettings();
+    final next = pb.AgentSettings(
+      planPrompt: planPrompt ?? current.planPrompt,
+      codePrompt: codePrompt ?? current.codePrompt,
+      reviewPrompt: reviewPrompt ?? current.reviewPrompt,
+      outputLanguage: outputLanguage ?? current.outputLanguage,
+    );
+    state = const AsyncLoading();
+    try {
+      final saved = await client.system.setAgentSettings(next);
+      state = AsyncData(saved);
+    } catch (e, st) {
+      state = AsyncError(e, st);
+      rethrow;
+    }
+  }
+}
+
 /// Concurrency value as reported by the orchestrator.
 final concurrencyProvider = FutureProvider<int>((ref) async {
   final client = ref.watch(ipcClientProvider);

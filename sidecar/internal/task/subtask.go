@@ -47,8 +47,55 @@ type Subtask struct {
 	// CodeModel records the model actually used to execute this subtask
 	// (Code stage). Empty until the executor starts running the subtask.
 	CodeModel string
+	// Round is the 1-based iteration counter within the parent task.
+	// Round 1 is the planner's first decomposition; AI / Human REWORK
+	// and User Re-run each create a fresh round at max+1, with the
+	// previous round's subtasks left in place as history. The
+	// orchestrator only executes subtasks belonging to the latest
+	// round; the UI stacks earlier rounds above for visual context.
+	Round int
+	// Prompt is the concrete instruction the planner wrote for this
+	// subtask — a full paragraph describing what files to touch, what
+	// behaviour to implement, and what to verify. The executor's
+	// BuildSubtaskPrompt folds this into the Copilot session prompt
+	// so the Coder doesn't have to guess intent from a short Title.
+	// Empty for legacy rows / manual subtasks; BuildSubtaskPrompt
+	// falls back to the title-only template when empty.
+	Prompt    string
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+// SubtaskRunContext is the optional context the orchestrator threads
+// into a subtask's prompt at execution time. These are run-time
+// values (not persisted on Subtask itself) assembled fresh for each
+// session so the Coder agent starts with what the Planner already
+// learned and what prior subtasks produced — eliminating a very
+// common class of waste where every subtask re-explores the whole
+// repo from scratch.
+type SubtaskRunContext struct {
+	// PlanSummary is the Planner's investigation summary (from the
+	// plan.summary event). Empty when no summary exists for this
+	// round.
+	PlanSummary string
+	// PriorSummaries lists every subtask in the same round that has
+	// already finished, in execution order. Each entry is a one-
+	// paragraph "what I did" note the Coder can use to avoid
+	// redoing or undoing prior work.
+	PriorSummaries []PriorSubtaskSummary
+	// IsFinalSubtask is true when this subtask is the last in the
+	// round. The runner uses it to decide whether to nudge the
+	// agent to run full verification (tests, build) or skip it to
+	// let the final subtask cover the whole change.
+	IsFinalSubtask bool
+}
+
+// PriorSubtaskSummary is one already-completed subtask's outcome
+// folded into SubtaskRunContext for the next subtask's prompt.
+type PriorSubtaskSummary struct {
+	Title   string
+	Role    string
+	Summary string
 }
 
 // Validate performs invariant checks that should hold for any persisted Subtask.

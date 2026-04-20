@@ -377,11 +377,17 @@ class SidecarSupervisor {
 String resolveSidecarBinary() {
   final exeDir = File(Platform.resolvedExecutable).parent.path;
   final releasePath = '$exeDir${Platform.pathSeparator}fleetkanban-sidecar.exe';
-  if (File(releasePath).existsSync()) return releasePath;
 
-  // Debug fallback: when running via `flutter run` the exe lives deep in
-  // ui/build/windows/x64/runner/Debug/; the Go sidecar is produced under
-  // <repo>/build/bin/.
+  // For Debug builds, prefer the canonical <repo>/build/bin/ binary so
+  // a stale copy next to fleetkanban_ui.exe never overrides a freshly
+  // rebuilt sidecar. Release builds (exe dir outside the Debug /
+  // Release runner tree) keep the existing "colocated binary wins"
+  // behaviour since MSIX packaging places the sidecar there.
+  final isDebug =
+      exeDir.contains('${Platform.pathSeparator}Debug') ||
+      exeDir.contains('${Platform.pathSeparator}Profile');
+  if (!isDebug && File(releasePath).existsSync()) return releasePath;
+
   final dir = Directory(exeDir);
   Directory? probe = dir;
   for (var i = 0; i < 8 && probe != null; i++) {
@@ -390,5 +396,8 @@ String resolveSidecarBinary() {
     if (File(candidate).existsSync()) return candidate;
     probe = probe.parent.path == probe.path ? null : probe.parent;
   }
-  return releasePath; // surface the expected location in the error message.
+  // Final fallback: colocated binary, even for Debug — at least surfaces
+  // a sensible error message with the expected Debug-dir path.
+  if (File(releasePath).existsSync()) return releasePath;
+  return releasePath;
 }

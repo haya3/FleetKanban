@@ -18,7 +18,8 @@ class KanbanBoard extends ConsumerWidget {
     final tasks = ref.watch(tasksProvider(repoId));
     return tasks.when(
       loading: () => const Center(child: ProgressRing()),
-      error: (e, _) => ErrorInfoBar(title: 'Failed to load tasks', message: '$e'),
+      error: (e, _) =>
+          ErrorInfoBar(title: 'Failed to load tasks', message: '$e'),
       data: (list) => _Board(tasks: list),
     );
   }

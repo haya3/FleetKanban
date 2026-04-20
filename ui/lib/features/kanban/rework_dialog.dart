@@ -5,6 +5,7 @@
 
 import 'package:fluent_ui/fluent_ui.dart';
 
+import '../../app/ui_utils.dart';
 import '../../infra/ipc/generated/fleetkanban/v1/fleetkanban.pb.dart' as pb;
 
 Future<String?> showReworkDialog(
@@ -84,11 +85,18 @@ class _ReworkDialogState extends State<_ReworkDialog> {
         ],
       ),
       actions: [
-        Button(
-          onPressed: () => Navigator.of(context).pop(null),
-          child: const Text('Cancel'),
+        clickable(
+          Button(
+            onPressed: () => Navigator.of(context).pop(null),
+            child: const Text('Cancel'),
+          ),
         ),
-        FilledButton(onPressed: _submit, child: const Text('Send for rework')),
+        clickable(
+          FilledButton(
+            onPressed: _submit,
+            child: const Text('Send for rework'),
+          ),
+        ),
       ],
     );
   }

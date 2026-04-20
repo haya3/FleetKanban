@@ -104,7 +104,10 @@ class KanbanColumn extends ConsumerWidget {
               Expanded(
                 child: tasks.isEmpty
                     ? Center(
-                        child: Text('No tasks', style: theme.typography.caption),
+                        child: Text(
+                          'No tasks',
+                          style: theme.typography.caption,
+                        ),
                       )
                     : ListView.builder(
                         padding: const EdgeInsets.all(8),

@@ -15,6 +15,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/ui_utils.dart';
 import '../../infra/ipc/generated/fleetkanban/v1/fleetkanban.pb.dart' as pb;
 import 'providers.dart';
 import 'rework_dialog.dart';
@@ -203,9 +204,11 @@ class _KebabMenu extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return IconButton(
-      icon: const Icon(FluentIcons.more_vertical, size: 14),
-      onPressed: () => showTaskDetailDialog(context, task: task),
+    return clickable(
+      IconButton(
+        icon: const Icon(FluentIcons.more_vertical, size: 14),
+        onPressed: () => showTaskDetailDialog(context, task: task),
+      ),
     );
   }
 }
@@ -367,7 +370,9 @@ class _StageStepper extends StatelessWidget {
             borderRadius: BorderRadius.circular(3),
           ),
           child: Tooltip(
-            message: model.isEmpty ? '$label: model not recorded' : '$label: $model',
+            message: model.isEmpty
+                ? '$label: model not recorded'
+                : '$label: $model',
             child: Text(
               label,
               style: TextStyle(
@@ -544,7 +549,6 @@ class _PrimaryAction extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     switch (task.status) {
-      case 'planning':
       case 'queued':
         return _pill(
           icon: FluentIcons.play,
@@ -552,6 +556,12 @@ class _PrimaryAction extends ConsumerWidget {
           color: const Color(0xFF0067C0),
           onPressed: () => ref.read(runTaskProvider.notifier).run(task.id),
         );
+      case 'planning':
+        // Planning is owned by the orchestrator — the AI planner is either
+        // running or about to run. Surfacing a Run button here would hit the
+        // sidecar's `cannot run a task in status planning` guard, so show a
+        // non-actionable progress pill instead.
+        return const _PlanningPill();
       case 'in_progress':
         return _pill(
           icon: FluentIcons.stop,
@@ -600,6 +610,42 @@ class _PrimaryAction extends ConsumerWidget {
       default:
         return const SizedBox.shrink();
     }
+  }
+}
+
+class _PlanningPill extends StatelessWidget {
+  const _PlanningPill();
+
+  @override
+  Widget build(BuildContext context) {
+    const color = Color(0xFF8A8A8A);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.45)),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 10,
+            height: 10,
+            child: ProgressRing(strokeWidth: 1.4),
+          ),
+          SizedBox(width: 6),
+          Text(
+            'Planning…',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -685,39 +731,44 @@ Widget _kanbanMiniPill({
   required VoidCallback onPressed,
   bool iconOnly = false,
 }) {
-  final button = Button(
-    style: ButtonStyle(
-      padding: WidgetStatePropertyAll(
-        iconOnly
-            ? const EdgeInsets.symmetric(horizontal: 5, vertical: 2)
-            : const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      ),
-      backgroundColor: WidgetStatePropertyAll(color.withValues(alpha: 0.12)),
-      foregroundColor: WidgetStatePropertyAll(color),
-      shape: WidgetStatePropertyAll(
-        RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: color.withValues(alpha: 0.45)),
+  // fluent_ui's Button defers its mouse cursor to the parent, so pills look
+  // identical to the surrounding card on hover. Force the pointer cursor so
+  // users can tell the pill is clickable without trial-and-error.
+  final button = clickable(
+    Button(
+      style: ButtonStyle(
+        padding: WidgetStatePropertyAll(
+          iconOnly
+              ? const EdgeInsets.symmetric(horizontal: 5, vertical: 2)
+              : const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        ),
+        backgroundColor: WidgetStatePropertyAll(color.withValues(alpha: 0.12)),
+        foregroundColor: WidgetStatePropertyAll(color),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: color.withValues(alpha: 0.45)),
+          ),
         ),
       ),
-    ),
-    onPressed: onPressed,
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 10, color: color),
-        if (!iconOnly) ...[
-          const SizedBox(width: 3),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: color,
+      onPressed: onPressed,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: color),
+          if (!iconOnly) ...[
+            const SizedBox(width: 3),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
             ),
-          ),
+          ],
         ],
-      ],
+      ),
     ),
   );
   if (!iconOnly) return button;
@@ -734,35 +785,37 @@ Widget _pill({
   required Color color,
   required VoidCallback onPressed,
 }) {
-  return Button(
-    style: ButtonStyle(
-      padding: WidgetStatePropertyAll(
-        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      ),
-      backgroundColor: WidgetStatePropertyAll(color.withValues(alpha: 0.12)),
-      foregroundColor: WidgetStatePropertyAll(color),
-      shape: WidgetStatePropertyAll(
-        RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: color.withValues(alpha: 0.45)),
+  return clickable(
+    Button(
+      style: ButtonStyle(
+        padding: WidgetStatePropertyAll(
+          const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         ),
-      ),
-    ),
-    onPressed: onPressed,
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 11, color: color),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: color,
+        backgroundColor: WidgetStatePropertyAll(color.withValues(alpha: 0.12)),
+        foregroundColor: WidgetStatePropertyAll(color),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(color: color.withValues(alpha: 0.45)),
           ),
         ),
-      ],
+      ),
+      onPressed: onPressed,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -813,18 +866,22 @@ class _AbortedActions extends ConsumerWidget {
           'and the task will move to Cancelled. This cannot be undone.',
         ),
         actions: [
-          Button(
-            child: const Text('Cancel'),
-            onPressed: () => Navigator.of(ctx).pop(false),
-          ),
-          FilledButton(
-            style: ButtonStyle(
-              backgroundColor: WidgetStatePropertyAll(
-                FluentTheme.of(ctx).resources.systemFillColorCritical,
-              ),
+          clickable(
+            Button(
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.of(ctx).pop(false),
             ),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Discard'),
+          ),
+          clickable(
+            FilledButton(
+              style: ButtonStyle(
+                backgroundColor: WidgetStatePropertyAll(
+                  FluentTheme.of(ctx).resources.systemFillColorCritical,
+                ),
+              ),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Discard'),
+            ),
           ),
         ],
       ),
@@ -863,18 +920,22 @@ class _DiscardBranchAction extends ConsumerWidget {
           'Any unmerged changes on it will be lost. Task history is preserved.',
         ),
         actions: [
-          Button(
-            child: const Text('Cancel'),
-            onPressed: () => Navigator.of(ctx).pop(false),
-          ),
-          FilledButton(
-            style: ButtonStyle(
-              backgroundColor: WidgetStatePropertyAll(
-                FluentTheme.of(ctx).resources.systemFillColorCritical,
-              ),
+          clickable(
+            Button(
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.of(ctx).pop(false),
             ),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete'),
+          ),
+          clickable(
+            FilledButton(
+              style: ButtonStyle(
+                backgroundColor: WidgetStatePropertyAll(
+                  FluentTheme.of(ctx).resources.systemFillColorCritical,
+                ),
+              ),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Delete'),
+            ),
           ),
         ],
       ),

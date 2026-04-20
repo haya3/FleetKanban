@@ -13,7 +13,9 @@ class DiffView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (files.isEmpty) {
-      return const Center(child: Text('No diff yet. Wait for the task to progress.'));
+      return const Center(
+        child: Text('No diff yet. Wait for the task to progress.'),
+      );
     }
 
     return LayoutBuilder(
@@ -40,7 +42,7 @@ class _FileCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Expander(
-        initiallyExpanded: true,
+        initiallyExpanded: false,
         leading: const Icon(FluentIcons.file_code, size: 14),
         header: Row(
           children: [

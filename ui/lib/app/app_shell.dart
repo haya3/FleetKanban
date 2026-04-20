@@ -12,6 +12,7 @@ import '../features/auth/auth_banner.dart';
 import '../infra/ipc/providers.dart';
 import 'version.dart';
 import '../features/auth/auth_gate.dart';
+import '../features/context/context_page.dart';
 import '../features/insights/insights_page.dart';
 import '../features/kanban/kanban_page.dart';
 import '../features/placeholder/coming_soon_page.dart';
@@ -102,14 +103,15 @@ class _AppScaffold extends ConsumerWidget {
                   child: Center(
                     child: Text(
                       'FleetKanban',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ),
                 Expanded(
-                  child: MoveWindow(
-                    onDoubleTap: appWindow.maximizeOrRestore,
-                  ),
+                  child: MoveWindow(onDoubleTap: appWindow.maximizeOrRestore),
                 ),
                 _CaptionButtons(theme: theme),
               ],
@@ -118,9 +120,7 @@ class _AppScaffold extends ConsumerWidget {
         ),
         const _VersionMismatchBanner(),
         const _UpdateAvailableBanner(),
-        Expanded(
-          child: _buildNavigation(context, ref, selected),
-        ),
+        Expanded(child: _buildNavigation(context, ref, selected)),
       ],
     );
   }
@@ -149,14 +149,7 @@ class _AppScaffold extends ConsumerWidget {
           PaneItem(
             icon: const Icon(FluentIcons.library),
             title: const Text('Context'),
-            body: const ComingSoonPage(
-              title: 'Context',
-              phase: 'Phase 2',
-              description:
-                  'Closure tables + sqlite-vec + FTS5 memory browser. The page '
-                  'skeleton is in progress on a separate branch; it will ship '
-                  'once the Context service is wired end-to-end.',
-            ),
+            body: const ContextPage(),
           ),
           PaneItem(
             icon: const Icon(FluentIcons.plug_connected),
@@ -279,7 +272,8 @@ class _UpdateAvailableBanner extends ConsumerStatefulWidget {
       _UpdateAvailableBannerState();
 }
 
-class _UpdateAvailableBannerState extends ConsumerState<_UpdateAvailableBanner> {
+class _UpdateAvailableBannerState
+    extends ConsumerState<_UpdateAvailableBanner> {
   bool _applying = false;
 
   @override

@@ -17,6 +17,8 @@ import (
 	"github.com/FleetKanban/fleetkanban/internal/app"
 	"github.com/FleetKanban/fleetkanban/internal/branding"
 	"github.com/FleetKanban/fleetkanban/internal/copilot"
+	"github.com/FleetKanban/fleetkanban/internal/ctxmem"
+	"github.com/FleetKanban/fleetkanban/internal/ctxmem/svc"
 	"github.com/FleetKanban/fleetkanban/internal/orchestrator"
 	"github.com/FleetKanban/fleetkanban/internal/setup"
 	"github.com/FleetKanban/fleetkanban/internal/store"
@@ -39,11 +41,25 @@ type Server struct {
 	pb.UnimplementedModelServiceServer
 	pb.UnimplementedHousekeepingServiceServer
 	pb.UnimplementedInsightsServiceServer
+	pb.UnimplementedContextServiceServer
+	pb.UnimplementedScratchpadServiceServer
+	pb.UnimplementedOllamaServiceServer
 
 	app          *app.Service
+	ctxmem       *svc.Service
+	embedOpts    embedBuildOptions
 	broker       *EventBroker
 	shutdownHook func(context.Context) error
 	housekeeping *HousekeepingDeps // nil when the reaper failed to init
+}
+
+// embedBuildOptions is a snapshot of the user-global embedding
+// credentials / endpoints the ipc layer forwards to ctxmem when a
+// memory settings update lands. We keep the snapshot on the server
+// rather than reach into a shared secret store from every handler.
+type embedBuildOptions struct {
+	OllamaBaseURL string
+	OpenAIAPIKey  string
 }
 
 // ServerConfig bundles dependencies.
@@ -54,6 +70,18 @@ type ServerConfig struct {
 	// Housekeeping is optional. When nil, HousekeepingService RPCs return
 	// Unavailable (typically because the reaper failed to initialise).
 	Housekeeping *HousekeepingDeps
+	// ContextMemory wires ctxmem/svc.Service into the ContextService /
+	// ScratchpadService / OllamaService RPC handlers. Optional — when
+	// nil those services return Unavailable. Existing TaskService /
+	// SubtaskService flows keep working regardless.
+	ContextMemory *svc.Service
+	// OllamaBaseURL / OpenAIAPIKey are the user-global embedding
+	// credentials forwarded to ctxmem on UpdateMemorySettings. Empty
+	// strings are acceptable — Ollama defaults to localhost:11434 and
+	// OpenAI builds fail with a clear error when the user picks that
+	// provider without setting a key.
+	OllamaBaseURL string
+	OpenAIAPIKey  string
 }
 
 // NewServer constructs a gRPC Server bound to the given Service.
@@ -66,10 +94,44 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	}
 	return &Server{
 		app:          cfg.App,
+		ctxmem:       cfg.ContextMemory,
+		embedOpts:    embedBuildOptions{OllamaBaseURL: cfg.OllamaBaseURL, OpenAIAPIKey: cfg.OpenAIAPIKey},
 		broker:       cfg.Broker,
 		shutdownHook: cfg.ShutdownHook,
 		housekeeping: cfg.Housekeeping,
 	}, nil
+}
+
+// mapCtxmemError translates ctxmem errors into gRPC status codes.
+// Shared by the three ctxmem-backed service handlers so they stay
+// consistent with mapAppError's error vocabulary.
+func mapCtxmemError(err error) error {
+	if err == nil {
+		return nil
+	}
+	switch {
+	case errors.Is(err, ctxmem.ErrNotFound):
+		return status.Error(codes.NotFound, err.Error())
+	case errors.Is(err, ctxmem.ErrMemoryDisabled):
+		return status.Error(codes.FailedPrecondition, err.Error())
+	case errors.Is(err, ctxmem.ErrInvalidArg):
+		return status.Error(codes.InvalidArgument, err.Error())
+	case errors.Is(err, ctxmem.ErrProviderConfig):
+		return status.Error(codes.FailedPrecondition, err.Error())
+	case errors.Is(err, ctxmem.ErrDimMismatch):
+		return status.Error(codes.FailedPrecondition, err.Error())
+	}
+	return status.Error(codes.Unknown, fmt.Sprintf("%v", err))
+}
+
+// requireCtxmem returns nil when a ctxmem service is wired, otherwise
+// a gRPC Unavailable error so the UI can render a clear "memory
+// subsystem not configured" message.
+func (s *Server) requireCtxmem() error {
+	if s.ctxmem == nil {
+		return status.Error(codes.Unavailable, "ctxmem service is not configured")
+	}
+	return nil
 }
 
 // --- TaskService -----------------------------------------------------------
@@ -295,6 +357,17 @@ func (s *Server) CreateInitialCommit(ctx context.Context, req *pb.IdRequest) (*p
 	return repositoryToPB(r), nil
 }
 
+func (s *Server) StashUncommitted(ctx context.Context, req *pb.IdRequest) (*pb.StashUncommittedResponse, error) {
+	res, err := s.app.StashUncommitted(ctx, req.GetId())
+	if err != nil {
+		return nil, mapAppError(err)
+	}
+	return &pb.StashUncommittedResponse{
+		Stashed: res.Stashed,
+		Message: res.Message,
+	}, nil
+}
+
 func (s *Server) ScanGitRepositories(ctx context.Context, req *pb.ScanGitRepositoriesRequest) (*pb.ScanGitRepositoriesResponse, error) {
 	found, rootIsRepo, err := s.app.ScanGitRepositories(ctx, req.GetPath(), int(req.GetMaxDepth()))
 	if err != nil {
@@ -459,6 +532,47 @@ func (s *Server) SetConcurrency(ctx context.Context, req *pb.IntValue) (*pb.IntV
 		return nil, mapAppError(err)
 	}
 	return &pb.IntValue{Value: int32(n)}, nil
+}
+
+func (s *Server) GetAgentSettings(ctx context.Context, _ *emptypb.Empty) (*pb.AgentSettings, error) {
+	a, err := s.app.GetAgentSettings(ctx)
+	if err != nil {
+		return nil, mapAppError(err)
+	}
+	return agentSettingsToPB(a), nil
+}
+
+func (s *Server) SetAgentSettings(ctx context.Context, req *pb.AgentSettings) (*pb.AgentSettings, error) {
+	a, err := s.app.SetAgentSettings(ctx, agentSettingsFromPB(req))
+	if err != nil {
+		return nil, mapAppError(err)
+	}
+	return agentSettingsToPB(a), nil
+}
+
+func (s *Server) GetDefaultAgentPrompts(ctx context.Context, _ *emptypb.Empty) (*pb.AgentSettings, error) {
+	return agentSettingsToPB(s.app.GetDefaultAgentPrompts(ctx)), nil
+}
+
+func agentSettingsToPB(a app.AgentSettings) *pb.AgentSettings {
+	return &pb.AgentSettings{
+		PlanPrompt:     a.PlanPrompt,
+		CodePrompt:     a.CodePrompt,
+		ReviewPrompt:   a.ReviewPrompt,
+		OutputLanguage: a.OutputLanguage,
+	}
+}
+
+func agentSettingsFromPB(p *pb.AgentSettings) app.AgentSettings {
+	if p == nil {
+		return app.AgentSettings{}
+	}
+	return app.AgentSettings{
+		PlanPrompt:     p.GetPlanPrompt(),
+		CodePrompt:     p.GetCodePrompt(),
+		ReviewPrompt:   p.GetReviewPrompt(),
+		OutputLanguage: p.GetOutputLanguage(),
+	}
 }
 
 // --- ModelService ----------------------------------------------------------

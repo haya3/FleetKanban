@@ -4,6 +4,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/error_display.dart';
+import '../../app/ui_utils.dart';
 import '../../infra/ipc/generated/fleetkanban/v1/fleetkanban.pb.dart' as pb;
 import '../../infra/ipc/providers.dart';
 import '../settings/providers.dart';
@@ -106,7 +107,9 @@ class _NewTaskDialogState extends ConsumerState<_NewTaskDialog> {
         ),
         data: (repos) {
           if (repos.isEmpty) {
-            return const Text('No repositories registered. Register one from the Kanban header.');
+            return const Text(
+              'No repositories registered. Register one from the Kanban header.',
+            );
           }
           if (!repos.any((r) => r.id == _repoId)) {
             _repoId = repos.first.id;
@@ -146,7 +149,8 @@ class _NewTaskDialogState extends ConsumerState<_NewTaskDialog> {
                 label: 'Goal (natural language)',
                 child: TextBox(
                   controller: _goalController,
-                  placeholder: 'e.g. Translate README to Japanese and normalize heading levels',
+                  placeholder:
+                      'e.g. Translate README to Japanese and normalize heading levels',
                   maxLines: 5,
                   minLines: 4,
                   enabled: !_submitting,
@@ -169,19 +173,25 @@ class _NewTaskDialogState extends ConsumerState<_NewTaskDialog> {
         },
       ),
       actions: [
-        Button(
-          onPressed: _submitting ? null : () => Navigator.of(context).pop(null),
-          child: const Text('Cancel'),
+        clickable(
+          Button(
+            onPressed: _submitting
+                ? null
+                : () => Navigator.of(context).pop(null),
+            child: const Text('Cancel'),
+          ),
         ),
-        FilledButton(
-          onPressed: _submitting ? null : _submit,
-          child: _submitting
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: ProgressRing(strokeWidth: 2),
-                )
-              : const Text('Create'),
+        clickable(
+          FilledButton(
+            onPressed: _submitting ? null : _submit,
+            child: _submitting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: ProgressRing(strokeWidth: 2),
+                  )
+                : const Text('Create'),
+          ),
         ),
       ],
     );
@@ -227,7 +237,8 @@ class _BaseBranchPicker extends ConsumerWidget {
             ],
           ),
         ),
-        error: (e, _) => ErrorInfoBar(title: 'Failed to load branches', message: '$e'),
+        error: (e, _) =>
+            ErrorInfoBar(title: 'Failed to load branches', message: '$e'),
         data: (resp) {
           final autoLabel = resp.defaultBranch.isEmpty
               ? '(auto-detect)'

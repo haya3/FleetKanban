@@ -862,6 +862,7 @@ const (
 	RepositoryService_UpdateDefaultBaseBranch_FullMethodName = "/fleetkanban.v1.RepositoryService/UpdateDefaultBaseBranch"
 	RepositoryService_ListBranches_FullMethodName            = "/fleetkanban.v1.RepositoryService/ListBranches"
 	RepositoryService_CreateInitialCommit_FullMethodName     = "/fleetkanban.v1.RepositoryService/CreateInitialCommit"
+	RepositoryService_StashUncommitted_FullMethodName        = "/fleetkanban.v1.RepositoryService/StashUncommitted"
 )
 
 // RepositoryServiceClient is the client API for RepositoryService service.
@@ -900,6 +901,12 @@ type RepositoryServiceClient interface {
 	// FailedPrecondition when the repository already has commits — callers
 	// should refresh their cached `has_commits` flag and hide the button.
 	CreateInitialCommit(ctx context.Context, in *IdRequest, opts ...grpc.CallOption) (*Repository, error)
+	// StashUncommitted runs `git stash push --include-untracked` in the
+	// repository's main working tree. Used by the Merge retry dialog
+	// when the task's base branch is checked out with dirty changes
+	// that block the merge. Returns stashed=false when the tree is
+	// already clean (no error).
+	StashUncommitted(ctx context.Context, in *IdRequest, opts ...grpc.CallOption) (*StashUncommittedResponse, error)
 }
 
 type repositoryServiceClient struct {
@@ -980,6 +987,16 @@ func (c *repositoryServiceClient) CreateInitialCommit(ctx context.Context, in *I
 	return out, nil
 }
 
+func (c *repositoryServiceClient) StashUncommitted(ctx context.Context, in *IdRequest, opts ...grpc.CallOption) (*StashUncommittedResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StashUncommittedResponse)
+	err := c.cc.Invoke(ctx, RepositoryService_StashUncommitted_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RepositoryServiceServer is the server API for RepositoryService service.
 // All implementations should embed UnimplementedRepositoryServiceServer
 // for forward compatibility.
@@ -1016,6 +1033,12 @@ type RepositoryServiceServer interface {
 	// FailedPrecondition when the repository already has commits — callers
 	// should refresh their cached `has_commits` flag and hide the button.
 	CreateInitialCommit(context.Context, *IdRequest) (*Repository, error)
+	// StashUncommitted runs `git stash push --include-untracked` in the
+	// repository's main working tree. Used by the Merge retry dialog
+	// when the task's base branch is checked out with dirty changes
+	// that block the merge. Returns stashed=false when the tree is
+	// already clean (no error).
+	StashUncommitted(context.Context, *IdRequest) (*StashUncommittedResponse, error)
 }
 
 // UnimplementedRepositoryServiceServer should be embedded to have
@@ -1045,6 +1068,9 @@ func (UnimplementedRepositoryServiceServer) ListBranches(context.Context, *ListB
 }
 func (UnimplementedRepositoryServiceServer) CreateInitialCommit(context.Context, *IdRequest) (*Repository, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateInitialCommit not implemented")
+}
+func (UnimplementedRepositoryServiceServer) StashUncommitted(context.Context, *IdRequest) (*StashUncommittedResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method StashUncommitted not implemented")
 }
 func (UnimplementedRepositoryServiceServer) testEmbeddedByValue() {}
 
@@ -1192,6 +1218,24 @@ func _RepositoryService_CreateInitialCommit_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RepositoryService_StashUncommitted_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(IdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RepositoryServiceServer).StashUncommitted(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RepositoryService_StashUncommitted_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RepositoryServiceServer).StashUncommitted(ctx, req.(*IdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RepositoryService_ServiceDesc is the grpc.ServiceDesc for RepositoryService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1226,6 +1270,10 @@ var RepositoryService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateInitialCommit",
 			Handler:    _RepositoryService_CreateInitialCommit_Handler,
+		},
+		{
+			MethodName: "StashUncommitted",
+			Handler:    _RepositoryService_StashUncommitted_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -1979,12 +2027,15 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	SystemService_GetConcurrency_FullMethodName      = "/fleetkanban.v1.SystemService/GetConcurrency"
-	SystemService_SetConcurrency_FullMethodName      = "/fleetkanban.v1.SystemService/SetConcurrency"
-	SystemService_Shutdown_FullMethodName            = "/fleetkanban.v1.SystemService/Shutdown"
-	SystemService_GetVersion_FullMethodName          = "/fleetkanban.v1.SystemService/GetVersion"
-	SystemService_GetPreconditions_FullMethodName    = "/fleetkanban.v1.SystemService/GetPreconditions"
-	SystemService_InstallPrecondition_FullMethodName = "/fleetkanban.v1.SystemService/InstallPrecondition"
+	SystemService_GetConcurrency_FullMethodName         = "/fleetkanban.v1.SystemService/GetConcurrency"
+	SystemService_SetConcurrency_FullMethodName         = "/fleetkanban.v1.SystemService/SetConcurrency"
+	SystemService_Shutdown_FullMethodName               = "/fleetkanban.v1.SystemService/Shutdown"
+	SystemService_GetVersion_FullMethodName             = "/fleetkanban.v1.SystemService/GetVersion"
+	SystemService_GetPreconditions_FullMethodName       = "/fleetkanban.v1.SystemService/GetPreconditions"
+	SystemService_InstallPrecondition_FullMethodName    = "/fleetkanban.v1.SystemService/InstallPrecondition"
+	SystemService_GetAgentSettings_FullMethodName       = "/fleetkanban.v1.SystemService/GetAgentSettings"
+	SystemService_SetAgentSettings_FullMethodName       = "/fleetkanban.v1.SystemService/SetAgentSettings"
+	SystemService_GetDefaultAgentPrompts_FullMethodName = "/fleetkanban.v1.SystemService/GetDefaultAgentPrompts"
 )
 
 // SystemServiceClient is the client API for SystemService service.
@@ -2011,6 +2062,20 @@ type SystemServiceClient interface {
 	// Blocks for the duration of the install — 1–3 minutes typical — so
 	// the UI should reserve headroom in any client-side gRPC timeout.
 	InstallPrecondition(ctx context.Context, in *InstallPreconditionRequest, opts ...grpc.CallOption) (*InstallPreconditionResponse, error)
+	// GetAgentSettings / SetAgentSettings expose user-controlled prompt
+	// and language preferences. A non-empty prompt field fully replaces
+	// the corresponding built-in system message; empty falls back to the
+	// built-in. Output language is always appended on top.
+	GetAgentSettings(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*AgentSettings, error)
+	SetAgentSettings(ctx context.Context, in *AgentSettings, opts ...grpc.CallOption) (*AgentSettings, error)
+	// GetDefaultAgentPrompts returns the sidecar's built-in plan / code /
+	// review system messages. The UI pre-populates the Settings text
+	// boxes with these values on first open so the user can see the
+	// full default prompt and decide whether to keep, tweak, or rewrite
+	// it — saving then persists whatever the user has in the box as an
+	// override. (AgentSettings returns the raw override, which may be
+	// empty; this RPC provides the display baseline.)
+	GetDefaultAgentPrompts(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*AgentSettings, error)
 }
 
 type systemServiceClient struct {
@@ -2081,6 +2146,36 @@ func (c *systemServiceClient) InstallPrecondition(ctx context.Context, in *Insta
 	return out, nil
 }
 
+func (c *systemServiceClient) GetAgentSettings(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*AgentSettings, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AgentSettings)
+	err := c.cc.Invoke(ctx, SystemService_GetAgentSettings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *systemServiceClient) SetAgentSettings(ctx context.Context, in *AgentSettings, opts ...grpc.CallOption) (*AgentSettings, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AgentSettings)
+	err := c.cc.Invoke(ctx, SystemService_SetAgentSettings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *systemServiceClient) GetDefaultAgentPrompts(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*AgentSettings, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AgentSettings)
+	err := c.cc.Invoke(ctx, SystemService_GetDefaultAgentPrompts_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SystemServiceServer is the server API for SystemService service.
 // All implementations should embed UnimplementedSystemServiceServer
 // for forward compatibility.
@@ -2105,6 +2200,20 @@ type SystemServiceServer interface {
 	// Blocks for the duration of the install — 1–3 minutes typical — so
 	// the UI should reserve headroom in any client-side gRPC timeout.
 	InstallPrecondition(context.Context, *InstallPreconditionRequest) (*InstallPreconditionResponse, error)
+	// GetAgentSettings / SetAgentSettings expose user-controlled prompt
+	// and language preferences. A non-empty prompt field fully replaces
+	// the corresponding built-in system message; empty falls back to the
+	// built-in. Output language is always appended on top.
+	GetAgentSettings(context.Context, *emptypb.Empty) (*AgentSettings, error)
+	SetAgentSettings(context.Context, *AgentSettings) (*AgentSettings, error)
+	// GetDefaultAgentPrompts returns the sidecar's built-in plan / code /
+	// review system messages. The UI pre-populates the Settings text
+	// boxes with these values on first open so the user can see the
+	// full default prompt and decide whether to keep, tweak, or rewrite
+	// it — saving then persists whatever the user has in the box as an
+	// override. (AgentSettings returns the raw override, which may be
+	// empty; this RPC provides the display baseline.)
+	GetDefaultAgentPrompts(context.Context, *emptypb.Empty) (*AgentSettings, error)
 }
 
 // UnimplementedSystemServiceServer should be embedded to have
@@ -2131,6 +2240,15 @@ func (UnimplementedSystemServiceServer) GetPreconditions(context.Context, *empty
 }
 func (UnimplementedSystemServiceServer) InstallPrecondition(context.Context, *InstallPreconditionRequest) (*InstallPreconditionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method InstallPrecondition not implemented")
+}
+func (UnimplementedSystemServiceServer) GetAgentSettings(context.Context, *emptypb.Empty) (*AgentSettings, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetAgentSettings not implemented")
+}
+func (UnimplementedSystemServiceServer) SetAgentSettings(context.Context, *AgentSettings) (*AgentSettings, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetAgentSettings not implemented")
+}
+func (UnimplementedSystemServiceServer) GetDefaultAgentPrompts(context.Context, *emptypb.Empty) (*AgentSettings, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetDefaultAgentPrompts not implemented")
 }
 func (UnimplementedSystemServiceServer) testEmbeddedByValue() {}
 
@@ -2260,6 +2378,60 @@ func _SystemService_InstallPrecondition_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SystemService_GetAgentSettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SystemServiceServer).GetAgentSettings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SystemService_GetAgentSettings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SystemServiceServer).GetAgentSettings(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SystemService_SetAgentSettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AgentSettings)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SystemServiceServer).SetAgentSettings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SystemService_SetAgentSettings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SystemServiceServer).SetAgentSettings(ctx, req.(*AgentSettings))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SystemService_GetDefaultAgentPrompts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SystemServiceServer).GetDefaultAgentPrompts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SystemService_GetDefaultAgentPrompts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SystemServiceServer).GetDefaultAgentPrompts(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SystemService_ServiceDesc is the grpc.ServiceDesc for SystemService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2290,6 +2462,18 @@ var SystemService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "InstallPrecondition",
 			Handler:    _SystemService_InstallPrecondition_Handler,
+		},
+		{
+			MethodName: "GetAgentSettings",
+			Handler:    _SystemService_GetAgentSettings_Handler,
+		},
+		{
+			MethodName: "SetAgentSettings",
+			Handler:    _SystemService_SetAgentSettings_Handler,
+		},
+		{
+			MethodName: "GetDefaultAgentPrompts",
+			Handler:    _SystemService_GetDefaultAgentPrompts_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -2443,5 +2627,1493 @@ var WorktreeService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
+	Metadata: "fleetkanban/v1/fleetkanban.proto",
+}
+
+const (
+	ContextService_GetOverview_FullMethodName          = "/fleetkanban.v1.ContextService/GetOverview"
+	ContextService_SearchContext_FullMethodName        = "/fleetkanban.v1.ContextService/SearchContext"
+	ContextService_ListNodes_FullMethodName            = "/fleetkanban.v1.ContextService/ListNodes"
+	ContextService_GetNode_FullMethodName              = "/fleetkanban.v1.ContextService/GetNode"
+	ContextService_CreateNode_FullMethodName           = "/fleetkanban.v1.ContextService/CreateNode"
+	ContextService_UpdateNode_FullMethodName           = "/fleetkanban.v1.ContextService/UpdateNode"
+	ContextService_DeleteNode_FullMethodName           = "/fleetkanban.v1.ContextService/DeleteNode"
+	ContextService_PinNode_FullMethodName              = "/fleetkanban.v1.ContextService/PinNode"
+	ContextService_ListEdges_FullMethodName            = "/fleetkanban.v1.ContextService/ListEdges"
+	ContextService_CreateEdge_FullMethodName           = "/fleetkanban.v1.ContextService/CreateEdge"
+	ContextService_DeleteEdge_FullMethodName           = "/fleetkanban.v1.ContextService/DeleteEdge"
+	ContextService_ListFacts_FullMethodName            = "/fleetkanban.v1.ContextService/ListFacts"
+	ContextService_PreviewInjection_FullMethodName     = "/fleetkanban.v1.ContextService/PreviewInjection"
+	ContextService_AnalyzeRepository_FullMethodName    = "/fleetkanban.v1.ContextService/AnalyzeRepository"
+	ContextService_RebuildEmbeddings_FullMethodName    = "/fleetkanban.v1.ContextService/RebuildEmbeddings"
+	ContextService_RebuildClosure_FullMethodName       = "/fleetkanban.v1.ContextService/RebuildClosure"
+	ContextService_RebuildCodeGraph_FullMethodName     = "/fleetkanban.v1.ContextService/RebuildCodeGraph"
+	ContextService_GetMemorySettings_FullMethodName    = "/fleetkanban.v1.ContextService/GetMemorySettings"
+	ContextService_UpdateMemorySettings_FullMethodName = "/fleetkanban.v1.ContextService/UpdateMemorySettings"
+	ContextService_WatchContextChanges_FullMethodName  = "/fleetkanban.v1.ContextService/WatchContextChanges"
+)
+
+// ContextServiceClient is the client API for ContextService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// ---------------------------------------------------------------------------
+// ContextService — repository-bound graph memory
+// ---------------------------------------------------------------------------
+//
+// The Context feature stores structured knowledge about a registered
+// repository as a property graph (ctx_node + ctx_edge + ctx_closure),
+// vector embeddings (ctx_node_vec), and temporal facts (ctx_fact).
+// Entries arrive through three channels: static analysis, the observer
+// tapping session events, and manual user edits. Search is hybrid
+// (BM25 + vector cosine + graph-neighborhood boost, fused via RRF) and
+// feeds the three-tier injection pipeline (Passive / Reactive / Active)
+// that prepends memory to Copilot prompts.
+//
+// Kind / rel / source_kind strings are intentionally NOT proto enums,
+// matching AgentEvent.kind's convention: values are persisted verbatim
+// and interpreted per-kind by the UI, so adding new kinds does not
+// require a proto bump.
+type ContextServiceClient interface {
+	GetOverview(ctx context.Context, in *RepoIdRequest, opts ...grpc.CallOption) (*ContextOverview, error)
+	SearchContext(ctx context.Context, in *SearchContextRequest, opts ...grpc.CallOption) (*SearchContextResponse, error)
+	ListNodes(ctx context.Context, in *ListNodesRequest, opts ...grpc.CallOption) (*ListNodesResponse, error)
+	GetNode(ctx context.Context, in *NodeIdRequest, opts ...grpc.CallOption) (*ContextNodeDetail, error)
+	CreateNode(ctx context.Context, in *CreateNodeRequest, opts ...grpc.CallOption) (*ContextNode, error)
+	UpdateNode(ctx context.Context, in *UpdateNodeRequest, opts ...grpc.CallOption) (*ContextNode, error)
+	DeleteNode(ctx context.Context, in *NodeIdRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	PinNode(ctx context.Context, in *PinNodeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ListEdges(ctx context.Context, in *ListEdgesRequest, opts ...grpc.CallOption) (*ListEdgesResponse, error)
+	CreateEdge(ctx context.Context, in *CreateEdgeRequest, opts ...grpc.CallOption) (*ContextEdge, error)
+	DeleteEdge(ctx context.Context, in *EdgeIdRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ListFacts(ctx context.Context, in *ListFactsRequest, opts ...grpc.CallOption) (*ListFactsResponse, error)
+	// PreviewInjection assembles the Passive-tier injection that WOULD be
+	// prepended to a Copilot session for the given task right now, so the
+	// user can audit what memory the agent will see. Does not side-effect.
+	PreviewInjection(ctx context.Context, in *PreviewInjectionRequest, opts ...grpc.CallOption) (*InjectionPreview, error)
+	// AnalyzeRepository spawns a Copilot session that reads the repo and
+	// emits CLAUDE.md-style architectural summary entries into the
+	// scratchpad with source_kind="analyzer". The RPC returns immediately
+	// and progress is observed via the WatchContextChanges stream. User
+	// must promote individual entries from the Scratchpad tab to persist.
+	AnalyzeRepository(ctx context.Context, in *AnalyzeRepoRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// RebuildEmbeddings recomputes ctx_node_vec for every enabled node
+	// in the repo using the current embedding provider. Safe to call
+	// after enabling Memory or switching provider. Returns the count of
+	// rebuilt and skipped nodes so the UI can surface a toast.
+	RebuildEmbeddings(ctx context.Context, in *RepoIdRequest, opts ...grpc.CallOption) (*RebuildEmbeddingsResponse, error)
+	// RebuildClosure recomputes the closure table — the redundant
+	// projection used by graph-neighborhood boost. Exposed for the
+	// "Rebuild closure" admin button on the Overview tab.
+	RebuildClosure(ctx context.Context, in *RepoIdRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// RebuildCodeGraph walks the repository filesystem and upserts
+	// File nodes + imports edges directly from source. Cheap — no LLM
+	// calls — so the UI typically runs it after Analyze or when the
+	// user notices new files are missing from Browse. Returns a
+	// summary so the UI can render a toast.
+	RebuildCodeGraph(ctx context.Context, in *RepoIdRequest, opts ...grpc.CallOption) (*RebuildCodeGraphResponse, error)
+	GetMemorySettings(ctx context.Context, in *RepoIdRequest, opts ...grpc.CallOption) (*MemorySettings, error)
+	UpdateMemorySettings(ctx context.Context, in *UpdateMemorySettingsRequest, opts ...grpc.CallOption) (*MemorySettings, error)
+	// WatchContextChanges streams node / edge / fact / scratchpad updates
+	// scoped to a repository so the Context UI can refresh incrementally
+	// without polling. Analogous to TaskService.WatchEvents.
+	WatchContextChanges(ctx context.Context, in *WatchContextRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ContextChangeEvent], error)
+}
+
+type contextServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewContextServiceClient(cc grpc.ClientConnInterface) ContextServiceClient {
+	return &contextServiceClient{cc}
+}
+
+func (c *contextServiceClient) GetOverview(ctx context.Context, in *RepoIdRequest, opts ...grpc.CallOption) (*ContextOverview, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ContextOverview)
+	err := c.cc.Invoke(ctx, ContextService_GetOverview_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contextServiceClient) SearchContext(ctx context.Context, in *SearchContextRequest, opts ...grpc.CallOption) (*SearchContextResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SearchContextResponse)
+	err := c.cc.Invoke(ctx, ContextService_SearchContext_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contextServiceClient) ListNodes(ctx context.Context, in *ListNodesRequest, opts ...grpc.CallOption) (*ListNodesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListNodesResponse)
+	err := c.cc.Invoke(ctx, ContextService_ListNodes_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contextServiceClient) GetNode(ctx context.Context, in *NodeIdRequest, opts ...grpc.CallOption) (*ContextNodeDetail, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ContextNodeDetail)
+	err := c.cc.Invoke(ctx, ContextService_GetNode_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contextServiceClient) CreateNode(ctx context.Context, in *CreateNodeRequest, opts ...grpc.CallOption) (*ContextNode, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ContextNode)
+	err := c.cc.Invoke(ctx, ContextService_CreateNode_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contextServiceClient) UpdateNode(ctx context.Context, in *UpdateNodeRequest, opts ...grpc.CallOption) (*ContextNode, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ContextNode)
+	err := c.cc.Invoke(ctx, ContextService_UpdateNode_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contextServiceClient) DeleteNode(ctx context.Context, in *NodeIdRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, ContextService_DeleteNode_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contextServiceClient) PinNode(ctx context.Context, in *PinNodeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, ContextService_PinNode_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contextServiceClient) ListEdges(ctx context.Context, in *ListEdgesRequest, opts ...grpc.CallOption) (*ListEdgesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListEdgesResponse)
+	err := c.cc.Invoke(ctx, ContextService_ListEdges_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contextServiceClient) CreateEdge(ctx context.Context, in *CreateEdgeRequest, opts ...grpc.CallOption) (*ContextEdge, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ContextEdge)
+	err := c.cc.Invoke(ctx, ContextService_CreateEdge_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contextServiceClient) DeleteEdge(ctx context.Context, in *EdgeIdRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, ContextService_DeleteEdge_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contextServiceClient) ListFacts(ctx context.Context, in *ListFactsRequest, opts ...grpc.CallOption) (*ListFactsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListFactsResponse)
+	err := c.cc.Invoke(ctx, ContextService_ListFacts_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contextServiceClient) PreviewInjection(ctx context.Context, in *PreviewInjectionRequest, opts ...grpc.CallOption) (*InjectionPreview, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InjectionPreview)
+	err := c.cc.Invoke(ctx, ContextService_PreviewInjection_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contextServiceClient) AnalyzeRepository(ctx context.Context, in *AnalyzeRepoRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, ContextService_AnalyzeRepository_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contextServiceClient) RebuildEmbeddings(ctx context.Context, in *RepoIdRequest, opts ...grpc.CallOption) (*RebuildEmbeddingsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RebuildEmbeddingsResponse)
+	err := c.cc.Invoke(ctx, ContextService_RebuildEmbeddings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contextServiceClient) RebuildClosure(ctx context.Context, in *RepoIdRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, ContextService_RebuildClosure_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contextServiceClient) RebuildCodeGraph(ctx context.Context, in *RepoIdRequest, opts ...grpc.CallOption) (*RebuildCodeGraphResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RebuildCodeGraphResponse)
+	err := c.cc.Invoke(ctx, ContextService_RebuildCodeGraph_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contextServiceClient) GetMemorySettings(ctx context.Context, in *RepoIdRequest, opts ...grpc.CallOption) (*MemorySettings, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MemorySettings)
+	err := c.cc.Invoke(ctx, ContextService_GetMemorySettings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contextServiceClient) UpdateMemorySettings(ctx context.Context, in *UpdateMemorySettingsRequest, opts ...grpc.CallOption) (*MemorySettings, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MemorySettings)
+	err := c.cc.Invoke(ctx, ContextService_UpdateMemorySettings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contextServiceClient) WatchContextChanges(ctx context.Context, in *WatchContextRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ContextChangeEvent], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &ContextService_ServiceDesc.Streams[0], ContextService_WatchContextChanges_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[WatchContextRequest, ContextChangeEvent]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ContextService_WatchContextChangesClient = grpc.ServerStreamingClient[ContextChangeEvent]
+
+// ContextServiceServer is the server API for ContextService service.
+// All implementations should embed UnimplementedContextServiceServer
+// for forward compatibility.
+//
+// ---------------------------------------------------------------------------
+// ContextService — repository-bound graph memory
+// ---------------------------------------------------------------------------
+//
+// The Context feature stores structured knowledge about a registered
+// repository as a property graph (ctx_node + ctx_edge + ctx_closure),
+// vector embeddings (ctx_node_vec), and temporal facts (ctx_fact).
+// Entries arrive through three channels: static analysis, the observer
+// tapping session events, and manual user edits. Search is hybrid
+// (BM25 + vector cosine + graph-neighborhood boost, fused via RRF) and
+// feeds the three-tier injection pipeline (Passive / Reactive / Active)
+// that prepends memory to Copilot prompts.
+//
+// Kind / rel / source_kind strings are intentionally NOT proto enums,
+// matching AgentEvent.kind's convention: values are persisted verbatim
+// and interpreted per-kind by the UI, so adding new kinds does not
+// require a proto bump.
+type ContextServiceServer interface {
+	GetOverview(context.Context, *RepoIdRequest) (*ContextOverview, error)
+	SearchContext(context.Context, *SearchContextRequest) (*SearchContextResponse, error)
+	ListNodes(context.Context, *ListNodesRequest) (*ListNodesResponse, error)
+	GetNode(context.Context, *NodeIdRequest) (*ContextNodeDetail, error)
+	CreateNode(context.Context, *CreateNodeRequest) (*ContextNode, error)
+	UpdateNode(context.Context, *UpdateNodeRequest) (*ContextNode, error)
+	DeleteNode(context.Context, *NodeIdRequest) (*emptypb.Empty, error)
+	PinNode(context.Context, *PinNodeRequest) (*emptypb.Empty, error)
+	ListEdges(context.Context, *ListEdgesRequest) (*ListEdgesResponse, error)
+	CreateEdge(context.Context, *CreateEdgeRequest) (*ContextEdge, error)
+	DeleteEdge(context.Context, *EdgeIdRequest) (*emptypb.Empty, error)
+	ListFacts(context.Context, *ListFactsRequest) (*ListFactsResponse, error)
+	// PreviewInjection assembles the Passive-tier injection that WOULD be
+	// prepended to a Copilot session for the given task right now, so the
+	// user can audit what memory the agent will see. Does not side-effect.
+	PreviewInjection(context.Context, *PreviewInjectionRequest) (*InjectionPreview, error)
+	// AnalyzeRepository spawns a Copilot session that reads the repo and
+	// emits CLAUDE.md-style architectural summary entries into the
+	// scratchpad with source_kind="analyzer". The RPC returns immediately
+	// and progress is observed via the WatchContextChanges stream. User
+	// must promote individual entries from the Scratchpad tab to persist.
+	AnalyzeRepository(context.Context, *AnalyzeRepoRequest) (*emptypb.Empty, error)
+	// RebuildEmbeddings recomputes ctx_node_vec for every enabled node
+	// in the repo using the current embedding provider. Safe to call
+	// after enabling Memory or switching provider. Returns the count of
+	// rebuilt and skipped nodes so the UI can surface a toast.
+	RebuildEmbeddings(context.Context, *RepoIdRequest) (*RebuildEmbeddingsResponse, error)
+	// RebuildClosure recomputes the closure table — the redundant
+	// projection used by graph-neighborhood boost. Exposed for the
+	// "Rebuild closure" admin button on the Overview tab.
+	RebuildClosure(context.Context, *RepoIdRequest) (*emptypb.Empty, error)
+	// RebuildCodeGraph walks the repository filesystem and upserts
+	// File nodes + imports edges directly from source. Cheap — no LLM
+	// calls — so the UI typically runs it after Analyze or when the
+	// user notices new files are missing from Browse. Returns a
+	// summary so the UI can render a toast.
+	RebuildCodeGraph(context.Context, *RepoIdRequest) (*RebuildCodeGraphResponse, error)
+	GetMemorySettings(context.Context, *RepoIdRequest) (*MemorySettings, error)
+	UpdateMemorySettings(context.Context, *UpdateMemorySettingsRequest) (*MemorySettings, error)
+	// WatchContextChanges streams node / edge / fact / scratchpad updates
+	// scoped to a repository so the Context UI can refresh incrementally
+	// without polling. Analogous to TaskService.WatchEvents.
+	WatchContextChanges(*WatchContextRequest, grpc.ServerStreamingServer[ContextChangeEvent]) error
+}
+
+// UnimplementedContextServiceServer should be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedContextServiceServer struct{}
+
+func (UnimplementedContextServiceServer) GetOverview(context.Context, *RepoIdRequest) (*ContextOverview, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetOverview not implemented")
+}
+func (UnimplementedContextServiceServer) SearchContext(context.Context, *SearchContextRequest) (*SearchContextResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SearchContext not implemented")
+}
+func (UnimplementedContextServiceServer) ListNodes(context.Context, *ListNodesRequest) (*ListNodesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListNodes not implemented")
+}
+func (UnimplementedContextServiceServer) GetNode(context.Context, *NodeIdRequest) (*ContextNodeDetail, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetNode not implemented")
+}
+func (UnimplementedContextServiceServer) CreateNode(context.Context, *CreateNodeRequest) (*ContextNode, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateNode not implemented")
+}
+func (UnimplementedContextServiceServer) UpdateNode(context.Context, *UpdateNodeRequest) (*ContextNode, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateNode not implemented")
+}
+func (UnimplementedContextServiceServer) DeleteNode(context.Context, *NodeIdRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteNode not implemented")
+}
+func (UnimplementedContextServiceServer) PinNode(context.Context, *PinNodeRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method PinNode not implemented")
+}
+func (UnimplementedContextServiceServer) ListEdges(context.Context, *ListEdgesRequest) (*ListEdgesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListEdges not implemented")
+}
+func (UnimplementedContextServiceServer) CreateEdge(context.Context, *CreateEdgeRequest) (*ContextEdge, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateEdge not implemented")
+}
+func (UnimplementedContextServiceServer) DeleteEdge(context.Context, *EdgeIdRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteEdge not implemented")
+}
+func (UnimplementedContextServiceServer) ListFacts(context.Context, *ListFactsRequest) (*ListFactsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListFacts not implemented")
+}
+func (UnimplementedContextServiceServer) PreviewInjection(context.Context, *PreviewInjectionRequest) (*InjectionPreview, error) {
+	return nil, status.Error(codes.Unimplemented, "method PreviewInjection not implemented")
+}
+func (UnimplementedContextServiceServer) AnalyzeRepository(context.Context, *AnalyzeRepoRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method AnalyzeRepository not implemented")
+}
+func (UnimplementedContextServiceServer) RebuildEmbeddings(context.Context, *RepoIdRequest) (*RebuildEmbeddingsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RebuildEmbeddings not implemented")
+}
+func (UnimplementedContextServiceServer) RebuildClosure(context.Context, *RepoIdRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method RebuildClosure not implemented")
+}
+func (UnimplementedContextServiceServer) RebuildCodeGraph(context.Context, *RepoIdRequest) (*RebuildCodeGraphResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RebuildCodeGraph not implemented")
+}
+func (UnimplementedContextServiceServer) GetMemorySettings(context.Context, *RepoIdRequest) (*MemorySettings, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetMemorySettings not implemented")
+}
+func (UnimplementedContextServiceServer) UpdateMemorySettings(context.Context, *UpdateMemorySettingsRequest) (*MemorySettings, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateMemorySettings not implemented")
+}
+func (UnimplementedContextServiceServer) WatchContextChanges(*WatchContextRequest, grpc.ServerStreamingServer[ContextChangeEvent]) error {
+	return status.Error(codes.Unimplemented, "method WatchContextChanges not implemented")
+}
+func (UnimplementedContextServiceServer) testEmbeddedByValue() {}
+
+// UnsafeContextServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ContextServiceServer will
+// result in compilation errors.
+type UnsafeContextServiceServer interface {
+	mustEmbedUnimplementedContextServiceServer()
+}
+
+func RegisterContextServiceServer(s grpc.ServiceRegistrar, srv ContextServiceServer) {
+	// If the following call panics, it indicates UnimplementedContextServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&ContextService_ServiceDesc, srv)
+}
+
+func _ContextService_GetOverview_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RepoIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContextServiceServer).GetOverview(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContextService_GetOverview_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContextServiceServer).GetOverview(ctx, req.(*RepoIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContextService_SearchContext_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchContextRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContextServiceServer).SearchContext(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContextService_SearchContext_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContextServiceServer).SearchContext(ctx, req.(*SearchContextRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContextService_ListNodes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListNodesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContextServiceServer).ListNodes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContextService_ListNodes_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContextServiceServer).ListNodes(ctx, req.(*ListNodesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContextService_GetNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(NodeIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContextServiceServer).GetNode(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContextService_GetNode_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContextServiceServer).GetNode(ctx, req.(*NodeIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContextService_CreateNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateNodeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContextServiceServer).CreateNode(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContextService_CreateNode_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContextServiceServer).CreateNode(ctx, req.(*CreateNodeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContextService_UpdateNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateNodeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContextServiceServer).UpdateNode(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContextService_UpdateNode_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContextServiceServer).UpdateNode(ctx, req.(*UpdateNodeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContextService_DeleteNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(NodeIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContextServiceServer).DeleteNode(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContextService_DeleteNode_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContextServiceServer).DeleteNode(ctx, req.(*NodeIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContextService_PinNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PinNodeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContextServiceServer).PinNode(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContextService_PinNode_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContextServiceServer).PinNode(ctx, req.(*PinNodeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContextService_ListEdges_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListEdgesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContextServiceServer).ListEdges(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContextService_ListEdges_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContextServiceServer).ListEdges(ctx, req.(*ListEdgesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContextService_CreateEdge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateEdgeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContextServiceServer).CreateEdge(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContextService_CreateEdge_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContextServiceServer).CreateEdge(ctx, req.(*CreateEdgeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContextService_DeleteEdge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EdgeIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContextServiceServer).DeleteEdge(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContextService_DeleteEdge_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContextServiceServer).DeleteEdge(ctx, req.(*EdgeIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContextService_ListFacts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListFactsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContextServiceServer).ListFacts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContextService_ListFacts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContextServiceServer).ListFacts(ctx, req.(*ListFactsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContextService_PreviewInjection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PreviewInjectionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContextServiceServer).PreviewInjection(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContextService_PreviewInjection_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContextServiceServer).PreviewInjection(ctx, req.(*PreviewInjectionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContextService_AnalyzeRepository_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AnalyzeRepoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContextServiceServer).AnalyzeRepository(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContextService_AnalyzeRepository_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContextServiceServer).AnalyzeRepository(ctx, req.(*AnalyzeRepoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContextService_RebuildEmbeddings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RepoIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContextServiceServer).RebuildEmbeddings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContextService_RebuildEmbeddings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContextServiceServer).RebuildEmbeddings(ctx, req.(*RepoIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContextService_RebuildClosure_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RepoIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContextServiceServer).RebuildClosure(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContextService_RebuildClosure_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContextServiceServer).RebuildClosure(ctx, req.(*RepoIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContextService_RebuildCodeGraph_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RepoIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContextServiceServer).RebuildCodeGraph(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContextService_RebuildCodeGraph_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContextServiceServer).RebuildCodeGraph(ctx, req.(*RepoIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContextService_GetMemorySettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RepoIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContextServiceServer).GetMemorySettings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContextService_GetMemorySettings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContextServiceServer).GetMemorySettings(ctx, req.(*RepoIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContextService_UpdateMemorySettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateMemorySettingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContextServiceServer).UpdateMemorySettings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContextService_UpdateMemorySettings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContextServiceServer).UpdateMemorySettings(ctx, req.(*UpdateMemorySettingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContextService_WatchContextChanges_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WatchContextRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(ContextServiceServer).WatchContextChanges(m, &grpc.GenericServerStream[WatchContextRequest, ContextChangeEvent]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ContextService_WatchContextChangesServer = grpc.ServerStreamingServer[ContextChangeEvent]
+
+// ContextService_ServiceDesc is the grpc.ServiceDesc for ContextService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var ContextService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "fleetkanban.v1.ContextService",
+	HandlerType: (*ContextServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetOverview",
+			Handler:    _ContextService_GetOverview_Handler,
+		},
+		{
+			MethodName: "SearchContext",
+			Handler:    _ContextService_SearchContext_Handler,
+		},
+		{
+			MethodName: "ListNodes",
+			Handler:    _ContextService_ListNodes_Handler,
+		},
+		{
+			MethodName: "GetNode",
+			Handler:    _ContextService_GetNode_Handler,
+		},
+		{
+			MethodName: "CreateNode",
+			Handler:    _ContextService_CreateNode_Handler,
+		},
+		{
+			MethodName: "UpdateNode",
+			Handler:    _ContextService_UpdateNode_Handler,
+		},
+		{
+			MethodName: "DeleteNode",
+			Handler:    _ContextService_DeleteNode_Handler,
+		},
+		{
+			MethodName: "PinNode",
+			Handler:    _ContextService_PinNode_Handler,
+		},
+		{
+			MethodName: "ListEdges",
+			Handler:    _ContextService_ListEdges_Handler,
+		},
+		{
+			MethodName: "CreateEdge",
+			Handler:    _ContextService_CreateEdge_Handler,
+		},
+		{
+			MethodName: "DeleteEdge",
+			Handler:    _ContextService_DeleteEdge_Handler,
+		},
+		{
+			MethodName: "ListFacts",
+			Handler:    _ContextService_ListFacts_Handler,
+		},
+		{
+			MethodName: "PreviewInjection",
+			Handler:    _ContextService_PreviewInjection_Handler,
+		},
+		{
+			MethodName: "AnalyzeRepository",
+			Handler:    _ContextService_AnalyzeRepository_Handler,
+		},
+		{
+			MethodName: "RebuildEmbeddings",
+			Handler:    _ContextService_RebuildEmbeddings_Handler,
+		},
+		{
+			MethodName: "RebuildClosure",
+			Handler:    _ContextService_RebuildClosure_Handler,
+		},
+		{
+			MethodName: "RebuildCodeGraph",
+			Handler:    _ContextService_RebuildCodeGraph_Handler,
+		},
+		{
+			MethodName: "GetMemorySettings",
+			Handler:    _ContextService_GetMemorySettings_Handler,
+		},
+		{
+			MethodName: "UpdateMemorySettings",
+			Handler:    _ContextService_UpdateMemorySettings_Handler,
+		},
+	},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "WatchContextChanges",
+			Handler:       _ContextService_WatchContextChanges_Handler,
+			ServerStreams: true,
+		},
+	},
+	Metadata: "fleetkanban/v1/fleetkanban.proto",
+}
+
+const (
+	ScratchpadService_ListPending_FullMethodName    = "/fleetkanban.v1.ScratchpadService/ListPending"
+	ScratchpadService_GetEntry_FullMethodName       = "/fleetkanban.v1.ScratchpadService/GetEntry"
+	ScratchpadService_PromoteEntry_FullMethodName   = "/fleetkanban.v1.ScratchpadService/PromoteEntry"
+	ScratchpadService_RejectEntry_FullMethodName    = "/fleetkanban.v1.ScratchpadService/RejectEntry"
+	ScratchpadService_EditAndPromote_FullMethodName = "/fleetkanban.v1.ScratchpadService/EditAndPromote"
+	ScratchpadService_SnoozeEntry_FullMethodName    = "/fleetkanban.v1.ScratchpadService/SnoozeEntry"
+	ScratchpadService_WatchPending_FullMethodName   = "/fleetkanban.v1.ScratchpadService/WatchPending"
+)
+
+// ScratchpadServiceClient is the client API for ScratchpadService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// ScratchpadService manages pending memory entries waiting for a trust
+// gate decision. The observer and analyzer push candidates here; the
+// user promotes, rejects, edits, or snoozes them from the Context
+// scratchpad tab. Auto-promotion can be enabled per-repo for
+// high-confidence entries via MemorySettings.
+type ScratchpadServiceClient interface {
+	ListPending(ctx context.Context, in *ListPendingRequest, opts ...grpc.CallOption) (*ListPendingResponse, error)
+	GetEntry(ctx context.Context, in *EntryIdRequest, opts ...grpc.CallOption) (*ScratchpadEntry, error)
+	PromoteEntry(ctx context.Context, in *EntryIdRequest, opts ...grpc.CallOption) (*ContextNode, error)
+	RejectEntry(ctx context.Context, in *RejectEntryRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	EditAndPromote(ctx context.Context, in *EditAndPromoteRequest, opts ...grpc.CallOption) (*ContextNode, error)
+	SnoozeEntry(ctx context.Context, in *SnoozeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	WatchPending(ctx context.Context, in *RepoIdRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ScratchpadChangeEvent], error)
+}
+
+type scratchpadServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewScratchpadServiceClient(cc grpc.ClientConnInterface) ScratchpadServiceClient {
+	return &scratchpadServiceClient{cc}
+}
+
+func (c *scratchpadServiceClient) ListPending(ctx context.Context, in *ListPendingRequest, opts ...grpc.CallOption) (*ListPendingResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListPendingResponse)
+	err := c.cc.Invoke(ctx, ScratchpadService_ListPending_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scratchpadServiceClient) GetEntry(ctx context.Context, in *EntryIdRequest, opts ...grpc.CallOption) (*ScratchpadEntry, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ScratchpadEntry)
+	err := c.cc.Invoke(ctx, ScratchpadService_GetEntry_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scratchpadServiceClient) PromoteEntry(ctx context.Context, in *EntryIdRequest, opts ...grpc.CallOption) (*ContextNode, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ContextNode)
+	err := c.cc.Invoke(ctx, ScratchpadService_PromoteEntry_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scratchpadServiceClient) RejectEntry(ctx context.Context, in *RejectEntryRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, ScratchpadService_RejectEntry_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scratchpadServiceClient) EditAndPromote(ctx context.Context, in *EditAndPromoteRequest, opts ...grpc.CallOption) (*ContextNode, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ContextNode)
+	err := c.cc.Invoke(ctx, ScratchpadService_EditAndPromote_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scratchpadServiceClient) SnoozeEntry(ctx context.Context, in *SnoozeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, ScratchpadService_SnoozeEntry_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scratchpadServiceClient) WatchPending(ctx context.Context, in *RepoIdRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ScratchpadChangeEvent], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &ScratchpadService_ServiceDesc.Streams[0], ScratchpadService_WatchPending_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[RepoIdRequest, ScratchpadChangeEvent]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ScratchpadService_WatchPendingClient = grpc.ServerStreamingClient[ScratchpadChangeEvent]
+
+// ScratchpadServiceServer is the server API for ScratchpadService service.
+// All implementations should embed UnimplementedScratchpadServiceServer
+// for forward compatibility.
+//
+// ScratchpadService manages pending memory entries waiting for a trust
+// gate decision. The observer and analyzer push candidates here; the
+// user promotes, rejects, edits, or snoozes them from the Context
+// scratchpad tab. Auto-promotion can be enabled per-repo for
+// high-confidence entries via MemorySettings.
+type ScratchpadServiceServer interface {
+	ListPending(context.Context, *ListPendingRequest) (*ListPendingResponse, error)
+	GetEntry(context.Context, *EntryIdRequest) (*ScratchpadEntry, error)
+	PromoteEntry(context.Context, *EntryIdRequest) (*ContextNode, error)
+	RejectEntry(context.Context, *RejectEntryRequest) (*emptypb.Empty, error)
+	EditAndPromote(context.Context, *EditAndPromoteRequest) (*ContextNode, error)
+	SnoozeEntry(context.Context, *SnoozeRequest) (*emptypb.Empty, error)
+	WatchPending(*RepoIdRequest, grpc.ServerStreamingServer[ScratchpadChangeEvent]) error
+}
+
+// UnimplementedScratchpadServiceServer should be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedScratchpadServiceServer struct{}
+
+func (UnimplementedScratchpadServiceServer) ListPending(context.Context, *ListPendingRequest) (*ListPendingResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListPending not implemented")
+}
+func (UnimplementedScratchpadServiceServer) GetEntry(context.Context, *EntryIdRequest) (*ScratchpadEntry, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetEntry not implemented")
+}
+func (UnimplementedScratchpadServiceServer) PromoteEntry(context.Context, *EntryIdRequest) (*ContextNode, error) {
+	return nil, status.Error(codes.Unimplemented, "method PromoteEntry not implemented")
+}
+func (UnimplementedScratchpadServiceServer) RejectEntry(context.Context, *RejectEntryRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method RejectEntry not implemented")
+}
+func (UnimplementedScratchpadServiceServer) EditAndPromote(context.Context, *EditAndPromoteRequest) (*ContextNode, error) {
+	return nil, status.Error(codes.Unimplemented, "method EditAndPromote not implemented")
+}
+func (UnimplementedScratchpadServiceServer) SnoozeEntry(context.Context, *SnoozeRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method SnoozeEntry not implemented")
+}
+func (UnimplementedScratchpadServiceServer) WatchPending(*RepoIdRequest, grpc.ServerStreamingServer[ScratchpadChangeEvent]) error {
+	return status.Error(codes.Unimplemented, "method WatchPending not implemented")
+}
+func (UnimplementedScratchpadServiceServer) testEmbeddedByValue() {}
+
+// UnsafeScratchpadServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ScratchpadServiceServer will
+// result in compilation errors.
+type UnsafeScratchpadServiceServer interface {
+	mustEmbedUnimplementedScratchpadServiceServer()
+}
+
+func RegisterScratchpadServiceServer(s grpc.ServiceRegistrar, srv ScratchpadServiceServer) {
+	// If the following call panics, it indicates UnimplementedScratchpadServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&ScratchpadService_ServiceDesc, srv)
+}
+
+func _ScratchpadService_ListPending_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListPendingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScratchpadServiceServer).ListPending(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScratchpadService_ListPending_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScratchpadServiceServer).ListPending(ctx, req.(*ListPendingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScratchpadService_GetEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EntryIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScratchpadServiceServer).GetEntry(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScratchpadService_GetEntry_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScratchpadServiceServer).GetEntry(ctx, req.(*EntryIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScratchpadService_PromoteEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EntryIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScratchpadServiceServer).PromoteEntry(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScratchpadService_PromoteEntry_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScratchpadServiceServer).PromoteEntry(ctx, req.(*EntryIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScratchpadService_RejectEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RejectEntryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScratchpadServiceServer).RejectEntry(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScratchpadService_RejectEntry_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScratchpadServiceServer).RejectEntry(ctx, req.(*RejectEntryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScratchpadService_EditAndPromote_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EditAndPromoteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScratchpadServiceServer).EditAndPromote(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScratchpadService_EditAndPromote_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScratchpadServiceServer).EditAndPromote(ctx, req.(*EditAndPromoteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScratchpadService_SnoozeEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SnoozeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScratchpadServiceServer).SnoozeEntry(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScratchpadService_SnoozeEntry_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScratchpadServiceServer).SnoozeEntry(ctx, req.(*SnoozeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScratchpadService_WatchPending_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(RepoIdRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(ScratchpadServiceServer).WatchPending(m, &grpc.GenericServerStream[RepoIdRequest, ScratchpadChangeEvent]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ScratchpadService_WatchPendingServer = grpc.ServerStreamingServer[ScratchpadChangeEvent]
+
+// ScratchpadService_ServiceDesc is the grpc.ServiceDesc for ScratchpadService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var ScratchpadService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "fleetkanban.v1.ScratchpadService",
+	HandlerType: (*ScratchpadServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListPending",
+			Handler:    _ScratchpadService_ListPending_Handler,
+		},
+		{
+			MethodName: "GetEntry",
+			Handler:    _ScratchpadService_GetEntry_Handler,
+		},
+		{
+			MethodName: "PromoteEntry",
+			Handler:    _ScratchpadService_PromoteEntry_Handler,
+		},
+		{
+			MethodName: "RejectEntry",
+			Handler:    _ScratchpadService_RejectEntry_Handler,
+		},
+		{
+			MethodName: "EditAndPromote",
+			Handler:    _ScratchpadService_EditAndPromote_Handler,
+		},
+		{
+			MethodName: "SnoozeEntry",
+			Handler:    _ScratchpadService_SnoozeEntry_Handler,
+		},
+	},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "WatchPending",
+			Handler:       _ScratchpadService_WatchPending_Handler,
+			ServerStreams: true,
+		},
+	},
+	Metadata: "fleetkanban/v1/fleetkanban.proto",
+}
+
+const (
+	OllamaService_GetOllamaStatus_FullMethodName      = "/fleetkanban.v1.OllamaService/GetOllamaStatus"
+	OllamaService_ListInstalledModels_FullMethodName  = "/fleetkanban.v1.OllamaService/ListInstalledModels"
+	OllamaService_GetRecommendedModels_FullMethodName = "/fleetkanban.v1.OllamaService/GetRecommendedModels"
+	OllamaService_PullOllamaModel_FullMethodName      = "/fleetkanban.v1.OllamaService/PullOllamaModel"
+)
+
+// OllamaServiceClient is the client API for OllamaService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// OllamaService wraps the local Ollama HTTP API (default
+// http://localhost:11434) so the UI can detect installation, list and
+// pull embedding / LLM models, and stream pull progress. Used by the
+// Settings onboarding flow when the user selects Ollama as the
+// embedding or LLM provider.
+type OllamaServiceClient interface {
+	GetOllamaStatus(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*OllamaStatus, error)
+	// ListInstalledModels rather than ListModels — ModelService.ListModels
+	// already claims the Go method name ListModels on the sidecar Server
+	// struct, so the names must be unique for method resolution.
+	ListInstalledModels(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*OllamaListModelsResponse, error)
+	GetRecommendedModels(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*OllamaListRecommendedResponse, error)
+	PullOllamaModel(ctx context.Context, in *PullModelRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[OllamaPullProgressEvent], error)
+}
+
+type ollamaServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewOllamaServiceClient(cc grpc.ClientConnInterface) OllamaServiceClient {
+	return &ollamaServiceClient{cc}
+}
+
+func (c *ollamaServiceClient) GetOllamaStatus(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*OllamaStatus, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OllamaStatus)
+	err := c.cc.Invoke(ctx, OllamaService_GetOllamaStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ollamaServiceClient) ListInstalledModels(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*OllamaListModelsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OllamaListModelsResponse)
+	err := c.cc.Invoke(ctx, OllamaService_ListInstalledModels_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ollamaServiceClient) GetRecommendedModels(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*OllamaListRecommendedResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OllamaListRecommendedResponse)
+	err := c.cc.Invoke(ctx, OllamaService_GetRecommendedModels_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ollamaServiceClient) PullOllamaModel(ctx context.Context, in *PullModelRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[OllamaPullProgressEvent], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &OllamaService_ServiceDesc.Streams[0], OllamaService_PullOllamaModel_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[PullModelRequest, OllamaPullProgressEvent]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type OllamaService_PullOllamaModelClient = grpc.ServerStreamingClient[OllamaPullProgressEvent]
+
+// OllamaServiceServer is the server API for OllamaService service.
+// All implementations should embed UnimplementedOllamaServiceServer
+// for forward compatibility.
+//
+// OllamaService wraps the local Ollama HTTP API (default
+// http://localhost:11434) so the UI can detect installation, list and
+// pull embedding / LLM models, and stream pull progress. Used by the
+// Settings onboarding flow when the user selects Ollama as the
+// embedding or LLM provider.
+type OllamaServiceServer interface {
+	GetOllamaStatus(context.Context, *emptypb.Empty) (*OllamaStatus, error)
+	// ListInstalledModels rather than ListModels — ModelService.ListModels
+	// already claims the Go method name ListModels on the sidecar Server
+	// struct, so the names must be unique for method resolution.
+	ListInstalledModels(context.Context, *emptypb.Empty) (*OllamaListModelsResponse, error)
+	GetRecommendedModels(context.Context, *emptypb.Empty) (*OllamaListRecommendedResponse, error)
+	PullOllamaModel(*PullModelRequest, grpc.ServerStreamingServer[OllamaPullProgressEvent]) error
+}
+
+// UnimplementedOllamaServiceServer should be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedOllamaServiceServer struct{}
+
+func (UnimplementedOllamaServiceServer) GetOllamaStatus(context.Context, *emptypb.Empty) (*OllamaStatus, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetOllamaStatus not implemented")
+}
+func (UnimplementedOllamaServiceServer) ListInstalledModels(context.Context, *emptypb.Empty) (*OllamaListModelsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListInstalledModels not implemented")
+}
+func (UnimplementedOllamaServiceServer) GetRecommendedModels(context.Context, *emptypb.Empty) (*OllamaListRecommendedResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetRecommendedModels not implemented")
+}
+func (UnimplementedOllamaServiceServer) PullOllamaModel(*PullModelRequest, grpc.ServerStreamingServer[OllamaPullProgressEvent]) error {
+	return status.Error(codes.Unimplemented, "method PullOllamaModel not implemented")
+}
+func (UnimplementedOllamaServiceServer) testEmbeddedByValue() {}
+
+// UnsafeOllamaServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to OllamaServiceServer will
+// result in compilation errors.
+type UnsafeOllamaServiceServer interface {
+	mustEmbedUnimplementedOllamaServiceServer()
+}
+
+func RegisterOllamaServiceServer(s grpc.ServiceRegistrar, srv OllamaServiceServer) {
+	// If the following call panics, it indicates UnimplementedOllamaServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&OllamaService_ServiceDesc, srv)
+}
+
+func _OllamaService_GetOllamaStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OllamaServiceServer).GetOllamaStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OllamaService_GetOllamaStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OllamaServiceServer).GetOllamaStatus(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _OllamaService_ListInstalledModels_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OllamaServiceServer).ListInstalledModels(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OllamaService_ListInstalledModels_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OllamaServiceServer).ListInstalledModels(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _OllamaService_GetRecommendedModels_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OllamaServiceServer).GetRecommendedModels(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OllamaService_GetRecommendedModels_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OllamaServiceServer).GetRecommendedModels(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _OllamaService_PullOllamaModel_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(PullModelRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(OllamaServiceServer).PullOllamaModel(m, &grpc.GenericServerStream[PullModelRequest, OllamaPullProgressEvent]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type OllamaService_PullOllamaModelServer = grpc.ServerStreamingServer[OllamaPullProgressEvent]
+
+// OllamaService_ServiceDesc is the grpc.ServiceDesc for OllamaService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var OllamaService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "fleetkanban.v1.OllamaService",
+	HandlerType: (*OllamaServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetOllamaStatus",
+			Handler:    _OllamaService_GetOllamaStatus_Handler,
+		},
+		{
+			MethodName: "ListInstalledModels",
+			Handler:    _OllamaService_ListInstalledModels_Handler,
+		},
+		{
+			MethodName: "GetRecommendedModels",
+			Handler:    _OllamaService_GetRecommendedModels_Handler,
+		},
+	},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "PullOllamaModel",
+			Handler:       _OllamaService_PullOllamaModel_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "fleetkanban/v1/fleetkanban.proto",
 }
