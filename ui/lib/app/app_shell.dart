@@ -12,7 +12,6 @@ import '../features/auth/auth_banner.dart';
 import '../infra/ipc/providers.dart';
 import 'version.dart';
 import '../features/auth/auth_gate.dart';
-import '../features/context/context_page.dart';
 import '../features/insights/insights_page.dart';
 import '../features/kanban/kanban_page.dart';
 import '../features/placeholder/coming_soon_page.dart';
@@ -150,7 +149,14 @@ class _AppScaffold extends ConsumerWidget {
           PaneItem(
             icon: const Icon(FluentIcons.library),
             title: const Text('Context'),
-            body: const ContextPage(),
+            body: const ComingSoonPage(
+              title: 'Context',
+              phase: 'Phase 2',
+              description:
+                  'Closure tables + sqlite-vec + FTS5 memory browser. The page '
+                  'skeleton is in progress on a separate branch; it will ship '
+                  'once the Context service is wired end-to-end.',
+            ),
           ),
           PaneItem(
             icon: const Icon(FluentIcons.plug_connected),
