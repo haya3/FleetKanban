@@ -1,0 +1,56 @@
+version: "2"
+
+run:
+  timeout: 5m
+  go: "1.25"
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - unconvert
+    - unparam
+    - revive
+    - gocritic
+  settings:
+    errcheck:
+      # Standard defer-close idioms that intentionally discard the error.
+      # Adding OS-level handle closers as well — failure there means the
+      # process is already in a bad state.
+      exclude-functions:
+        - (io.Closer).Close
+        - (*database/sql.Rows).Close
+        - (*database/sql.Stmt).Close
+        - (*net/http.Response).Body.Close
+        - golang.org/x/sys/windows.CloseHandle
+        - golang.org/x/sys/windows.ReleaseMutex
+        - (*golang.org/x/sys/windows.LazyProc).Call
+    revive:
+      rules:
+        - name: var-naming
+        - name: exported
+          disabled: true
+    gocritic:
+      disabled-checks:
+        - ifElseChain
+        - hugeParam
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - unparam
+          - gocritic
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

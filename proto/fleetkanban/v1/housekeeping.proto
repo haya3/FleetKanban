@@ -1,0 +1,87 @@
+// FleetKanban Housekeeping service.
+//
+// Exposes background-maintenance surface to the UI: Merged-sweep opt-in
+// setting, stale-branch audit, and an on-demand trigger for users who want
+// to run a pass immediately without waiting for the 24h ticker.
+//
+// See phase1-spec.md §3.1 "Branch retention policy / GC" for the policy
+// this service enforces.
+syntax = "proto3";
+
+package fleetkanban.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/FleetKanban/fleetkanban/internal/ipc/gen/fleetkanban/v1;fleetkanbanv1";
+
+service HousekeepingService {
+  // GetAutoSweepDays returns the current Merged-sweep threshold in days
+  // (0 = disabled). Always succeeds — an unset setting reports 0.
+  rpc GetAutoSweepDays (google.protobuf.Empty)        returns (GetAutoSweepDaysResponse);
+
+  // SetAutoSweepDays updates the Merged-sweep threshold. Pass 0 to disable.
+  // Values are clamped to [0, 365].
+  rpc SetAutoSweepDays (SetAutoSweepDaysRequest)      returns (SetAutoSweepDaysResponse);
+
+  // ListStaleBranches returns tasks whose fleetkanban/<id> branch is still
+  // present and whose FinishedAt is older than `older_than_days`. Used by
+  // the Housekeeping UI so the user can review / cleanup manually. When
+  // `older_than_days` is 0 the server uses a 30-day default.
+  rpc ListStaleBranches (ListStaleBranchesRequest)    returns (ListStaleBranchesResponse);
+
+  // RunSweepNow triggers one Merged-sweep pass using `days` as the age
+  // threshold (or the current setting when `days` is 0). Returns the same
+  // stats the background ticker logs.
+  rpc RunSweepNow     (RunSweepNowRequest)            returns (RunSweepNowResponse);
+}
+
+message GetAutoSweepDaysResponse {
+  int32 days    = 1;  // 0 == disabled
+  bool  present = 2;  // false when the setting has never been written
+}
+
+message SetAutoSweepDaysRequest {
+  int32 days = 1;
+}
+
+message SetAutoSweepDaysResponse {
+  int32 effective_days = 1;  // post-clamp value actually stored
+}
+
+message ListStaleBranchesRequest {
+  int32 older_than_days = 1;  // 0 → server default (30)
+}
+
+// StaleBranch is one row in the Stale-branch audit. It mirrors the minimal
+// task fields the UI needs; callers can fetch full Task records via
+// TaskService.GetTask when the user drills in.
+message StaleBranch {
+  string                     task_id     = 1;
+  string                     repo_id     = 2;
+  string                     repo_path   = 3;  // for display / "open in Explorer"
+  string                     branch      = 4;
+  string                     base_branch = 5;
+  string                     goal        = 6;
+  string                     status      = 7;  // done / aborted
+  google.protobuf.Timestamp  finished_at = 8;
+  int32                      age_days    = 9;  // computed server-side
+  bool                       merged      = 10; // true iff merge-base --is-ancestor passes
+}
+
+message ListStaleBranchesResponse {
+  repeated StaleBranch branches = 1;
+}
+
+message RunSweepNowRequest {
+  // days overrides the configured threshold for this invocation only; pass
+  // 0 to use the currently configured setting. If the setting is also 0
+  // (disabled) the server returns FAILED_PRECONDITION.
+  int32 days = 1;
+}
+
+message RunSweepNowResponse {
+  int32 considered = 1;
+  int32 deleted    = 2;
+  int32 skipped    = 3;
+}

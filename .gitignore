@@ -1,0 +1,67 @@
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+$RECYCLE.BIN/
+System Volume Information/
+*.lnk
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*.sublime-workspace
+*.sublime-project
+*~
+*.bak
+
+# Merge / patch residue
+*.orig
+*.rej
+
+# Claude Code local state (may contain machine-specific paths or tokens)
+.claude/
+
+# Build artifacts (top-level sidecar binary output)
+/build/
+
+# Logs
+*.log
+
+# Local env (keep .env.example as a committed template)
+.env
+.env.*
+!.env.example
+*.local
+/tmp/
+*.tmp
+
+# Secrets / credentials
+secrets/
+*.secret
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.jks
+
+# Local DB files
+*.db
+*.db-wal
+*.db-shm
+
+# Profiling / tracing
+*.prof
+*.pprof
+*.trace
+
+# Coverage
+coverage/
+coverage.*
+
+# go-task cache
+.task/

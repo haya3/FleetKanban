@@ -1,0 +1,13 @@
+version: v2
+managed:
+  enabled: true
+plugins:
+  - local: protoc-gen-go
+    out: ../sidecar/internal/ipc/gen
+    opt:
+      - paths=source_relative
+  - local: protoc-gen-go-grpc
+    out: ../sidecar/internal/ipc/gen
+    opt:
+      - paths=source_relative
+      - require_unimplemented_servers=false
