@@ -4,11 +4,13 @@
 // layer (no win32 imports).
 
 import 'dart:async';
+import 'dart:ffi';
 
-import 'package:bitsdojo_window/bitsdojo_window.dart';
+import 'package:ffi/ffi.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:win32/win32.dart';
 
 import '../ipc/generated/fleetkanban/v1/fleetkanban.pb.dart' as pb;
 import '../ipc/providers.dart';
@@ -57,14 +59,24 @@ class _TaskbarOverlayHostState extends ConsumerState<TaskbarOverlayHost> {
   @override
   void initState() {
     super.initState();
-    // Defer init to the next frame: appWindow.handle is set after
-    // doWhenWindowReady fires, which is slightly after the initial build.
+    // Defer init to the next frame: the Flutter Windows runner window is
+    // created just before the first build, so FindWindowW can find its
+    // class name ('FLUTTER_RUNNER_WIN32_WINDOW') only from postFrame on.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final hwnd = appWindow.handle;
-      if (hwnd != null) {
+      final hwnd = _findFlutterHwnd();
+      if (hwnd != 0) {
         TaskbarOverlay.instance.init(hwnd);
       }
     });
+  }
+
+  int _findFlutterHwnd() {
+    final cls = 'FLUTTER_RUNNER_WIN32_WINDOW'.toNativeUtf16();
+    try {
+      return FindWindow(cls, nullptr);
+    } finally {
+      calloc.free(cls);
+    }
   }
 
   @override

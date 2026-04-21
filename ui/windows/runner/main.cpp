@@ -1,4 +1,3 @@
-#include <bitsdojo_window_windows/bitsdojo_window_plugin.h>
 #include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
 #include <shobjidl.h>
@@ -6,10 +5,6 @@
 
 #include "flutter_window.h"
 #include "utils.h"
-
-// Hide the native frame (we draw our own via Flutter) and start the window
-// hidden so the Dart side can position / size it before first paint.
-auto bdw_configure = bitsdojo_window_configure(BDW_CUSTOM_FRAME | BDW_HIDE_ON_STARTUP);
 
 // Must match sidecar/internal/branding.AUMID so Toast / taskbar entries coming
 // from the Go sidecar group under this process's taskbar icon.
