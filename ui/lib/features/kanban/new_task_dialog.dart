@@ -1,5 +1,7 @@
 // NewTaskDialog: modal for creating a Pending task.
 
+import 'dart:async';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -40,11 +42,56 @@ class _NewTaskDialogState extends ConsumerState<_NewTaskDialog> {
   String _selectedBranch = _autoDetectValue;
   bool _submitting = false;
   String? _error;
+  Timer? _suggestTimer;
+  pb.SuggestForNewTaskResponse? _suggestions;
+  bool _suggestLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _goalController.addListener(_onGoalChanged);
+  }
 
   @override
   void dispose() {
+    _suggestTimer?.cancel();
     _goalController.dispose();
     super.dispose();
+  }
+
+  // _onGoalChanged debounces the Goal TextBox and calls
+  // ContextService.SuggestForNewTask once typing has paused for 400ms.
+  // The sidecar returns an empty bundle when Memory is disabled, which
+  // renders as a collapsed (and visually absent) Expander — so wiring
+  // this unconditionally is safe for Memory-off repos.
+  void _onGoalChanged() {
+    _suggestTimer?.cancel();
+    final text = _goalController.text.trim();
+    if (text.length < 4) {
+      if (_suggestions != null) setState(() => _suggestions = null);
+      return;
+    }
+    _suggestTimer = Timer(const Duration(milliseconds: 400), () async {
+      if (!mounted) return;
+      setState(() => _suggestLoading = true);
+      try {
+        final client = ref.read(ipcClientProvider);
+        final r = await client.context.suggestForNewTask(
+          pb.SuggestForNewTaskRequest(
+            repoId: _repoId,
+            draftGoal: text,
+            limit: 5,
+          ),
+        );
+        if (!mounted) return;
+        setState(() {
+          _suggestions = r;
+          _suggestLoading = false;
+        });
+      } catch (_) {
+        if (mounted) setState(() => _suggestLoading = false);
+      }
+    });
   }
 
   Future<void> _submit() async {
@@ -157,6 +204,11 @@ class _NewTaskDialogState extends ConsumerState<_NewTaskDialog> {
                 ),
               ),
               const SizedBox(height: 12),
+              _SimilarSuggestions(
+                suggestions: _suggestions,
+                loading: _suggestLoading,
+              ),
+              const SizedBox(height: 12),
               _BaseBranchPicker(
                 repoId: _repoId,
                 selected: _selectedBranch,
@@ -194,6 +246,183 @@ class _NewTaskDialogState extends ConsumerState<_NewTaskDialog> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Collapsible panel that surfaces past similar tasks and applicable
+/// Decisions / Constraints from Graph Memory as the user types a goal.
+/// Hidden entirely when the suggestion bundle is empty — either Memory
+/// is disabled for this repo, the draft is too short, or the repo has
+/// no prior tasks to match against.
+class _SimilarSuggestions extends StatelessWidget {
+  const _SimilarSuggestions({required this.suggestions, required this.loading});
+
+  final pb.SuggestForNewTaskResponse? suggestions;
+  final bool loading;
+
+  bool get _hasContent {
+    final s = suggestions;
+    if (s == null) return false;
+    return s.similarTasks.isNotEmpty ||
+        s.relatedDecisions.isNotEmpty ||
+        s.relatedConstraints.isNotEmpty;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_hasContent && !loading) return const SizedBox.shrink();
+    final theme = FluentTheme.of(context);
+    final s = suggestions;
+    return Expander(
+      header: Row(
+        children: [
+          const Icon(FluentIcons.lightbulb, size: 14),
+          const SizedBox(width: 6),
+          Text(
+            loading
+                ? 'Looking for similar tasks…'
+                : 'Similar tasks & prior decisions',
+          ),
+          if (loading) ...[
+            const SizedBox(width: 8),
+            const SizedBox(
+              width: 12,
+              height: 12,
+              child: ProgressRing(strokeWidth: 2),
+            ),
+          ],
+        ],
+      ),
+      content: s == null
+          ? const SizedBox.shrink()
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (s.similarTasks.isNotEmpty)
+                  _SuggestionGroup(
+                    title: 'Similar past tasks',
+                    items: [
+                      for (final t in s.similarTasks)
+                        _SuggestionItem(
+                          label: t.label,
+                          score: t.score,
+                          preview: t.summaryMd,
+                        ),
+                    ],
+                  ),
+                if (s.relatedDecisions.isNotEmpty)
+                  _SuggestionGroup(
+                    title: 'Applicable decisions',
+                    items: [
+                      for (final d in s.relatedDecisions)
+                        _SuggestionItem(
+                          label: d.label,
+                          score: d.score,
+                          preview: d.contentMd,
+                        ),
+                    ],
+                  ),
+                if (s.relatedConstraints.isNotEmpty)
+                  _SuggestionGroup(
+                    title: 'Binding constraints',
+                    items: [
+                      for (final c in s.relatedConstraints)
+                        _SuggestionItem(
+                          label: c.label,
+                          score: c.score,
+                          preview: c.contentMd,
+                        ),
+                    ],
+                  ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    'Pulled from the repository Graph Memory. '
+                    'Edit or remove entries from Settings → Context.',
+                    style: theme.typography.caption?.copyWith(
+                      color: theme.resources.textFillColorSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+class _SuggestionGroup extends StatelessWidget {
+  const _SuggestionGroup({required this.title, required this.items});
+  final String title;
+  final List<_SuggestionItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(title, style: theme.typography.bodyStrong),
+          const SizedBox(height: 4),
+          ...items,
+        ],
+      ),
+    );
+  }
+}
+
+class _SuggestionItem extends StatelessWidget {
+  const _SuggestionItem({
+    required this.label,
+    required this.score,
+    required this.preview,
+  });
+  final String label;
+  final double score;
+  final String preview;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final snippet = preview.length > 160
+        ? '${preview.substring(0, 160)}…'
+        : preview;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: theme.accentColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              score.toStringAsFixed(2),
+              style: theme.typography.caption,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: theme.typography.body),
+                if (snippet.isNotEmpty)
+                  Text(
+                    snippet,
+                    style: theme.typography.caption?.copyWith(
+                      color: theme.resources.textFillColorSecondary,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

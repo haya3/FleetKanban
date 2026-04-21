@@ -60,7 +60,13 @@ type Config struct {
 	// Typically %APPDATA%\FleetKanban\archive. Created on first write. If
 	// empty, ArchiveOldEvents returns an error when called.
 	ArchiveDir string
-	Logger     *slog.Logger
+	// Publish is invoked after every housekeeping.branch_gc event the reaper
+	// persists, so WatchEvents subscribers see branch-state changes live
+	// instead of only via the next poll. Optional — when nil the event
+	// still lands in the DB and TaskEvents() backfill works as usual, but
+	// the Kanban UI will only refresh on the next mutation or reconnect.
+	Publish func(*task.AgentEvent)
+	Logger  *slog.Logger
 }
 
 // Service inspects registered repositories and removes orphaned worktrees or
@@ -71,6 +77,7 @@ type Service struct {
 	events     *store.EventStore
 	wt         *worktree.Manager
 	archiveDir string
+	publish    func(*task.AgentEvent)
 	logger     *slog.Logger
 }
 
@@ -96,6 +103,7 @@ func New(cfg Config) (*Service, error) {
 		events:     cfg.Events,
 		wt:         cfg.Worktrees,
 		archiveDir: cfg.ArchiveDir,
+		publish:    cfg.Publish,
 		logger:     log,
 	}, nil
 }
@@ -445,18 +453,67 @@ func (s *Service) appendSweepEvent(ctx context.Context, t *task.Task, olderThan 
 	if err != nil {
 		return fmt.Errorf("marshal sweep event: %w", err)
 	}
-	seq, err := s.events.NextSeq(ctx, t.ID)
+	return s.emitBranchGC(ctx, t.ID, body)
+}
+
+// appendBranchExistsChangeEvent records a housekeeping.branch_gc event
+// when UpdateBranchExistence flips the branch_exists flag. Payload reason
+// is "missing" when the branch disappeared externally and "restored" when
+// the user recreated it by hand — both cases need a live stream event so
+// the Kanban card's finalize pills (Merge / Delete branch / Keep) update
+// without waiting for the next mutation or poll.
+func (s *Service) appendBranchExistsChangeEvent(ctx context.Context, t *task.Task, nowExists bool) error {
+	reason := "missing"
+	if nowExists {
+		reason = "restored"
+	}
+	payload := struct {
+		Branch string `json:"branch"`
+		Base   string `json:"base"`
+		Reason string `json:"reason"`
+		Exists bool   `json:"exists"`
+	}{
+		Branch: t.Branch,
+		Base:   t.BaseBranch,
+		Reason: reason,
+		Exists: nowExists,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal branch-gc event: %w", err)
+	}
+	return s.emitBranchGC(ctx, t.ID, body)
+}
+
+// emitBranchGC persists one housekeeping.branch_gc event and fans it out
+// to live WatchEvents subscribers via s.publish. The caller is responsible
+// for constructing the payload JSON. When Config.Events is nil (tests that
+// only exercise the branch-flip path), the event is silently dropped —
+// the flag was still flipped in the DB and a subsequent WatchEvents
+// reconnect or mutation will resync the UI.
+func (s *Service) emitBranchGC(ctx context.Context, taskID string, body []byte) error {
+	if s.events == nil {
+		return nil
+	}
+	seq, err := s.events.NextSeq(ctx, taskID)
 	if err != nil {
 		return fmt.Errorf("next seq: %w", err)
 	}
-	return s.events.Append(ctx, &task.AgentEvent{
+	ev := &task.AgentEvent{
 		ID:         ulid.Make().String(),
-		TaskID:     t.ID,
+		TaskID:     taskID,
 		Seq:        seq,
 		Kind:       task.EventHousekeepingBranchGC,
 		Payload:    string(body),
 		OccurredAt: time.Now().UTC(),
-	})
+	}
+	if err := s.events.Append(ctx, ev); err != nil {
+		return err
+	}
+	if s.publish != nil {
+		s.publish(ev)
+	}
+	return nil
 }
 
 // UpdateBranchExistence checks every task whose Branch field is non-empty and
@@ -524,6 +581,14 @@ func (s *Service) UpdateBranchExistence(ctx context.Context) error {
 			if firstErr == nil {
 				firstErr = setErr
 			}
+			continue
+		}
+		if emitErr := s.appendBranchExistsChangeEvent(ctx, t, exists); emitErr != nil {
+			// Flag-flip already succeeded; log the audit failure but keep
+			// going. The next invalidate on the UI (mutation, reconnect,
+			// or next pass) will resync branchExists from the fresh list.
+			s.logger.Warn("reaper: emit branch_gc event failed",
+				"taskID", t.ID, "err", emitErr)
 		}
 	}
 	return firstErr

@@ -438,6 +438,20 @@ class SubtaskServiceClient extends $grpc.Client {
     return $createUnaryCall(_$reorderSubtasks, request, options: options);
   }
 
+  /// GetSubtaskContext returns the full prompt + injected context the
+  /// Copilot agent saw for a given subtask execution — system prompt,
+  /// user prompt, plan summary, prior-subtask summaries, memory block,
+  /// and the harness SKILL.md that was active at run time. Round 0
+  /// means "latest round recorded". Returns a CopilotSubtaskContext
+  /// with not_recorded=true when the subtask predates the v18 schema
+  /// or has not been executed yet — the UI shows a fallback notice.
+  $grpc.ResponseFuture<$0.CopilotSubtaskContext> getSubtaskContext(
+    $0.GetSubtaskContextRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$getSubtaskContext, request, options: options);
+  }
+
   // method descriptors
 
   static final _$listSubtasks =
@@ -464,6 +478,11 @@ class SubtaskServiceClient extends $grpc.Client {
           '/fleetkanban.v1.SubtaskService/ReorderSubtasks',
           ($0.ReorderSubtasksRequest value) => value.writeToBuffer(),
           $1.Empty.fromBuffer);
+  static final _$getSubtaskContext =
+      $grpc.ClientMethod<$0.GetSubtaskContextRequest, $0.CopilotSubtaskContext>(
+          '/fleetkanban.v1.SubtaskService/GetSubtaskContext',
+          ($0.GetSubtaskContextRequest value) => value.writeToBuffer(),
+          $0.CopilotSubtaskContext.fromBuffer);
 }
 
 @$pb.GrpcServiceName('fleetkanban.v1.SubtaskService')
@@ -511,6 +530,15 @@ abstract class SubtaskServiceBase extends $grpc.Service {
         ($core.List<$core.int> value) =>
             $0.ReorderSubtasksRequest.fromBuffer(value),
         ($1.Empty value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.GetSubtaskContextRequest,
+            $0.CopilotSubtaskContext>(
+        'GetSubtaskContext',
+        getSubtaskContext_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) =>
+            $0.GetSubtaskContextRequest.fromBuffer(value),
+        ($0.CopilotSubtaskContext value) => value.writeToBuffer()));
   }
 
   $async.Future<$0.ListSubtasksResponse> listSubtasks_Pre(
@@ -553,6 +581,15 @@ abstract class SubtaskServiceBase extends $grpc.Service {
 
   $async.Future<$1.Empty> reorderSubtasks(
       $grpc.ServiceCall call, $0.ReorderSubtasksRequest request);
+
+  $async.Future<$0.CopilotSubtaskContext> getSubtaskContext_Pre(
+      $grpc.ServiceCall $call,
+      $async.Future<$0.GetSubtaskContextRequest> $request) async {
+    return getSubtaskContext($call, await $request);
+  }
+
+  $async.Future<$0.CopilotSubtaskContext> getSubtaskContext(
+      $grpc.ServiceCall call, $0.GetSubtaskContextRequest request);
 }
 
 @$pb.GrpcServiceName('fleetkanban.v1.RepositoryService')
@@ -1036,6 +1073,20 @@ class AuthServiceClient extends $grpc.Client {
     return $createUnaryCall(_$getGitHubAccountInfo, request, options: options);
   }
 
+  /// GetCopilotQuota returns the Copilot billing quota snapshots for the
+  /// currently authenticated user (premium interactions / chat / completions
+  /// etc.), sourced from the SDK's account.getQuota RPC. Unlike
+  /// GetGitHubAccountInfo this works with device-flow login alone — no PAT
+  /// required — so the UI can surface remaining premium requests out of the
+  /// box. Returns UNAVAILABLE when the embedded Copilot CLI is not running,
+  /// or UNIMPLEMENTED if the bundled CLI predates the quota RPC.
+  $grpc.ResponseFuture<$0.CopilotQuotaInfo> getCopilotQuota(
+    $1.Empty request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$getCopilotQuota, request, options: options);
+  }
+
   // method descriptors
 
   static final _$checkCopilotAuth = $grpc.ClientMethod<$1.Empty, $0.AuthStatus>(
@@ -1099,6 +1150,11 @@ class AuthServiceClient extends $grpc.Client {
           '/fleetkanban.v1.AuthService/GetGitHubAccountInfo',
           ($1.Empty value) => value.writeToBuffer(),
           $0.GitHubAccountInfo.fromBuffer);
+  static final _$getCopilotQuota =
+      $grpc.ClientMethod<$1.Empty, $0.CopilotQuotaInfo>(
+          '/fleetkanban.v1.AuthService/GetCopilotQuota',
+          ($1.Empty value) => value.writeToBuffer(),
+          $0.CopilotQuotaInfo.fromBuffer);
 }
 
 @$pb.GrpcServiceName('fleetkanban.v1.AuthService')
@@ -1201,6 +1257,13 @@ abstract class AuthServiceBase extends $grpc.Service {
         false,
         ($core.List<$core.int> value) => $1.Empty.fromBuffer(value),
         ($0.GitHubAccountInfo value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$1.Empty, $0.CopilotQuotaInfo>(
+        'GetCopilotQuota',
+        getCopilotQuota_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $1.Empty.fromBuffer(value),
+        ($0.CopilotQuotaInfo value) => value.writeToBuffer()));
   }
 
   $async.Future<$0.AuthStatus> checkCopilotAuth_Pre(
@@ -1306,6 +1369,14 @@ abstract class AuthServiceBase extends $grpc.Service {
 
   $async.Future<$0.GitHubAccountInfo> getGitHubAccountInfo(
       $grpc.ServiceCall call, $1.Empty request);
+
+  $async.Future<$0.CopilotQuotaInfo> getCopilotQuota_Pre(
+      $grpc.ServiceCall $call, $async.Future<$1.Empty> $request) async {
+    return getCopilotQuota($call, await $request);
+  }
+
+  $async.Future<$0.CopilotQuotaInfo> getCopilotQuota(
+      $grpc.ServiceCall call, $1.Empty request);
 }
 
 @$pb.GrpcServiceName('fleetkanban.v1.SystemService')
@@ -1376,10 +1447,11 @@ class SystemServiceClient extends $grpc.Client {
     return $createUnaryCall(_$installPrecondition, request, options: options);
   }
 
-  /// GetAgentSettings / SetAgentSettings expose user-controlled prompt
-  /// and language preferences. A non-empty prompt field fully replaces
-  /// the corresponding built-in system message; empty falls back to the
-  /// built-in. Output language is always appended on top.
+  /// GetAgentSettings / SetAgentSettings expose the user-controlled
+  /// output-language preference. Per-stage prompt customisation was
+  /// removed in favour of the IHR Charter (harness-skill/SKILL.md) —
+  /// that is the sanctioned surface for editing planner / runner /
+  /// reviewer behaviour.
   $grpc.ResponseFuture<$0.AgentSettings> getAgentSettings(
     $1.Empty request, {
     $grpc.CallOptions? options,
@@ -1392,21 +1464,6 @@ class SystemServiceClient extends $grpc.Client {
     $grpc.CallOptions? options,
   }) {
     return $createUnaryCall(_$setAgentSettings, request, options: options);
-  }
-
-  /// GetDefaultAgentPrompts returns the sidecar's built-in plan / code /
-  /// review system messages. The UI pre-populates the Settings text
-  /// boxes with these values on first open so the user can see the
-  /// full default prompt and decide whether to keep, tweak, or rewrite
-  /// it — saving then persists whatever the user has in the box as an
-  /// override. (AgentSettings returns the raw override, which may be
-  /// empty; this RPC provides the display baseline.)
-  $grpc.ResponseFuture<$0.AgentSettings> getDefaultAgentPrompts(
-    $1.Empty request, {
-    $grpc.CallOptions? options,
-  }) {
-    return $createUnaryCall(_$getDefaultAgentPrompts, request,
-        options: options);
   }
 
   // method descriptors
@@ -1446,11 +1503,6 @@ class SystemServiceClient extends $grpc.Client {
       $grpc.ClientMethod<$0.AgentSettings, $0.AgentSettings>(
           '/fleetkanban.v1.SystemService/SetAgentSettings',
           ($0.AgentSettings value) => value.writeToBuffer(),
-          $0.AgentSettings.fromBuffer);
-  static final _$getDefaultAgentPrompts =
-      $grpc.ClientMethod<$1.Empty, $0.AgentSettings>(
-          '/fleetkanban.v1.SystemService/GetDefaultAgentPrompts',
-          ($1.Empty value) => value.writeToBuffer(),
           $0.AgentSettings.fromBuffer);
 }
 
@@ -1517,13 +1569,6 @@ abstract class SystemServiceBase extends $grpc.Service {
         false,
         ($core.List<$core.int> value) => $0.AgentSettings.fromBuffer(value),
         ($0.AgentSettings value) => value.writeToBuffer()));
-    $addMethod($grpc.ServiceMethod<$1.Empty, $0.AgentSettings>(
-        'GetDefaultAgentPrompts',
-        getDefaultAgentPrompts_Pre,
-        false,
-        false,
-        ($core.List<$core.int> value) => $1.Empty.fromBuffer(value),
-        ($0.AgentSettings value) => value.writeToBuffer()));
   }
 
   $async.Future<$0.IntValue> getConcurrency_Pre(
@@ -1589,14 +1634,6 @@ abstract class SystemServiceBase extends $grpc.Service {
 
   $async.Future<$0.AgentSettings> setAgentSettings(
       $grpc.ServiceCall call, $0.AgentSettings request);
-
-  $async.Future<$0.AgentSettings> getDefaultAgentPrompts_Pre(
-      $grpc.ServiceCall $call, $async.Future<$1.Empty> $request) async {
-    return getDefaultAgentPrompts($call, await $request);
-  }
-
-  $async.Future<$0.AgentSettings> getDefaultAgentPrompts(
-      $grpc.ServiceCall call, $1.Empty request);
 }
 
 /// WorktreeService exposes the contents of the per-repo `git worktree list`
@@ -1865,6 +1902,31 @@ class ContextServiceClient extends $grpc.Client {
     return $createUnaryCall(_$updateMemorySettings, request, options: options);
   }
 
+  /// GetMemoryHealth is a fast status probe separate from GetOverview —
+  /// cheap enough to poll every few seconds so the Settings panel and
+  /// Kanban badge can show whether Memory is actually working (provider
+  /// reachable, vectors present) without blocking on node/edge counts.
+  $grpc.ResponseFuture<$0.MemoryHealth> getMemoryHealth(
+    $0.RepoIdRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$getMemoryHealth, request, options: options);
+  }
+
+  /// SuggestForNewTask runs hybrid retrieval against finalized Task +
+  /// promoted Decision + Constraint nodes using the user's draft goal
+  /// as query text. The New Task dialog calls this on a 400ms debounce
+  /// so the user sees past similar tasks and applicable decisions
+  /// before they spend tokens running the plan again. Returns an empty
+  /// bundle (no error) when Memory is disabled — the UI renders
+  /// nothing in that case.
+  $grpc.ResponseFuture<$0.SuggestForNewTaskResponse> suggestForNewTask(
+    $0.SuggestForNewTaskRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$suggestForNewTask, request, options: options);
+  }
+
   /// WatchContextChanges streams node / edge / fact / scratchpad updates
   /// scoped to a repository so the Context UI can refresh incrementally
   /// without polling. Analogous to TaskService.WatchEvents.
@@ -1971,6 +2033,16 @@ class ContextServiceClient extends $grpc.Client {
           '/fleetkanban.v1.ContextService/UpdateMemorySettings',
           ($0.UpdateMemorySettingsRequest value) => value.writeToBuffer(),
           $0.MemorySettings.fromBuffer);
+  static final _$getMemoryHealth =
+      $grpc.ClientMethod<$0.RepoIdRequest, $0.MemoryHealth>(
+          '/fleetkanban.v1.ContextService/GetMemoryHealth',
+          ($0.RepoIdRequest value) => value.writeToBuffer(),
+          $0.MemoryHealth.fromBuffer);
+  static final _$suggestForNewTask = $grpc.ClientMethod<
+          $0.SuggestForNewTaskRequest, $0.SuggestForNewTaskResponse>(
+      '/fleetkanban.v1.ContextService/SuggestForNewTask',
+      ($0.SuggestForNewTaskRequest value) => value.writeToBuffer(),
+      $0.SuggestForNewTaskResponse.fromBuffer);
   static final _$watchContextChanges =
       $grpc.ClientMethod<$0.WatchContextRequest, $0.ContextChangeEvent>(
           '/fleetkanban.v1.ContextService/WatchContextChanges',
@@ -2125,6 +2197,22 @@ abstract class ContextServiceBase extends $grpc.Service {
             ($core.List<$core.int> value) =>
                 $0.UpdateMemorySettingsRequest.fromBuffer(value),
             ($0.MemorySettings value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.RepoIdRequest, $0.MemoryHealth>(
+        'GetMemoryHealth',
+        getMemoryHealth_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $0.RepoIdRequest.fromBuffer(value),
+        ($0.MemoryHealth value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.SuggestForNewTaskRequest,
+            $0.SuggestForNewTaskResponse>(
+        'SuggestForNewTask',
+        suggestForNewTask_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) =>
+            $0.SuggestForNewTaskRequest.fromBuffer(value),
+        ($0.SuggestForNewTaskResponse value) => value.writeToBuffer()));
     $addMethod(
         $grpc.ServiceMethod<$0.WatchContextRequest, $0.ContextChangeEvent>(
             'WatchContextChanges',
@@ -2290,6 +2378,23 @@ abstract class ContextServiceBase extends $grpc.Service {
 
   $async.Future<$0.MemorySettings> updateMemorySettings(
       $grpc.ServiceCall call, $0.UpdateMemorySettingsRequest request);
+
+  $async.Future<$0.MemoryHealth> getMemoryHealth_Pre(
+      $grpc.ServiceCall $call, $async.Future<$0.RepoIdRequest> $request) async {
+    return getMemoryHealth($call, await $request);
+  }
+
+  $async.Future<$0.MemoryHealth> getMemoryHealth(
+      $grpc.ServiceCall call, $0.RepoIdRequest request);
+
+  $async.Future<$0.SuggestForNewTaskResponse> suggestForNewTask_Pre(
+      $grpc.ServiceCall $call,
+      $async.Future<$0.SuggestForNewTaskRequest> $request) async {
+    return suggestForNewTask($call, await $request);
+  }
+
+  $async.Future<$0.SuggestForNewTaskResponse> suggestForNewTask(
+      $grpc.ServiceCall call, $0.SuggestForNewTaskRequest request);
 
   $async.Stream<$0.ContextChangeEvent> watchContextChanges_Pre(
       $grpc.ServiceCall $call,
@@ -2668,4 +2773,418 @@ abstract class OllamaServiceBase extends $grpc.Service {
 
   $async.Stream<$0.OllamaPullProgressEvent> pullOllamaModel(
       $grpc.ServiceCall call, $0.PullModelRequest request);
+}
+
+@$pb.GrpcServiceName('fleetkanban.v1.ArtifactService')
+class ArtifactServiceClient extends $grpc.Client {
+  /// The hostname for this service.
+  static const $core.String defaultHost = '';
+
+  /// OAuth scopes needed for the client.
+  static const $core.List<$core.String> oauthScopes = [
+    '',
+  ];
+
+  ArtifactServiceClient(super.channel, {super.options, super.interceptors});
+
+  $grpc.ResponseFuture<$0.ListArtifactsResponse> list(
+    $0.ListArtifactsRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$list, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.Artifact> get(
+    $0.GetArtifactRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$get, request, options: options);
+  }
+
+  $grpc.ResponseStream<$0.ArtifactChunk> getContent(
+    $0.GetArtifactContentRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createStreamingCall(
+        _$getContent, $async.Stream.fromIterable([request]),
+        options: options);
+  }
+
+  // method descriptors
+
+  static final _$list =
+      $grpc.ClientMethod<$0.ListArtifactsRequest, $0.ListArtifactsResponse>(
+          '/fleetkanban.v1.ArtifactService/List',
+          ($0.ListArtifactsRequest value) => value.writeToBuffer(),
+          $0.ListArtifactsResponse.fromBuffer);
+  static final _$get = $grpc.ClientMethod<$0.GetArtifactRequest, $0.Artifact>(
+      '/fleetkanban.v1.ArtifactService/Get',
+      ($0.GetArtifactRequest value) => value.writeToBuffer(),
+      $0.Artifact.fromBuffer);
+  static final _$getContent =
+      $grpc.ClientMethod<$0.GetArtifactContentRequest, $0.ArtifactChunk>(
+          '/fleetkanban.v1.ArtifactService/GetContent',
+          ($0.GetArtifactContentRequest value) => value.writeToBuffer(),
+          $0.ArtifactChunk.fromBuffer);
+}
+
+@$pb.GrpcServiceName('fleetkanban.v1.ArtifactService')
+abstract class ArtifactServiceBase extends $grpc.Service {
+  $core.String get $name => 'fleetkanban.v1.ArtifactService';
+
+  ArtifactServiceBase() {
+    $addMethod(
+        $grpc.ServiceMethod<$0.ListArtifactsRequest, $0.ListArtifactsResponse>(
+            'List',
+            list_Pre,
+            false,
+            false,
+            ($core.List<$core.int> value) =>
+                $0.ListArtifactsRequest.fromBuffer(value),
+            ($0.ListArtifactsResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.GetArtifactRequest, $0.Artifact>(
+        'Get',
+        get_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) =>
+            $0.GetArtifactRequest.fromBuffer(value),
+        ($0.Artifact value) => value.writeToBuffer()));
+    $addMethod(
+        $grpc.ServiceMethod<$0.GetArtifactContentRequest, $0.ArtifactChunk>(
+            'GetContent',
+            getContent_Pre,
+            false,
+            true,
+            ($core.List<$core.int> value) =>
+                $0.GetArtifactContentRequest.fromBuffer(value),
+            ($0.ArtifactChunk value) => value.writeToBuffer()));
+  }
+
+  $async.Future<$0.ListArtifactsResponse> list_Pre($grpc.ServiceCall $call,
+      $async.Future<$0.ListArtifactsRequest> $request) async {
+    return list($call, await $request);
+  }
+
+  $async.Future<$0.ListArtifactsResponse> list(
+      $grpc.ServiceCall call, $0.ListArtifactsRequest request);
+
+  $async.Future<$0.Artifact> get_Pre($grpc.ServiceCall $call,
+      $async.Future<$0.GetArtifactRequest> $request) async {
+    return get($call, await $request);
+  }
+
+  $async.Future<$0.Artifact> get(
+      $grpc.ServiceCall call, $0.GetArtifactRequest request);
+
+  $async.Stream<$0.ArtifactChunk> getContent_Pre($grpc.ServiceCall $call,
+      $async.Future<$0.GetArtifactContentRequest> $request) async* {
+    yield* getContent($call, await $request);
+  }
+
+  $async.Stream<$0.ArtifactChunk> getContent(
+      $grpc.ServiceCall call, $0.GetArtifactContentRequest request);
+}
+
+@$pb.GrpcServiceName('fleetkanban.v1.HarnessService')
+class HarnessServiceClient extends $grpc.Client {
+  /// The hostname for this service.
+  static const $core.String defaultHost = '';
+
+  /// OAuth scopes needed for the client.
+  static const $core.List<$core.String> oauthScopes = [
+    '',
+  ];
+
+  HarnessServiceClient(super.channel, {super.options, super.interceptors});
+
+  $grpc.ResponseFuture<$0.HarnessSkill> getActiveSkill(
+    $1.Empty request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$getActiveSkill, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.ListSkillVersionsResponse> listSkillVersions(
+    $1.Empty request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$listSkillVersions, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.ValidateSkillResponse> validateSkill(
+    $0.ValidateSkillRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$validateSkill, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.HarnessSkill> updateSkill(
+    $0.UpdateSkillRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$updateSkill, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.HarnessSkill> rollbackSkill(
+    $0.RollbackSkillRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$rollbackSkill, request, options: options);
+  }
+
+  // method descriptors
+
+  static final _$getActiveSkill = $grpc.ClientMethod<$1.Empty, $0.HarnessSkill>(
+      '/fleetkanban.v1.HarnessService/GetActiveSkill',
+      ($1.Empty value) => value.writeToBuffer(),
+      $0.HarnessSkill.fromBuffer);
+  static final _$listSkillVersions =
+      $grpc.ClientMethod<$1.Empty, $0.ListSkillVersionsResponse>(
+          '/fleetkanban.v1.HarnessService/ListSkillVersions',
+          ($1.Empty value) => value.writeToBuffer(),
+          $0.ListSkillVersionsResponse.fromBuffer);
+  static final _$validateSkill =
+      $grpc.ClientMethod<$0.ValidateSkillRequest, $0.ValidateSkillResponse>(
+          '/fleetkanban.v1.HarnessService/ValidateSkill',
+          ($0.ValidateSkillRequest value) => value.writeToBuffer(),
+          $0.ValidateSkillResponse.fromBuffer);
+  static final _$updateSkill =
+      $grpc.ClientMethod<$0.UpdateSkillRequest, $0.HarnessSkill>(
+          '/fleetkanban.v1.HarnessService/UpdateSkill',
+          ($0.UpdateSkillRequest value) => value.writeToBuffer(),
+          $0.HarnessSkill.fromBuffer);
+  static final _$rollbackSkill =
+      $grpc.ClientMethod<$0.RollbackSkillRequest, $0.HarnessSkill>(
+          '/fleetkanban.v1.HarnessService/RollbackSkill',
+          ($0.RollbackSkillRequest value) => value.writeToBuffer(),
+          $0.HarnessSkill.fromBuffer);
+}
+
+@$pb.GrpcServiceName('fleetkanban.v1.HarnessService')
+abstract class HarnessServiceBase extends $grpc.Service {
+  $core.String get $name => 'fleetkanban.v1.HarnessService';
+
+  HarnessServiceBase() {
+    $addMethod($grpc.ServiceMethod<$1.Empty, $0.HarnessSkill>(
+        'GetActiveSkill',
+        getActiveSkill_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $1.Empty.fromBuffer(value),
+        ($0.HarnessSkill value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$1.Empty, $0.ListSkillVersionsResponse>(
+        'ListSkillVersions',
+        listSkillVersions_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $1.Empty.fromBuffer(value),
+        ($0.ListSkillVersionsResponse value) => value.writeToBuffer()));
+    $addMethod(
+        $grpc.ServiceMethod<$0.ValidateSkillRequest, $0.ValidateSkillResponse>(
+            'ValidateSkill',
+            validateSkill_Pre,
+            false,
+            false,
+            ($core.List<$core.int> value) =>
+                $0.ValidateSkillRequest.fromBuffer(value),
+            ($0.ValidateSkillResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.UpdateSkillRequest, $0.HarnessSkill>(
+        'UpdateSkill',
+        updateSkill_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) =>
+            $0.UpdateSkillRequest.fromBuffer(value),
+        ($0.HarnessSkill value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.RollbackSkillRequest, $0.HarnessSkill>(
+        'RollbackSkill',
+        rollbackSkill_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) =>
+            $0.RollbackSkillRequest.fromBuffer(value),
+        ($0.HarnessSkill value) => value.writeToBuffer()));
+  }
+
+  $async.Future<$0.HarnessSkill> getActiveSkill_Pre(
+      $grpc.ServiceCall $call, $async.Future<$1.Empty> $request) async {
+    return getActiveSkill($call, await $request);
+  }
+
+  $async.Future<$0.HarnessSkill> getActiveSkill(
+      $grpc.ServiceCall call, $1.Empty request);
+
+  $async.Future<$0.ListSkillVersionsResponse> listSkillVersions_Pre(
+      $grpc.ServiceCall $call, $async.Future<$1.Empty> $request) async {
+    return listSkillVersions($call, await $request);
+  }
+
+  $async.Future<$0.ListSkillVersionsResponse> listSkillVersions(
+      $grpc.ServiceCall call, $1.Empty request);
+
+  $async.Future<$0.ValidateSkillResponse> validateSkill_Pre(
+      $grpc.ServiceCall $call,
+      $async.Future<$0.ValidateSkillRequest> $request) async {
+    return validateSkill($call, await $request);
+  }
+
+  $async.Future<$0.ValidateSkillResponse> validateSkill(
+      $grpc.ServiceCall call, $0.ValidateSkillRequest request);
+
+  $async.Future<$0.HarnessSkill> updateSkill_Pre($grpc.ServiceCall $call,
+      $async.Future<$0.UpdateSkillRequest> $request) async {
+    return updateSkill($call, await $request);
+  }
+
+  $async.Future<$0.HarnessSkill> updateSkill(
+      $grpc.ServiceCall call, $0.UpdateSkillRequest request);
+
+  $async.Future<$0.HarnessSkill> rollbackSkill_Pre($grpc.ServiceCall $call,
+      $async.Future<$0.RollbackSkillRequest> $request) async {
+    return rollbackSkill($call, await $request);
+  }
+
+  $async.Future<$0.HarnessSkill> rollbackSkill(
+      $grpc.ServiceCall call, $0.RollbackSkillRequest request);
+}
+
+@$pb.GrpcServiceName('fleetkanban.v1.HarnessAttemptService')
+class HarnessAttemptServiceClient extends $grpc.Client {
+  /// The hostname for this service.
+  static const $core.String defaultHost = '';
+
+  /// OAuth scopes needed for the client.
+  static const $core.List<$core.String> oauthScopes = [
+    '',
+  ];
+
+  HarnessAttemptServiceClient(super.channel,
+      {super.options, super.interceptors});
+
+  $grpc.ResponseFuture<$0.ListHarnessAttemptsResponse> listPending(
+    $1.Empty request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$listPending, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.ListHarnessAttemptsResponse> listForTask(
+    $0.ListHarnessAttemptsForTaskRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$listForTask, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.HarnessAttempt> approve(
+    $0.ApproveHarnessAttemptRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$approve, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.HarnessAttempt> reject(
+    $0.RejectHarnessAttemptRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$reject, request, options: options);
+  }
+
+  // method descriptors
+
+  static final _$listPending =
+      $grpc.ClientMethod<$1.Empty, $0.ListHarnessAttemptsResponse>(
+          '/fleetkanban.v1.HarnessAttemptService/ListPending',
+          ($1.Empty value) => value.writeToBuffer(),
+          $0.ListHarnessAttemptsResponse.fromBuffer);
+  static final _$listForTask = $grpc.ClientMethod<
+          $0.ListHarnessAttemptsForTaskRequest, $0.ListHarnessAttemptsResponse>(
+      '/fleetkanban.v1.HarnessAttemptService/ListForTask',
+      ($0.ListHarnessAttemptsForTaskRequest value) => value.writeToBuffer(),
+      $0.ListHarnessAttemptsResponse.fromBuffer);
+  static final _$approve =
+      $grpc.ClientMethod<$0.ApproveHarnessAttemptRequest, $0.HarnessAttempt>(
+          '/fleetkanban.v1.HarnessAttemptService/Approve',
+          ($0.ApproveHarnessAttemptRequest value) => value.writeToBuffer(),
+          $0.HarnessAttempt.fromBuffer);
+  static final _$reject =
+      $grpc.ClientMethod<$0.RejectHarnessAttemptRequest, $0.HarnessAttempt>(
+          '/fleetkanban.v1.HarnessAttemptService/Reject',
+          ($0.RejectHarnessAttemptRequest value) => value.writeToBuffer(),
+          $0.HarnessAttempt.fromBuffer);
+}
+
+@$pb.GrpcServiceName('fleetkanban.v1.HarnessAttemptService')
+abstract class HarnessAttemptServiceBase extends $grpc.Service {
+  $core.String get $name => 'fleetkanban.v1.HarnessAttemptService';
+
+  HarnessAttemptServiceBase() {
+    $addMethod($grpc.ServiceMethod<$1.Empty, $0.ListHarnessAttemptsResponse>(
+        'ListPending',
+        listPending_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) => $1.Empty.fromBuffer(value),
+        ($0.ListHarnessAttemptsResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.ListHarnessAttemptsForTaskRequest,
+            $0.ListHarnessAttemptsResponse>(
+        'ListForTask',
+        listForTask_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) =>
+            $0.ListHarnessAttemptsForTaskRequest.fromBuffer(value),
+        ($0.ListHarnessAttemptsResponse value) => value.writeToBuffer()));
+    $addMethod(
+        $grpc.ServiceMethod<$0.ApproveHarnessAttemptRequest, $0.HarnessAttempt>(
+            'Approve',
+            approve_Pre,
+            false,
+            false,
+            ($core.List<$core.int> value) =>
+                $0.ApproveHarnessAttemptRequest.fromBuffer(value),
+            ($0.HarnessAttempt value) => value.writeToBuffer()));
+    $addMethod(
+        $grpc.ServiceMethod<$0.RejectHarnessAttemptRequest, $0.HarnessAttempt>(
+            'Reject',
+            reject_Pre,
+            false,
+            false,
+            ($core.List<$core.int> value) =>
+                $0.RejectHarnessAttemptRequest.fromBuffer(value),
+            ($0.HarnessAttempt value) => value.writeToBuffer()));
+  }
+
+  $async.Future<$0.ListHarnessAttemptsResponse> listPending_Pre(
+      $grpc.ServiceCall $call, $async.Future<$1.Empty> $request) async {
+    return listPending($call, await $request);
+  }
+
+  $async.Future<$0.ListHarnessAttemptsResponse> listPending(
+      $grpc.ServiceCall call, $1.Empty request);
+
+  $async.Future<$0.ListHarnessAttemptsResponse> listForTask_Pre(
+      $grpc.ServiceCall $call,
+      $async.Future<$0.ListHarnessAttemptsForTaskRequest> $request) async {
+    return listForTask($call, await $request);
+  }
+
+  $async.Future<$0.ListHarnessAttemptsResponse> listForTask(
+      $grpc.ServiceCall call, $0.ListHarnessAttemptsForTaskRequest request);
+
+  $async.Future<$0.HarnessAttempt> approve_Pre($grpc.ServiceCall $call,
+      $async.Future<$0.ApproveHarnessAttemptRequest> $request) async {
+    return approve($call, await $request);
+  }
+
+  $async.Future<$0.HarnessAttempt> approve(
+      $grpc.ServiceCall call, $0.ApproveHarnessAttemptRequest request);
+
+  $async.Future<$0.HarnessAttempt> reject_Pre($grpc.ServiceCall $call,
+      $async.Future<$0.RejectHarnessAttemptRequest> $request) async {
+    return reject($call, await $request);
+  }
+
+  $async.Future<$0.HarnessAttempt> reject(
+      $grpc.ServiceCall call, $0.RejectHarnessAttemptRequest request);
 }

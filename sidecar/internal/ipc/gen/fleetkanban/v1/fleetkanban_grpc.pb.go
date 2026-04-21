@@ -595,11 +595,12 @@ var TaskService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	SubtaskService_ListSubtasks_FullMethodName    = "/fleetkanban.v1.SubtaskService/ListSubtasks"
-	SubtaskService_CreateSubtask_FullMethodName   = "/fleetkanban.v1.SubtaskService/CreateSubtask"
-	SubtaskService_UpdateSubtask_FullMethodName   = "/fleetkanban.v1.SubtaskService/UpdateSubtask"
-	SubtaskService_DeleteSubtask_FullMethodName   = "/fleetkanban.v1.SubtaskService/DeleteSubtask"
-	SubtaskService_ReorderSubtasks_FullMethodName = "/fleetkanban.v1.SubtaskService/ReorderSubtasks"
+	SubtaskService_ListSubtasks_FullMethodName      = "/fleetkanban.v1.SubtaskService/ListSubtasks"
+	SubtaskService_CreateSubtask_FullMethodName     = "/fleetkanban.v1.SubtaskService/CreateSubtask"
+	SubtaskService_UpdateSubtask_FullMethodName     = "/fleetkanban.v1.SubtaskService/UpdateSubtask"
+	SubtaskService_DeleteSubtask_FullMethodName     = "/fleetkanban.v1.SubtaskService/DeleteSubtask"
+	SubtaskService_ReorderSubtasks_FullMethodName   = "/fleetkanban.v1.SubtaskService/ReorderSubtasks"
+	SubtaskService_GetSubtaskContext_FullMethodName = "/fleetkanban.v1.SubtaskService/GetSubtaskContext"
 )
 
 // SubtaskServiceClient is the client API for SubtaskService service.
@@ -615,6 +616,14 @@ type SubtaskServiceClient interface {
 	UpdateSubtask(ctx context.Context, in *UpdateSubtaskRequest, opts ...grpc.CallOption) (*Subtask, error)
 	DeleteSubtask(ctx context.Context, in *IdRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ReorderSubtasks(ctx context.Context, in *ReorderSubtasksRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// GetSubtaskContext returns the full prompt + injected context the
+	// Copilot agent saw for a given subtask execution — system prompt,
+	// user prompt, plan summary, prior-subtask summaries, memory block,
+	// and the harness SKILL.md that was active at run time. Round 0
+	// means "latest round recorded". Returns a CopilotSubtaskContext
+	// with not_recorded=true when the subtask predates the v18 schema
+	// or has not been executed yet — the UI shows a fallback notice.
+	GetSubtaskContext(ctx context.Context, in *GetSubtaskContextRequest, opts ...grpc.CallOption) (*CopilotSubtaskContext, error)
 }
 
 type subtaskServiceClient struct {
@@ -675,6 +684,16 @@ func (c *subtaskServiceClient) ReorderSubtasks(ctx context.Context, in *ReorderS
 	return out, nil
 }
 
+func (c *subtaskServiceClient) GetSubtaskContext(ctx context.Context, in *GetSubtaskContextRequest, opts ...grpc.CallOption) (*CopilotSubtaskContext, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CopilotSubtaskContext)
+	err := c.cc.Invoke(ctx, SubtaskService_GetSubtaskContext_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SubtaskServiceServer is the server API for SubtaskService service.
 // All implementations should embed UnimplementedSubtaskServiceServer
 // for forward compatibility.
@@ -688,6 +707,14 @@ type SubtaskServiceServer interface {
 	UpdateSubtask(context.Context, *UpdateSubtaskRequest) (*Subtask, error)
 	DeleteSubtask(context.Context, *IdRequest) (*emptypb.Empty, error)
 	ReorderSubtasks(context.Context, *ReorderSubtasksRequest) (*emptypb.Empty, error)
+	// GetSubtaskContext returns the full prompt + injected context the
+	// Copilot agent saw for a given subtask execution — system prompt,
+	// user prompt, plan summary, prior-subtask summaries, memory block,
+	// and the harness SKILL.md that was active at run time. Round 0
+	// means "latest round recorded". Returns a CopilotSubtaskContext
+	// with not_recorded=true when the subtask predates the v18 schema
+	// or has not been executed yet — the UI shows a fallback notice.
+	GetSubtaskContext(context.Context, *GetSubtaskContextRequest) (*CopilotSubtaskContext, error)
 }
 
 // UnimplementedSubtaskServiceServer should be embedded to have
@@ -711,6 +738,9 @@ func (UnimplementedSubtaskServiceServer) DeleteSubtask(context.Context, *IdReque
 }
 func (UnimplementedSubtaskServiceServer) ReorderSubtasks(context.Context, *ReorderSubtasksRequest) (*emptypb.Empty, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReorderSubtasks not implemented")
+}
+func (UnimplementedSubtaskServiceServer) GetSubtaskContext(context.Context, *GetSubtaskContextRequest) (*CopilotSubtaskContext, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetSubtaskContext not implemented")
 }
 func (UnimplementedSubtaskServiceServer) testEmbeddedByValue() {}
 
@@ -822,6 +852,24 @@ func _SubtaskService_ReorderSubtasks_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SubtaskService_GetSubtaskContext_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSubtaskContextRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SubtaskServiceServer).GetSubtaskContext(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SubtaskService_GetSubtaskContext_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SubtaskServiceServer).GetSubtaskContext(ctx, req.(*GetSubtaskContextRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SubtaskService_ServiceDesc is the grpc.ServiceDesc for SubtaskService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -848,6 +896,10 @@ var SubtaskService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReorderSubtasks",
 			Handler:    _SubtaskService_ReorderSubtasks_Handler,
+		},
+		{
+			MethodName: "GetSubtaskContext",
+			Handler:    _SubtaskService_GetSubtaskContext_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -1404,6 +1456,7 @@ const (
 	AuthService_RemoveGitHubToken_FullMethodName      = "/fleetkanban.v1.AuthService/RemoveGitHubToken"
 	AuthService_SetActiveGitHubToken_FullMethodName   = "/fleetkanban.v1.AuthService/SetActiveGitHubToken"
 	AuthService_GetGitHubAccountInfo_FullMethodName   = "/fleetkanban.v1.AuthService/GetGitHubAccountInfo"
+	AuthService_GetCopilotQuota_FullMethodName        = "/fleetkanban.v1.AuthService/GetCopilotQuota"
 )
 
 // AuthServiceClient is the client API for AuthService service.
@@ -1463,6 +1516,14 @@ type AuthServiceClient interface {
 	// when no PAT is configured. Premium-request quotas are not exposed by the
 	// GitHub public API, so the response intentionally omits them.
 	GetGitHubAccountInfo(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GitHubAccountInfo, error)
+	// GetCopilotQuota returns the Copilot billing quota snapshots for the
+	// currently authenticated user (premium interactions / chat / completions
+	// etc.), sourced from the SDK's account.getQuota RPC. Unlike
+	// GetGitHubAccountInfo this works with device-flow login alone — no PAT
+	// required — so the UI can surface remaining premium requests out of the
+	// box. Returns UNAVAILABLE when the embedded Copilot CLI is not running,
+	// or UNIMPLEMENTED if the bundled CLI predates the quota RPC.
+	GetCopilotQuota(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*CopilotQuotaInfo, error)
 }
 
 type authServiceClient struct {
@@ -1603,6 +1664,16 @@ func (c *authServiceClient) GetGitHubAccountInfo(ctx context.Context, in *emptyp
 	return out, nil
 }
 
+func (c *authServiceClient) GetCopilotQuota(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*CopilotQuotaInfo, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CopilotQuotaInfo)
+	err := c.cc.Invoke(ctx, AuthService_GetCopilotQuota_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AuthServiceServer is the server API for AuthService service.
 // All implementations should embed UnimplementedAuthServiceServer
 // for forward compatibility.
@@ -1660,6 +1731,14 @@ type AuthServiceServer interface {
 	// when no PAT is configured. Premium-request quotas are not exposed by the
 	// GitHub public API, so the response intentionally omits them.
 	GetGitHubAccountInfo(context.Context, *emptypb.Empty) (*GitHubAccountInfo, error)
+	// GetCopilotQuota returns the Copilot billing quota snapshots for the
+	// currently authenticated user (premium interactions / chat / completions
+	// etc.), sourced from the SDK's account.getQuota RPC. Unlike
+	// GetGitHubAccountInfo this works with device-flow login alone — no PAT
+	// required — so the UI can surface remaining premium requests out of the
+	// box. Returns UNAVAILABLE when the embedded Copilot CLI is not running,
+	// or UNIMPLEMENTED if the bundled CLI predates the quota RPC.
+	GetCopilotQuota(context.Context, *emptypb.Empty) (*CopilotQuotaInfo, error)
 }
 
 // UnimplementedAuthServiceServer should be embedded to have
@@ -1707,6 +1786,9 @@ func (UnimplementedAuthServiceServer) SetActiveGitHubToken(context.Context, *Git
 }
 func (UnimplementedAuthServiceServer) GetGitHubAccountInfo(context.Context, *emptypb.Empty) (*GitHubAccountInfo, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetGitHubAccountInfo not implemented")
+}
+func (UnimplementedAuthServiceServer) GetCopilotQuota(context.Context, *emptypb.Empty) (*CopilotQuotaInfo, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetCopilotQuota not implemented")
 }
 func (UnimplementedAuthServiceServer) testEmbeddedByValue() {}
 
@@ -1962,6 +2044,24 @@ func _AuthService_GetGitHubAccountInfo_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_GetCopilotQuota_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetCopilotQuota(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_GetCopilotQuota_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetCopilotQuota(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AuthService_ServiceDesc is the grpc.ServiceDesc for AuthService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2021,21 +2121,24 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "GetGitHubAccountInfo",
 			Handler:    _AuthService_GetGitHubAccountInfo_Handler,
 		},
+		{
+			MethodName: "GetCopilotQuota",
+			Handler:    _AuthService_GetCopilotQuota_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "fleetkanban/v1/fleetkanban.proto",
 }
 
 const (
-	SystemService_GetConcurrency_FullMethodName         = "/fleetkanban.v1.SystemService/GetConcurrency"
-	SystemService_SetConcurrency_FullMethodName         = "/fleetkanban.v1.SystemService/SetConcurrency"
-	SystemService_Shutdown_FullMethodName               = "/fleetkanban.v1.SystemService/Shutdown"
-	SystemService_GetVersion_FullMethodName             = "/fleetkanban.v1.SystemService/GetVersion"
-	SystemService_GetPreconditions_FullMethodName       = "/fleetkanban.v1.SystemService/GetPreconditions"
-	SystemService_InstallPrecondition_FullMethodName    = "/fleetkanban.v1.SystemService/InstallPrecondition"
-	SystemService_GetAgentSettings_FullMethodName       = "/fleetkanban.v1.SystemService/GetAgentSettings"
-	SystemService_SetAgentSettings_FullMethodName       = "/fleetkanban.v1.SystemService/SetAgentSettings"
-	SystemService_GetDefaultAgentPrompts_FullMethodName = "/fleetkanban.v1.SystemService/GetDefaultAgentPrompts"
+	SystemService_GetConcurrency_FullMethodName      = "/fleetkanban.v1.SystemService/GetConcurrency"
+	SystemService_SetConcurrency_FullMethodName      = "/fleetkanban.v1.SystemService/SetConcurrency"
+	SystemService_Shutdown_FullMethodName            = "/fleetkanban.v1.SystemService/Shutdown"
+	SystemService_GetVersion_FullMethodName          = "/fleetkanban.v1.SystemService/GetVersion"
+	SystemService_GetPreconditions_FullMethodName    = "/fleetkanban.v1.SystemService/GetPreconditions"
+	SystemService_InstallPrecondition_FullMethodName = "/fleetkanban.v1.SystemService/InstallPrecondition"
+	SystemService_GetAgentSettings_FullMethodName    = "/fleetkanban.v1.SystemService/GetAgentSettings"
+	SystemService_SetAgentSettings_FullMethodName    = "/fleetkanban.v1.SystemService/SetAgentSettings"
 )
 
 // SystemServiceClient is the client API for SystemService service.
@@ -2062,20 +2165,13 @@ type SystemServiceClient interface {
 	// Blocks for the duration of the install — 1–3 minutes typical — so
 	// the UI should reserve headroom in any client-side gRPC timeout.
 	InstallPrecondition(ctx context.Context, in *InstallPreconditionRequest, opts ...grpc.CallOption) (*InstallPreconditionResponse, error)
-	// GetAgentSettings / SetAgentSettings expose user-controlled prompt
-	// and language preferences. A non-empty prompt field fully replaces
-	// the corresponding built-in system message; empty falls back to the
-	// built-in. Output language is always appended on top.
+	// GetAgentSettings / SetAgentSettings expose the user-controlled
+	// output-language preference. Per-stage prompt customisation was
+	// removed in favour of the IHR Charter (harness-skill/SKILL.md) —
+	// that is the sanctioned surface for editing planner / runner /
+	// reviewer behaviour.
 	GetAgentSettings(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*AgentSettings, error)
 	SetAgentSettings(ctx context.Context, in *AgentSettings, opts ...grpc.CallOption) (*AgentSettings, error)
-	// GetDefaultAgentPrompts returns the sidecar's built-in plan / code /
-	// review system messages. The UI pre-populates the Settings text
-	// boxes with these values on first open so the user can see the
-	// full default prompt and decide whether to keep, tweak, or rewrite
-	// it — saving then persists whatever the user has in the box as an
-	// override. (AgentSettings returns the raw override, which may be
-	// empty; this RPC provides the display baseline.)
-	GetDefaultAgentPrompts(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*AgentSettings, error)
 }
 
 type systemServiceClient struct {
@@ -2166,16 +2262,6 @@ func (c *systemServiceClient) SetAgentSettings(ctx context.Context, in *AgentSet
 	return out, nil
 }
 
-func (c *systemServiceClient) GetDefaultAgentPrompts(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*AgentSettings, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(AgentSettings)
-	err := c.cc.Invoke(ctx, SystemService_GetDefaultAgentPrompts_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // SystemServiceServer is the server API for SystemService service.
 // All implementations should embed UnimplementedSystemServiceServer
 // for forward compatibility.
@@ -2200,20 +2286,13 @@ type SystemServiceServer interface {
 	// Blocks for the duration of the install — 1–3 minutes typical — so
 	// the UI should reserve headroom in any client-side gRPC timeout.
 	InstallPrecondition(context.Context, *InstallPreconditionRequest) (*InstallPreconditionResponse, error)
-	// GetAgentSettings / SetAgentSettings expose user-controlled prompt
-	// and language preferences. A non-empty prompt field fully replaces
-	// the corresponding built-in system message; empty falls back to the
-	// built-in. Output language is always appended on top.
+	// GetAgentSettings / SetAgentSettings expose the user-controlled
+	// output-language preference. Per-stage prompt customisation was
+	// removed in favour of the IHR Charter (harness-skill/SKILL.md) —
+	// that is the sanctioned surface for editing planner / runner /
+	// reviewer behaviour.
 	GetAgentSettings(context.Context, *emptypb.Empty) (*AgentSettings, error)
 	SetAgentSettings(context.Context, *AgentSettings) (*AgentSettings, error)
-	// GetDefaultAgentPrompts returns the sidecar's built-in plan / code /
-	// review system messages. The UI pre-populates the Settings text
-	// boxes with these values on first open so the user can see the
-	// full default prompt and decide whether to keep, tweak, or rewrite
-	// it — saving then persists whatever the user has in the box as an
-	// override. (AgentSettings returns the raw override, which may be
-	// empty; this RPC provides the display baseline.)
-	GetDefaultAgentPrompts(context.Context, *emptypb.Empty) (*AgentSettings, error)
 }
 
 // UnimplementedSystemServiceServer should be embedded to have
@@ -2246,9 +2325,6 @@ func (UnimplementedSystemServiceServer) GetAgentSettings(context.Context, *empty
 }
 func (UnimplementedSystemServiceServer) SetAgentSettings(context.Context, *AgentSettings) (*AgentSettings, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetAgentSettings not implemented")
-}
-func (UnimplementedSystemServiceServer) GetDefaultAgentPrompts(context.Context, *emptypb.Empty) (*AgentSettings, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetDefaultAgentPrompts not implemented")
 }
 func (UnimplementedSystemServiceServer) testEmbeddedByValue() {}
 
@@ -2414,24 +2490,6 @@ func _SystemService_SetAgentSettings_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SystemService_GetDefaultAgentPrompts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(SystemServiceServer).GetDefaultAgentPrompts(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: SystemService_GetDefaultAgentPrompts_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SystemServiceServer).GetDefaultAgentPrompts(ctx, req.(*emptypb.Empty))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // SystemService_ServiceDesc is the grpc.ServiceDesc for SystemService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2470,10 +2528,6 @@ var SystemService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetAgentSettings",
 			Handler:    _SystemService_SetAgentSettings_Handler,
-		},
-		{
-			MethodName: "GetDefaultAgentPrompts",
-			Handler:    _SystemService_GetDefaultAgentPrompts_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -2650,6 +2704,8 @@ const (
 	ContextService_RebuildCodeGraph_FullMethodName     = "/fleetkanban.v1.ContextService/RebuildCodeGraph"
 	ContextService_GetMemorySettings_FullMethodName    = "/fleetkanban.v1.ContextService/GetMemorySettings"
 	ContextService_UpdateMemorySettings_FullMethodName = "/fleetkanban.v1.ContextService/UpdateMemorySettings"
+	ContextService_GetMemoryHealth_FullMethodName      = "/fleetkanban.v1.ContextService/GetMemoryHealth"
+	ContextService_SuggestForNewTask_FullMethodName    = "/fleetkanban.v1.ContextService/SuggestForNewTask"
 	ContextService_WatchContextChanges_FullMethodName  = "/fleetkanban.v1.ContextService/WatchContextChanges"
 )
 
@@ -2714,6 +2770,19 @@ type ContextServiceClient interface {
 	RebuildCodeGraph(ctx context.Context, in *RepoIdRequest, opts ...grpc.CallOption) (*RebuildCodeGraphResponse, error)
 	GetMemorySettings(ctx context.Context, in *RepoIdRequest, opts ...grpc.CallOption) (*MemorySettings, error)
 	UpdateMemorySettings(ctx context.Context, in *UpdateMemorySettingsRequest, opts ...grpc.CallOption) (*MemorySettings, error)
+	// GetMemoryHealth is a fast status probe separate from GetOverview —
+	// cheap enough to poll every few seconds so the Settings panel and
+	// Kanban badge can show whether Memory is actually working (provider
+	// reachable, vectors present) without blocking on node/edge counts.
+	GetMemoryHealth(ctx context.Context, in *RepoIdRequest, opts ...grpc.CallOption) (*MemoryHealth, error)
+	// SuggestForNewTask runs hybrid retrieval against finalized Task +
+	// promoted Decision + Constraint nodes using the user's draft goal
+	// as query text. The New Task dialog calls this on a 400ms debounce
+	// so the user sees past similar tasks and applicable decisions
+	// before they spend tokens running the plan again. Returns an empty
+	// bundle (no error) when Memory is disabled — the UI renders
+	// nothing in that case.
+	SuggestForNewTask(ctx context.Context, in *SuggestForNewTaskRequest, opts ...grpc.CallOption) (*SuggestForNewTaskResponse, error)
 	// WatchContextChanges streams node / edge / fact / scratchpad updates
 	// scoped to a repository so the Context UI can refresh incrementally
 	// without polling. Analogous to TaskService.WatchEvents.
@@ -2918,6 +2987,26 @@ func (c *contextServiceClient) UpdateMemorySettings(ctx context.Context, in *Upd
 	return out, nil
 }
 
+func (c *contextServiceClient) GetMemoryHealth(ctx context.Context, in *RepoIdRequest, opts ...grpc.CallOption) (*MemoryHealth, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MemoryHealth)
+	err := c.cc.Invoke(ctx, ContextService_GetMemoryHealth_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contextServiceClient) SuggestForNewTask(ctx context.Context, in *SuggestForNewTaskRequest, opts ...grpc.CallOption) (*SuggestForNewTaskResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SuggestForNewTaskResponse)
+	err := c.cc.Invoke(ctx, ContextService_SuggestForNewTask_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *contextServiceClient) WatchContextChanges(ctx context.Context, in *WatchContextRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ContextChangeEvent], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &ContextService_ServiceDesc.Streams[0], ContextService_WatchContextChanges_FullMethodName, cOpts...)
@@ -2998,6 +3087,19 @@ type ContextServiceServer interface {
 	RebuildCodeGraph(context.Context, *RepoIdRequest) (*RebuildCodeGraphResponse, error)
 	GetMemorySettings(context.Context, *RepoIdRequest) (*MemorySettings, error)
 	UpdateMemorySettings(context.Context, *UpdateMemorySettingsRequest) (*MemorySettings, error)
+	// GetMemoryHealth is a fast status probe separate from GetOverview —
+	// cheap enough to poll every few seconds so the Settings panel and
+	// Kanban badge can show whether Memory is actually working (provider
+	// reachable, vectors present) without blocking on node/edge counts.
+	GetMemoryHealth(context.Context, *RepoIdRequest) (*MemoryHealth, error)
+	// SuggestForNewTask runs hybrid retrieval against finalized Task +
+	// promoted Decision + Constraint nodes using the user's draft goal
+	// as query text. The New Task dialog calls this on a 400ms debounce
+	// so the user sees past similar tasks and applicable decisions
+	// before they spend tokens running the plan again. Returns an empty
+	// bundle (no error) when Memory is disabled — the UI renders
+	// nothing in that case.
+	SuggestForNewTask(context.Context, *SuggestForNewTaskRequest) (*SuggestForNewTaskResponse, error)
 	// WatchContextChanges streams node / edge / fact / scratchpad updates
 	// scoped to a repository so the Context UI can refresh incrementally
 	// without polling. Analogous to TaskService.WatchEvents.
@@ -3067,6 +3169,12 @@ func (UnimplementedContextServiceServer) GetMemorySettings(context.Context, *Rep
 }
 func (UnimplementedContextServiceServer) UpdateMemorySettings(context.Context, *UpdateMemorySettingsRequest) (*MemorySettings, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateMemorySettings not implemented")
+}
+func (UnimplementedContextServiceServer) GetMemoryHealth(context.Context, *RepoIdRequest) (*MemoryHealth, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetMemoryHealth not implemented")
+}
+func (UnimplementedContextServiceServer) SuggestForNewTask(context.Context, *SuggestForNewTaskRequest) (*SuggestForNewTaskResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SuggestForNewTask not implemented")
 }
 func (UnimplementedContextServiceServer) WatchContextChanges(*WatchContextRequest, grpc.ServerStreamingServer[ContextChangeEvent]) error {
 	return status.Error(codes.Unimplemented, "method WatchContextChanges not implemented")
@@ -3433,6 +3541,42 @@ func _ContextService_UpdateMemorySettings_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ContextService_GetMemoryHealth_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RepoIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContextServiceServer).GetMemoryHealth(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContextService_GetMemoryHealth_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContextServiceServer).GetMemoryHealth(ctx, req.(*RepoIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContextService_SuggestForNewTask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SuggestForNewTaskRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContextServiceServer).SuggestForNewTask(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContextService_SuggestForNewTask_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContextServiceServer).SuggestForNewTask(ctx, req.(*SuggestForNewTaskRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ContextService_WatchContextChanges_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(WatchContextRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -3526,6 +3670,14 @@ var ContextService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateMemorySettings",
 			Handler:    _ContextService_UpdateMemorySettings_Handler,
+		},
+		{
+			MethodName: "GetMemoryHealth",
+			Handler:    _ContextService_GetMemoryHealth_Handler,
+		},
+		{
+			MethodName: "SuggestForNewTask",
+			Handler:    _ContextService_SuggestForNewTask_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
@@ -4115,5 +4267,651 @@ var OllamaService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
+	Metadata: "fleetkanban/v1/fleetkanban.proto",
+}
+
+const (
+	ArtifactService_List_FullMethodName       = "/fleetkanban.v1.ArtifactService/List"
+	ArtifactService_Get_FullMethodName        = "/fleetkanban.v1.ArtifactService/Get"
+	ArtifactService_GetContent_FullMethodName = "/fleetkanban.v1.ArtifactService/GetContent"
+)
+
+// ArtifactServiceClient is the client API for ArtifactService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type ArtifactServiceClient interface {
+	List(ctx context.Context, in *ListArtifactsRequest, opts ...grpc.CallOption) (*ListArtifactsResponse, error)
+	Get(ctx context.Context, in *GetArtifactRequest, opts ...grpc.CallOption) (*Artifact, error)
+	GetContent(ctx context.Context, in *GetArtifactContentRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ArtifactChunk], error)
+}
+
+type artifactServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewArtifactServiceClient(cc grpc.ClientConnInterface) ArtifactServiceClient {
+	return &artifactServiceClient{cc}
+}
+
+func (c *artifactServiceClient) List(ctx context.Context, in *ListArtifactsRequest, opts ...grpc.CallOption) (*ListArtifactsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListArtifactsResponse)
+	err := c.cc.Invoke(ctx, ArtifactService_List_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *artifactServiceClient) Get(ctx context.Context, in *GetArtifactRequest, opts ...grpc.CallOption) (*Artifact, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Artifact)
+	err := c.cc.Invoke(ctx, ArtifactService_Get_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *artifactServiceClient) GetContent(ctx context.Context, in *GetArtifactContentRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ArtifactChunk], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &ArtifactService_ServiceDesc.Streams[0], ArtifactService_GetContent_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[GetArtifactContentRequest, ArtifactChunk]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ArtifactService_GetContentClient = grpc.ServerStreamingClient[ArtifactChunk]
+
+// ArtifactServiceServer is the server API for ArtifactService service.
+// All implementations should embed UnimplementedArtifactServiceServer
+// for forward compatibility.
+type ArtifactServiceServer interface {
+	List(context.Context, *ListArtifactsRequest) (*ListArtifactsResponse, error)
+	Get(context.Context, *GetArtifactRequest) (*Artifact, error)
+	GetContent(*GetArtifactContentRequest, grpc.ServerStreamingServer[ArtifactChunk]) error
+}
+
+// UnimplementedArtifactServiceServer should be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedArtifactServiceServer struct{}
+
+func (UnimplementedArtifactServiceServer) List(context.Context, *ListArtifactsRequest) (*ListArtifactsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method List not implemented")
+}
+func (UnimplementedArtifactServiceServer) Get(context.Context, *GetArtifactRequest) (*Artifact, error) {
+	return nil, status.Error(codes.Unimplemented, "method Get not implemented")
+}
+func (UnimplementedArtifactServiceServer) GetContent(*GetArtifactContentRequest, grpc.ServerStreamingServer[ArtifactChunk]) error {
+	return status.Error(codes.Unimplemented, "method GetContent not implemented")
+}
+func (UnimplementedArtifactServiceServer) testEmbeddedByValue() {}
+
+// UnsafeArtifactServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ArtifactServiceServer will
+// result in compilation errors.
+type UnsafeArtifactServiceServer interface {
+	mustEmbedUnimplementedArtifactServiceServer()
+}
+
+func RegisterArtifactServiceServer(s grpc.ServiceRegistrar, srv ArtifactServiceServer) {
+	// If the following call panics, it indicates UnimplementedArtifactServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&ArtifactService_ServiceDesc, srv)
+}
+
+func _ArtifactService_List_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListArtifactsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ArtifactServiceServer).List(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ArtifactService_List_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ArtifactServiceServer).List(ctx, req.(*ListArtifactsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ArtifactService_Get_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetArtifactRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ArtifactServiceServer).Get(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ArtifactService_Get_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ArtifactServiceServer).Get(ctx, req.(*GetArtifactRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ArtifactService_GetContent_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(GetArtifactContentRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(ArtifactServiceServer).GetContent(m, &grpc.GenericServerStream[GetArtifactContentRequest, ArtifactChunk]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ArtifactService_GetContentServer = grpc.ServerStreamingServer[ArtifactChunk]
+
+// ArtifactService_ServiceDesc is the grpc.ServiceDesc for ArtifactService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var ArtifactService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "fleetkanban.v1.ArtifactService",
+	HandlerType: (*ArtifactServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "List",
+			Handler:    _ArtifactService_List_Handler,
+		},
+		{
+			MethodName: "Get",
+			Handler:    _ArtifactService_Get_Handler,
+		},
+	},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "GetContent",
+			Handler:       _ArtifactService_GetContent_Handler,
+			ServerStreams: true,
+		},
+	},
+	Metadata: "fleetkanban/v1/fleetkanban.proto",
+}
+
+const (
+	HarnessService_GetActiveSkill_FullMethodName    = "/fleetkanban.v1.HarnessService/GetActiveSkill"
+	HarnessService_ListSkillVersions_FullMethodName = "/fleetkanban.v1.HarnessService/ListSkillVersions"
+	HarnessService_ValidateSkill_FullMethodName     = "/fleetkanban.v1.HarnessService/ValidateSkill"
+	HarnessService_UpdateSkill_FullMethodName       = "/fleetkanban.v1.HarnessService/UpdateSkill"
+	HarnessService_RollbackSkill_FullMethodName     = "/fleetkanban.v1.HarnessService/RollbackSkill"
+)
+
+// HarnessServiceClient is the client API for HarnessService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type HarnessServiceClient interface {
+	GetActiveSkill(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*HarnessSkill, error)
+	ListSkillVersions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListSkillVersionsResponse, error)
+	ValidateSkill(ctx context.Context, in *ValidateSkillRequest, opts ...grpc.CallOption) (*ValidateSkillResponse, error)
+	UpdateSkill(ctx context.Context, in *UpdateSkillRequest, opts ...grpc.CallOption) (*HarnessSkill, error)
+	RollbackSkill(ctx context.Context, in *RollbackSkillRequest, opts ...grpc.CallOption) (*HarnessSkill, error)
+}
+
+type harnessServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewHarnessServiceClient(cc grpc.ClientConnInterface) HarnessServiceClient {
+	return &harnessServiceClient{cc}
+}
+
+func (c *harnessServiceClient) GetActiveSkill(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*HarnessSkill, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HarnessSkill)
+	err := c.cc.Invoke(ctx, HarnessService_GetActiveSkill_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *harnessServiceClient) ListSkillVersions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListSkillVersionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSkillVersionsResponse)
+	err := c.cc.Invoke(ctx, HarnessService_ListSkillVersions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *harnessServiceClient) ValidateSkill(ctx context.Context, in *ValidateSkillRequest, opts ...grpc.CallOption) (*ValidateSkillResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ValidateSkillResponse)
+	err := c.cc.Invoke(ctx, HarnessService_ValidateSkill_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *harnessServiceClient) UpdateSkill(ctx context.Context, in *UpdateSkillRequest, opts ...grpc.CallOption) (*HarnessSkill, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HarnessSkill)
+	err := c.cc.Invoke(ctx, HarnessService_UpdateSkill_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *harnessServiceClient) RollbackSkill(ctx context.Context, in *RollbackSkillRequest, opts ...grpc.CallOption) (*HarnessSkill, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HarnessSkill)
+	err := c.cc.Invoke(ctx, HarnessService_RollbackSkill_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// HarnessServiceServer is the server API for HarnessService service.
+// All implementations should embed UnimplementedHarnessServiceServer
+// for forward compatibility.
+type HarnessServiceServer interface {
+	GetActiveSkill(context.Context, *emptypb.Empty) (*HarnessSkill, error)
+	ListSkillVersions(context.Context, *emptypb.Empty) (*ListSkillVersionsResponse, error)
+	ValidateSkill(context.Context, *ValidateSkillRequest) (*ValidateSkillResponse, error)
+	UpdateSkill(context.Context, *UpdateSkillRequest) (*HarnessSkill, error)
+	RollbackSkill(context.Context, *RollbackSkillRequest) (*HarnessSkill, error)
+}
+
+// UnimplementedHarnessServiceServer should be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedHarnessServiceServer struct{}
+
+func (UnimplementedHarnessServiceServer) GetActiveSkill(context.Context, *emptypb.Empty) (*HarnessSkill, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetActiveSkill not implemented")
+}
+func (UnimplementedHarnessServiceServer) ListSkillVersions(context.Context, *emptypb.Empty) (*ListSkillVersionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListSkillVersions not implemented")
+}
+func (UnimplementedHarnessServiceServer) ValidateSkill(context.Context, *ValidateSkillRequest) (*ValidateSkillResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ValidateSkill not implemented")
+}
+func (UnimplementedHarnessServiceServer) UpdateSkill(context.Context, *UpdateSkillRequest) (*HarnessSkill, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateSkill not implemented")
+}
+func (UnimplementedHarnessServiceServer) RollbackSkill(context.Context, *RollbackSkillRequest) (*HarnessSkill, error) {
+	return nil, status.Error(codes.Unimplemented, "method RollbackSkill not implemented")
+}
+func (UnimplementedHarnessServiceServer) testEmbeddedByValue() {}
+
+// UnsafeHarnessServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to HarnessServiceServer will
+// result in compilation errors.
+type UnsafeHarnessServiceServer interface {
+	mustEmbedUnimplementedHarnessServiceServer()
+}
+
+func RegisterHarnessServiceServer(s grpc.ServiceRegistrar, srv HarnessServiceServer) {
+	// If the following call panics, it indicates UnimplementedHarnessServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&HarnessService_ServiceDesc, srv)
+}
+
+func _HarnessService_GetActiveSkill_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HarnessServiceServer).GetActiveSkill(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HarnessService_GetActiveSkill_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HarnessServiceServer).GetActiveSkill(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HarnessService_ListSkillVersions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HarnessServiceServer).ListSkillVersions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HarnessService_ListSkillVersions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HarnessServiceServer).ListSkillVersions(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HarnessService_ValidateSkill_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ValidateSkillRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HarnessServiceServer).ValidateSkill(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HarnessService_ValidateSkill_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HarnessServiceServer).ValidateSkill(ctx, req.(*ValidateSkillRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HarnessService_UpdateSkill_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateSkillRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HarnessServiceServer).UpdateSkill(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HarnessService_UpdateSkill_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HarnessServiceServer).UpdateSkill(ctx, req.(*UpdateSkillRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HarnessService_RollbackSkill_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RollbackSkillRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HarnessServiceServer).RollbackSkill(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HarnessService_RollbackSkill_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HarnessServiceServer).RollbackSkill(ctx, req.(*RollbackSkillRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// HarnessService_ServiceDesc is the grpc.ServiceDesc for HarnessService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var HarnessService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "fleetkanban.v1.HarnessService",
+	HandlerType: (*HarnessServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetActiveSkill",
+			Handler:    _HarnessService_GetActiveSkill_Handler,
+		},
+		{
+			MethodName: "ListSkillVersions",
+			Handler:    _HarnessService_ListSkillVersions_Handler,
+		},
+		{
+			MethodName: "ValidateSkill",
+			Handler:    _HarnessService_ValidateSkill_Handler,
+		},
+		{
+			MethodName: "UpdateSkill",
+			Handler:    _HarnessService_UpdateSkill_Handler,
+		},
+		{
+			MethodName: "RollbackSkill",
+			Handler:    _HarnessService_RollbackSkill_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "fleetkanban/v1/fleetkanban.proto",
+}
+
+const (
+	HarnessAttemptService_ListPending_FullMethodName = "/fleetkanban.v1.HarnessAttemptService/ListPending"
+	HarnessAttemptService_ListForTask_FullMethodName = "/fleetkanban.v1.HarnessAttemptService/ListForTask"
+	HarnessAttemptService_Approve_FullMethodName     = "/fleetkanban.v1.HarnessAttemptService/Approve"
+	HarnessAttemptService_Reject_FullMethodName      = "/fleetkanban.v1.HarnessAttemptService/Reject"
+)
+
+// HarnessAttemptServiceClient is the client API for HarnessAttemptService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type HarnessAttemptServiceClient interface {
+	ListPending(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListHarnessAttemptsResponse, error)
+	ListForTask(ctx context.Context, in *ListHarnessAttemptsForTaskRequest, opts ...grpc.CallOption) (*ListHarnessAttemptsResponse, error)
+	Approve(ctx context.Context, in *ApproveHarnessAttemptRequest, opts ...grpc.CallOption) (*HarnessAttempt, error)
+	Reject(ctx context.Context, in *RejectHarnessAttemptRequest, opts ...grpc.CallOption) (*HarnessAttempt, error)
+}
+
+type harnessAttemptServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewHarnessAttemptServiceClient(cc grpc.ClientConnInterface) HarnessAttemptServiceClient {
+	return &harnessAttemptServiceClient{cc}
+}
+
+func (c *harnessAttemptServiceClient) ListPending(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListHarnessAttemptsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListHarnessAttemptsResponse)
+	err := c.cc.Invoke(ctx, HarnessAttemptService_ListPending_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *harnessAttemptServiceClient) ListForTask(ctx context.Context, in *ListHarnessAttemptsForTaskRequest, opts ...grpc.CallOption) (*ListHarnessAttemptsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListHarnessAttemptsResponse)
+	err := c.cc.Invoke(ctx, HarnessAttemptService_ListForTask_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *harnessAttemptServiceClient) Approve(ctx context.Context, in *ApproveHarnessAttemptRequest, opts ...grpc.CallOption) (*HarnessAttempt, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HarnessAttempt)
+	err := c.cc.Invoke(ctx, HarnessAttemptService_Approve_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *harnessAttemptServiceClient) Reject(ctx context.Context, in *RejectHarnessAttemptRequest, opts ...grpc.CallOption) (*HarnessAttempt, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HarnessAttempt)
+	err := c.cc.Invoke(ctx, HarnessAttemptService_Reject_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// HarnessAttemptServiceServer is the server API for HarnessAttemptService service.
+// All implementations should embed UnimplementedHarnessAttemptServiceServer
+// for forward compatibility.
+type HarnessAttemptServiceServer interface {
+	ListPending(context.Context, *emptypb.Empty) (*ListHarnessAttemptsResponse, error)
+	ListForTask(context.Context, *ListHarnessAttemptsForTaskRequest) (*ListHarnessAttemptsResponse, error)
+	Approve(context.Context, *ApproveHarnessAttemptRequest) (*HarnessAttempt, error)
+	Reject(context.Context, *RejectHarnessAttemptRequest) (*HarnessAttempt, error)
+}
+
+// UnimplementedHarnessAttemptServiceServer should be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedHarnessAttemptServiceServer struct{}
+
+func (UnimplementedHarnessAttemptServiceServer) ListPending(context.Context, *emptypb.Empty) (*ListHarnessAttemptsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListPending not implemented")
+}
+func (UnimplementedHarnessAttemptServiceServer) ListForTask(context.Context, *ListHarnessAttemptsForTaskRequest) (*ListHarnessAttemptsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListForTask not implemented")
+}
+func (UnimplementedHarnessAttemptServiceServer) Approve(context.Context, *ApproveHarnessAttemptRequest) (*HarnessAttempt, error) {
+	return nil, status.Error(codes.Unimplemented, "method Approve not implemented")
+}
+func (UnimplementedHarnessAttemptServiceServer) Reject(context.Context, *RejectHarnessAttemptRequest) (*HarnessAttempt, error) {
+	return nil, status.Error(codes.Unimplemented, "method Reject not implemented")
+}
+func (UnimplementedHarnessAttemptServiceServer) testEmbeddedByValue() {}
+
+// UnsafeHarnessAttemptServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to HarnessAttemptServiceServer will
+// result in compilation errors.
+type UnsafeHarnessAttemptServiceServer interface {
+	mustEmbedUnimplementedHarnessAttemptServiceServer()
+}
+
+func RegisterHarnessAttemptServiceServer(s grpc.ServiceRegistrar, srv HarnessAttemptServiceServer) {
+	// If the following call panics, it indicates UnimplementedHarnessAttemptServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&HarnessAttemptService_ServiceDesc, srv)
+}
+
+func _HarnessAttemptService_ListPending_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HarnessAttemptServiceServer).ListPending(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HarnessAttemptService_ListPending_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HarnessAttemptServiceServer).ListPending(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HarnessAttemptService_ListForTask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListHarnessAttemptsForTaskRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HarnessAttemptServiceServer).ListForTask(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HarnessAttemptService_ListForTask_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HarnessAttemptServiceServer).ListForTask(ctx, req.(*ListHarnessAttemptsForTaskRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HarnessAttemptService_Approve_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApproveHarnessAttemptRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HarnessAttemptServiceServer).Approve(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HarnessAttemptService_Approve_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HarnessAttemptServiceServer).Approve(ctx, req.(*ApproveHarnessAttemptRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _HarnessAttemptService_Reject_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RejectHarnessAttemptRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HarnessAttemptServiceServer).Reject(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HarnessAttemptService_Reject_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HarnessAttemptServiceServer).Reject(ctx, req.(*RejectHarnessAttemptRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// HarnessAttemptService_ServiceDesc is the grpc.ServiceDesc for HarnessAttemptService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var HarnessAttemptService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "fleetkanban.v1.HarnessAttemptService",
+	HandlerType: (*HarnessAttemptServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListPending",
+			Handler:    _HarnessAttemptService_ListPending_Handler,
+		},
+		{
+			MethodName: "ListForTask",
+			Handler:    _HarnessAttemptService_ListForTask_Handler,
+		},
+		{
+			MethodName: "Approve",
+			Handler:    _HarnessAttemptService_Approve_Handler,
+		},
+		{
+			MethodName: "Reject",
+			Handler:    _HarnessAttemptService_Reject_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
 	Metadata: "fleetkanban/v1/fleetkanban.proto",
 }

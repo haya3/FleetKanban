@@ -1,0 +1,48 @@
+{
+  "_comment": "Single source of truth for the Kanban's drag-and-drop edges. Each entry declares a (from_status, target_column) pair the UI lets the user drop onto, together with the sidecar-side task.Status the drop ultimately transitions to. Go tests in sidecar/internal/task verify every (from_status -> sidecar_to) edge here is legal under allowedTransitions in transition.go, so the DnD rules in ui/lib/features/kanban/providers.dart cannot drift away from the state machine without failing CI.",
+  "edges": [
+    {
+      "from_status": "queued",
+      "target_column": "running",
+      "sidecar_to": "in_progress",
+      "action": "RunTask"
+    },
+    {
+      "from_status": "ai_review",
+      "target_column": "human_review",
+      "sidecar_to": "human_review",
+      "action": "SubmitReview(APPROVE)"
+    },
+    {
+      "from_status": "in_progress",
+      "target_column": "done",
+      "sidecar_to": "aborted",
+      "action": "CancelTask"
+    },
+    {
+      "from_status": "queued",
+      "target_column": "done",
+      "sidecar_to": "cancelled",
+      "action": "CancelTask"
+    },
+    {
+      "from_status": "human_review",
+      "target_column": "done",
+      "sidecar_to": "done",
+      "action": "FinalizeTask(KEEP)"
+    },
+    {
+      "from_status": "aborted",
+      "target_column": "done",
+      "sidecar_to": "done",
+      "action": "FinalizeTask(KEEP)"
+    }
+  ],
+  "draggable_statuses": [
+    "queued",
+    "planning",
+    "in_progress",
+    "ai_review",
+    "human_review"
+  ]
+}

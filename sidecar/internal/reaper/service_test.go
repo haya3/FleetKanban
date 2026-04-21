@@ -303,6 +303,94 @@ func TestReaper_RestoresRevivedBranches(t *testing.T) {
 		"reaper must clear branch_exists=false once the branch is revived")
 }
 
+// TestReaper_EmitsBranchGCOnMissing verifies that when UpdateBranchExistence
+// flips branch_exists from true → false, a housekeeping.branch_gc event is
+// both persisted (so TaskEvents backfill sees it) and fanned out via the
+// Publish hook (so WatchEvents subscribers refresh the Kanban live).
+// Without this, the Kanban's finalize pills (Merge / Delete branch) stay
+// stale until the user triggers an unrelated mutation.
+func TestReaper_EmitsBranchGCOnMissing(t *testing.T) {
+	ctx := t.Context()
+
+	repoDir := filepath.Join(t.TempDir(), "repo")
+	initRepo(t, repoDir)
+
+	db := openTestDB(t)
+	rs := store.NewRepositoryStore(db)
+	ts := store.NewTaskStore(db)
+	es := store.NewEventStore(db)
+
+	repoID := "repo-1"
+	newTestRepo(t, rs, repoID, strings.ToLower(repoDir))
+
+	wtMgr, err := worktree.NewManager(worktree.Options{FallbackRoot: t.TempDir()})
+	require.NoError(t, err)
+
+	const taskID = "01TASK000000000000000000003"
+	branch := "fleetkanban/" + taskID
+
+	wt, err := wtMgr.Create(ctx, worktree.CreateInput{
+		RepoPath:   repoDir,
+		TaskID:     taskID,
+		BaseBranch: "main",
+	})
+	require.NoError(t, err)
+	newTestTask(t, ts, taskID, repoID, branch)
+
+	// Tear down the worktree + branch externally so the reaper has a real
+	// flip to react to.
+	require.NoError(t, wtMgr.Remove(ctx, repoDir, wt.Path, taskID, worktree.KeepBranch))
+	cmd := exec.CommandContext(ctx, "git", "branch", "-D", branch)
+	cmd.Dir = repoDir
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "git branch -D: %s", out)
+
+	var published []*task.AgentEvent
+	svc, err := New(Config{
+		Repositories: rs,
+		Tasks:        ts,
+		Events:       es,
+		Worktrees:    wtMgr,
+		Publish:      func(ev *task.AgentEvent) { published = append(published, ev) },
+		Logger:       discardLogger(),
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, svc.UpdateBranchExistence(ctx))
+
+	// Exactly one branch_gc event must have been published for this task.
+	var found *task.AgentEvent
+	for _, ev := range published {
+		if ev.Kind == task.EventHousekeepingBranchGC && ev.TaskID == taskID {
+			require.Nil(t, found, "expected exactly one branch_gc publish")
+			found = ev
+		}
+	}
+	require.NotNil(t, found, "UpdateBranchExistence must publish a branch_gc event when the flag flips")
+	assert.Contains(t, found.Payload, `"reason":"missing"`)
+	assert.Contains(t, found.Payload, `"exists":false`)
+
+	// The same event must be in the DB so TaskEvents backfill picks it up.
+	dbEvents, err := es.ListByTask(ctx, taskID, 0, 0)
+	require.NoError(t, err)
+	var dbMatch int
+	for _, ev := range dbEvents {
+		if ev.Kind == task.EventHousekeepingBranchGC {
+			dbMatch++
+		}
+	}
+	assert.Equal(t, 1, dbMatch, "exactly one branch_gc event must be persisted")
+
+	// Second pass is idempotent: no new branch_gc event because the flag
+	// is already false (see the `exists == t.BranchExists` short-circuit).
+	published = published[:0]
+	require.NoError(t, svc.UpdateBranchExistence(ctx))
+	for _, ev := range published {
+		assert.NotEqual(t, task.EventHousekeepingBranchGC, ev.Kind,
+			"idempotent pass must not re-emit branch_gc")
+	}
+}
+
 // sweepFixture wires a real git repo + DB + a single task for Merged-sweep
 // tests. The task's branch sits at the base commit (therefore "merged" in
 // the ancestor sense). Individual tests may advance the branch to simulate

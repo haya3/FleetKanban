@@ -2,17 +2,23 @@ package orchestrator
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/oklog/ulid/v2"
 	"golang.org/x/sync/semaphore"
 
+	"github.com/FleetKanban/fleetkanban/internal/ihr"
+	"github.com/FleetKanban/fleetkanban/internal/runstate"
+	"github.com/FleetKanban/fleetkanban/internal/store"
 	"github.com/FleetKanban/fleetkanban/internal/task"
 	"github.com/FleetKanban/fleetkanban/internal/worktree"
 )
@@ -59,7 +65,47 @@ type Config struct {
 	// user-actionable end state. Runs on the dispatch goroutine so the
 	// implementation must be fast and non-blocking.
 	Notifier Notifier
-	Logger   *slog.Logger
+	// Runstate, if non-nil, receives file-backed NLAH artifact writes and
+	// history appends. nil is valid for tests and environments that do not
+	// need durable run directories (the orchestrator is fully functional
+	// without it — all runstate calls are best-effort and guarded by a
+	// nil check).
+	Runstate *runstate.Writer
+	// Charter, if non-nil, is the parsed NLAH harness-skill/SKILL.md. The
+	// orchestrator consults it for runtime policy that the YAML frontmatter
+	// declares (currently: max_rework_count). When nil (tests / missing
+	// SKILL.md) the hardcoded MaxReworkCount fallback applies, preserving
+	// pre-NLAH behaviour.
+	Charter *ihr.Charter
+	// HarnessAttempts, if non-nil, receives a row per AI rework event so
+	// the Self-Evolution Proposals view (Phase C) can surface recurring
+	// failure patterns for the user to fold back into SKILL.md. Writes
+	// are best-effort — nil or write errors do not affect rework flow.
+	HarnessAttempts *store.HarnessAttemptStore
+	// Evolver, if non-nil, is invoked asynchronously after a rework
+	// observation is recorded. It asks an LLM-backed proposer to
+	// generate a unified-diff patch against the current SKILL.md and
+	// writes the result to the pending harness_attempt row via
+	// UpdateProposedPatch. Nil disables patch generation — observations
+	// are still recorded, users can edit SKILL.md by hand. Failures are
+	// logged and discarded; the pending row remains usable.
+	Evolver *ihr.Evolver
+	// TaskMirror, if non-nil, is invoked asynchronously after a task
+	// finalizes with Keep or Merge so the Graph Memory layer can index
+	// the task for future similar-task suggestions. Nil disables the
+	// mirror (tests, or repos without Memory enabled — the mirror
+	// itself is idempotent and checks per-repo Memory settings before
+	// indexing, so wiring it unconditionally is safe).
+	TaskMirror TaskMirror
+	Logger     *slog.Logger
+}
+
+// TaskMirror is the hook the orchestrator calls after a task finalizes
+// with Keep or Merge so the Graph Memory layer can index the task for
+// future similar-task retrieval. Implementations must be idempotent:
+// re-running with the same taskID replaces any prior node in place.
+type TaskMirror interface {
+	IngestTask(ctx context.Context, repoID, taskID, goal, summary string) error
 }
 
 // ConcurrencyMin and ConcurrencyMax clamp the runtime-adjustable concurrency
@@ -84,8 +130,12 @@ const MaxReworkCount = 2
 type Orchestrator struct {
 	cfg Config
 
-	log      *slog.Logger
-	eventIDs ulidFactory
+	log             *slog.Logger
+	eventIDs        ulidFactory
+	runstate        *runstate.Writer            // nil when cfg.Runstate is nil (test/no-op mode)
+	charter         atomic.Pointer[ihr.Charter] // hot-swappable; nil when no SKILL.md is available; falls back to hardcoded MaxReworkCount
+	harnessAttempts *store.HarnessAttemptStore  // nil when cfg.HarnessAttempts is nil; attempt recording is a no-op
+	evolver         *ihr.Evolver                // nil when cfg.Evolver is nil; async patch proposal is a no-op
 
 	rootCtx    context.Context
 	rootCancel context.CancelFunc
@@ -158,16 +208,79 @@ func New(cfg Config) (*Orchestrator, error) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Orchestrator{
-		cfg:         cfg,
-		sem:         semaphore.NewWeighted(int64(cfg.Concurrency)),
-		concurrency: cfg.Concurrency,
-		log:         cfg.Logger,
-		rootCtx:     ctx,
-		rootCancel:  cancel,
-		running:     make(map[string]*runState),
-		aiReviews:   make(map[string]context.CancelFunc),
-	}, nil
+	orch := &Orchestrator{
+		cfg:             cfg,
+		sem:             semaphore.NewWeighted(int64(cfg.Concurrency)),
+		concurrency:     cfg.Concurrency,
+		log:             cfg.Logger,
+		rootCtx:         ctx,
+		rootCancel:      cancel,
+		running:         make(map[string]*runState),
+		aiReviews:       make(map[string]context.CancelFunc),
+		runstate:        cfg.Runstate,
+		harnessAttempts: cfg.HarnessAttempts,
+		evolver:         cfg.Evolver,
+	}
+	orch.charter.Store(cfg.Charter) // nil-safe; atomic.Pointer[T].Store(nil) is valid
+	return orch, nil
+}
+
+// SetCharter publishes a new charter to the running orchestrator. Called by
+// HarnessService.UpdateSkill / RollbackSkill so user-edited policy (e.g. a
+// tightened max_rework_count) takes effect on the next stage transition
+// without a sidecar restart — the core "replace" promise of NLAH adoption.
+// Passing nil reverts to the hardcoded constants.
+func (o *Orchestrator) SetCharter(c *ihr.Charter) {
+	o.charter.Store(c)
+	if c != nil {
+		o.log.Info("orchestrator: charter hot-reloaded",
+			"max_rework_count", c.MaxReworkCount,
+			"harness_version", c.HarnessVersion,
+			"stages", len(c.Stages))
+	} else {
+		o.log.Info("orchestrator: charter cleared; falling back to hardcoded constants")
+	}
+}
+
+// durableHistoryKinds is the set of AgentEvent kinds projected into the
+// per-task state/task_history.jsonl log. High-cadence streaming events
+// (assistant.delta / reasoning.delta / tool.start-end) are deliberately
+// excluded: on a long-running task they dominate the log by orders of
+// magnitude and obscure the stage landmarks the file exists to expose.
+// Membership here is intentionally conservative — add a kind only when
+// a post-mortem reader actually wants to grep for it.
+var durableHistoryKinds = map[task.EventKind]bool{
+	task.EventStatus:             true,
+	task.EventSessionStart:       true,
+	task.EventSessionIdle:        true,
+	task.EventPlanSummary:        true,
+	task.EventSubtaskStart:       true,
+	task.EventSubtaskEnd:         true,
+	task.EventAIReviewStart:      true,
+	task.EventAIReviewDecision:   true,
+	task.EventReviewSubmitted:    true,
+	task.EventFileChanged:        true,
+	task.EventSessionUsage:       true,
+	task.EventPermissionRequest:  true,
+	task.EventError:              true,
+	task.EventSecurityPathEscape: true,
+}
+
+func isDurableHistoryKind(k task.EventKind) bool {
+	return durableHistoryKinds[k]
+}
+
+// effectiveMaxRework returns the rework cap to enforce for a task's AI
+// review cycle. When a parsed SKILL.md charter is present its declared
+// max_rework_count wins; otherwise the hardcoded MaxReworkCount fallback
+// applies. This is the first concrete point where editing
+// harness-skill/SKILL.md changes runtime behaviour without a Go rebuild —
+// NLAH's "replace" semantics in action.
+func (o *Orchestrator) effectiveMaxRework() int {
+	if c := o.charter.Load(); c != nil && c.MaxReworkCount > 0 {
+		return c.MaxReworkCount
+	}
+	return MaxReworkCount
 }
 
 // SetConcurrency changes the maximum number of tasks that may run
@@ -343,6 +456,14 @@ func (o *Orchestrator) dispatch(ctx context.Context, taskID string) {
 		}
 		o.emitStatus(ctx, taskID, task.StatusQueued, task.StatusPlanning)
 		t.Status = task.StatusPlanning
+
+		// Hook 1: initialise the NLAH run directory for this task.
+		// Best-effort: a failure here must not abort the task.
+		if o.runstate != nil {
+			if _, rsErr := o.runstate.InitTaskDir(ctx, t.ID, t.Goal, t.BaseBranch); rsErr != nil {
+				log.Warn("runstate: InitTaskDir failed", "task", t.ID, "err", rsErr)
+			}
+		}
 	} else {
 		if err := o.cfg.TaskStore.Transition(ctx, taskID,
 			task.StatusQueued, task.StatusInProgress, "", "", task.FinalizationNone); err != nil {
@@ -494,6 +615,19 @@ func (o *Orchestrator) runPlanningPhase(ctx context.Context, t *task.Task, log *
 		o.failTask(ctx, t.ID, task.StatusPlanning, task.ErrCodeRuntime,
 			fmt.Sprintf("planner persist: %v", err))
 		return false
+	}
+
+	// Hook 2: persist the plan JSON as a durable artifact so the run
+	// directory mirrors what the planner produced. Best-effort.
+	if o.runstate != nil {
+		if planBytes, mErr := json.Marshal(subs); mErr == nil {
+			if _, _, wErr := o.runstate.WriteArtifact(ctx, t.ID, "", "plan", "plan_json",
+				"artifacts/plan.json", planBytes, nil); wErr != nil {
+				log.Warn("runstate: write plan.json failed", "task", t.ID, "err", wErr)
+			}
+		} else {
+			log.Warn("runstate: marshal plan JSON failed", "task", t.ID, "err", mErr)
+		}
 	}
 
 	// Surface the planner's investigation summary to the UI as an
@@ -658,6 +792,17 @@ func (o *Orchestrator) runSubtaskLoop(ctx context.Context, t *task.Task, subs []
 		if err := o.cfg.SubtaskStore.Update(ctx, sub); err != nil {
 			log.Warn("orchestrator: mark subtask doing", "id", sub.ID, "err", err)
 		}
+
+		// Hook 3a: write the subtask prompt as a durable artifact before
+		// the Copilot session starts. Best-effort.
+		if o.runstate != nil && sub.Prompt != "" {
+			promptRelPath := fmt.Sprintf("children/%d/%03d/PROMPT.md", sub.Round, sub.OrderIdx)
+			if _, _, rsErr := o.runstate.WriteArtifact(ctx, t.ID, sub.ID, "code", "subtask_prompt",
+				promptRelPath, []byte(sub.Prompt), nil); rsErr != nil {
+				log.Warn("runstate: write PROMPT.md failed", "subtask", sub.ID, "err", rsErr)
+			}
+		}
+
 		o.emitSubtaskStart(ctx, t, sub)
 
 		eventCh := make(chan *task.AgentEvent, o.cfg.EventChannelBuffer)
@@ -731,6 +876,35 @@ func (o *Orchestrator) runSubtaskLoop(ctx context.Context, t *task.Task, subs []
 		if err := o.cfg.SubtaskStore.Update(ctx, sub); err != nil {
 			log.Warn("orchestrator: mark subtask done", "id", sub.ID, "err", err)
 		}
+
+		// Hook 3b: persist OUTPUT.md (title + role summary) and DIFF.patch
+		// for the completed subtask. Best-effort.
+		if o.runstate != nil {
+			outputRelPath := fmt.Sprintf("children/%d/%03d/OUTPUT.md", sub.Round, sub.OrderIdx)
+			outputBody := fmt.Sprintf("# %s\n\nRole: %s\n\nStatus: done\n", sub.Title, sub.AgentRole)
+			if _, _, rsErr := o.runstate.WriteArtifact(ctx, t.ID, sub.ID, "code", "subtask_output",
+				outputRelPath, []byte(outputBody), nil); rsErr != nil {
+				log.Warn("runstate: write OUTPUT.md failed", "subtask", sub.ID, "err", rsErr)
+			}
+
+			// DIFF.patch: obtain via WorktreeService.Diff. Best-effort;
+			// an empty patch is written when the diff call fails so the
+			// file is still present for harness tools expecting it.
+			diffRelPath := fmt.Sprintf("children/%d/%03d/DIFF.patch", sub.Round, sub.OrderIdx)
+			diffContent := []byte("") // TODO: replace with per-subtask diff when runner exposes it
+			if t.WorktreePath != "" {
+				if d, dErr := o.cfg.Worktrees.Diff(ctx, t.WorktreePath, t.BaseBranch); dErr == nil {
+					diffContent = []byte(d)
+				} else {
+					log.Warn("runstate: diff for DIFF.patch failed", "subtask", sub.ID, "err", dErr)
+				}
+			}
+			if _, _, rsErr := o.runstate.WriteArtifact(ctx, t.ID, sub.ID, "code", "subtask_diff",
+				diffRelPath, diffContent, nil); rsErr != nil {
+				log.Warn("runstate: write DIFF.patch failed", "subtask", sub.ID, "err", rsErr)
+			}
+		}
+
 		o.emitSubtaskEnd(ctx, t, sub, true, "")
 		// Add this subtask's outcome to priorSummaries so the next
 		// subtask's prompt lists it. We don't have the agent's final
@@ -910,6 +1084,30 @@ func (o *Orchestrator) consumeEvents(ctx context.Context, t *task.Task, ch <-cha
 		if o.cfg.Sink != nil {
 			for _, e := range batch {
 				o.cfg.Sink(e)
+			}
+		}
+		// Hook 4: append a compact marker per event to the durable
+		// task_history.jsonl so LLMs / harness tools can grep the log
+		// without touching SQL. payload_len records bulk rather than
+		// the full payload to keep the JSONL compact.
+		//
+		// Only high-signal kinds are projected. assistant.delta (every
+		// streaming token fragment, emitted ~100ms while the LLM talks)
+		// would bloat task_history.jsonl to hundreds of MB on long tasks
+		// and drown the durable log's utility as a grep target. The
+		// events table remains the full time-series record; this file is
+		// a curated landmark log for post-mortem.
+		if o.runstate != nil {
+			for _, e := range batch {
+				if !isDurableHistoryKind(e.Kind) {
+					continue
+				}
+				_ = o.runstate.AppendHistory(ctx, t.ID, map[string]any{
+					"seq":         e.Seq,
+					"kind":        string(e.Kind),
+					"at":          e.OccurredAt.UTC().Format(time.RFC3339Nano),
+					"payload_len": len(e.Payload),
+				})
 			}
 		}
 		batch = batch[:0]
@@ -1106,6 +1304,31 @@ func (o *Orchestrator) runAIReview(taskID string, log *slog.Logger) {
 	decision, reviewModel, reviewUsage, err := o.cfg.Reviewer.Review(ctx, t, diff, t.ReviewFeedback, t.ReworkCount, eventCh)
 	<-consumerDone
 	o.emitUsageEvent(ctx, t, "review", "", reviewUsage)
+
+	// Hook 5: persist the review result as a durable markdown artifact.
+	// Written unconditionally (approve or reject) so the run directory
+	// always captures what the reviewer decided. Best-effort; a failure
+	// here must not change the review outcome.
+	if o.runstate != nil && err == nil {
+		reviewRelPath := fmt.Sprintf("artifacts/review_%02d.md", reviewRound)
+		var reviewBody string
+		if decision.Summary != "" {
+			reviewBody = "## Summary\n\n" + decision.Summary + "\n\n"
+		}
+		if decision.Feedback != "" {
+			reviewBody += "## Feedback\n\n" + decision.Feedback + "\n\n"
+		}
+		approveStr := "reject"
+		if decision.Approve {
+			approveStr = "approve"
+		}
+		reviewBody += fmt.Sprintf("## Decision\n\n%s (round %d)\n", approveStr, reviewRound)
+		if _, _, rsErr := o.runstate.WriteArtifact(ctx, t.ID, "", "review", "review_md",
+			reviewRelPath, []byte(reviewBody), nil); rsErr != nil {
+			log.Warn("runstate: write review artifact failed", "task", t.ID, "err", rsErr)
+		}
+	}
+
 	if err != nil {
 		// A user-initiated Cancel flows through as a ctx cancel here.
 		// Distinguish it from a real reviewer error: on cancel, advance
@@ -1144,7 +1367,7 @@ func (o *Orchestrator) runAIReview(taskID string, log *slog.Logger) {
 	if decision.Approve {
 		// Emit before transitioning so the event seq lands ahead of
 		// the status event for cleaner UI ordering.
-		o.emitAIReviewDecision(ctx, t, decision, t.ReworkCount, reviewModel)
+		o.emitAIReviewDecision(ctx, t, decision, t.ReworkCount, reviewModel, false)
 		if err := o.cfg.TaskStore.Transition(ctx, taskID,
 			task.StatusAIReview, task.StatusHumanReview, "", "", task.FinalizationNone); err != nil {
 			log.Warn("orchestrator: ai_review→human_review failed", "err", err)
@@ -1155,12 +1378,56 @@ func (o *Orchestrator) runAIReview(taskID string, log *slog.Logger) {
 		return
 	}
 
-	// Cap enforcement: a misbehaving reviewer that keeps flagging the
-	// same (phantom) issue will otherwise loop ai_review→queued forever.
-	// After MaxReworkCount auto-reworks we hand the task to the user
-	// rather than burn another Copilot iteration — the feedback records
-	// the escalation reason so it's clear in the Review pane.
-	if t.ReworkCount >= MaxReworkCount {
+	// Record the rework as a harness_attempt row so the user can inspect
+	// recurring failure classes via the Proposals view. The row is
+	// inserted synchronously so the observation is durable even if the
+	// self-evolution goroutine below is cancelled or crashes. Best-effort
+	// — failures here do not block the rework.
+	if o.harnessAttempts != nil {
+		failureClass := "review_rework"
+		if t.ReworkCount >= o.effectiveMaxRework() {
+			failureClass = "rework_cap_reached"
+		}
+		observation := decision.Feedback
+		if observation == "" {
+			observation = "(no reviewer feedback text)"
+		}
+		// Generate the ID upfront so the async evolver goroutine below
+		// can UpdateProposedPatch on the same row once it has a patch.
+		attemptID := ulid.Make().String()
+		if err := o.harnessAttempts.Insert(ctx, store.HarnessAttempt{
+			ID:            attemptID,
+			TaskID:        taskID,
+			ReworkRound:   int32(t.ReworkCount),
+			FailureClass:  failureClass,
+			ObservationMD: observation,
+			CreatedAt:     time.Now().UTC(),
+		}); err != nil {
+			log.Warn("orchestrator: harness attempt record failed", "err", err)
+		} else {
+			o.kickEvolver(attemptID, taskID, t.ReworkCount, failureClass, observation, log)
+		}
+	}
+
+	// Cap enforcement — the single point where the rework loop is bounded.
+	//
+	// Responsibility split: orchestrator.runAIReview decides when to stop
+	// and where to escalate; TaskStore.Transition just inc/resets the
+	// counter column (see internal/store/task_store.go rework_count
+	// bookkeeping). The cap value is read through effectiveMaxRework()
+	// which prefers the parsed SKILL.md charter's max_rework_count and
+	// falls back to the hardcoded MaxReworkCount when no charter is
+	// loaded, so editing the YAML alters runtime behaviour without a
+	// rebuild.
+	//
+	// A misbehaving reviewer that keeps flagging the same (phantom) issue
+	// would otherwise loop ai_review→queued forever and burn Copilot
+	// tokens. On cap-reached we emit a dedicated ai_review.decision event
+	// with rework_cap_reached=true so the UI can call out the escalation
+	// (vs. a normal APPROVE / REWORK decision) and the event stream
+	// contains the reviewer's final verdict even though we are abandoning
+	// the retry loop.
+	if t.ReworkCount >= o.effectiveMaxRework() {
 		feedback := decision.Feedback
 		if feedback == "" {
 			feedback = "(no details)"
@@ -1171,6 +1438,7 @@ func (o *Orchestrator) runAIReview(taskID string, log *slog.Logger) {
 		if err := o.cfg.TaskStore.UpdateFields(ctx, t); err != nil {
 			log.Warn("orchestrator: ai_review cap feedback persist failed", "err", err)
 		}
+		o.emitAIReviewDecision(ctx, t, decision, t.ReworkCount, reviewModel, true)
 		if err := o.cfg.TaskStore.Transition(ctx, taskID,
 			task.StatusAIReview, task.StatusHumanReview, "", "", task.FinalizationNone); err != nil {
 			log.Warn("orchestrator: ai_review→human_review (rework cap) failed", "err", err)
@@ -1198,7 +1466,7 @@ func (o *Orchestrator) runAIReview(taskID string, log *slog.Logger) {
 	// Persist the AI Reviewer's verdict as an event so the UI can show
 	// past feedback when the user clicks a subtask, even after several
 	// rework cycles. Task.ReviewFeedback only retains the latest verdict.
-	o.emitAIReviewDecision(ctx, t, decision, t.ReworkCount, reviewModel)
+	o.emitAIReviewDecision(ctx, t, decision, t.ReworkCount, reviewModel, false)
 
 	// AI rework re-plans on the next dispatch (planNeeded is now
 	// always true when a Planner is configured). The previous round's
@@ -1220,7 +1488,11 @@ func (o *Orchestrator) runAIReview(taskID string, log *slog.Logger) {
 // reviewer's verdict + feedback so the UI can show past AI feedback
 // for any rework cycle. Best-effort — failures are logged and swallowed
 // because the review transition itself is already the source of truth.
-func (o *Orchestrator) emitAIReviewDecision(ctx context.Context, t *task.Task, decision ReviewDecision, reworkCount int, model string) {
+//
+// capReached is true on the escalation path (rework_count >= cap), so
+// the UI can render this decision as "final, escalated to human_review"
+// rather than "another rework in flight".
+func (o *Orchestrator) emitAIReviewDecision(ctx context.Context, t *task.Task, decision ReviewDecision, reworkCount int, model string, capReached bool) {
 	// round lets the UI attach each decision to the matching AI Review
 	// node in the subtask DAG. Derived from the latest-round subtasks so
 	// it stays accurate even after the task has looped through rework
@@ -1235,12 +1507,13 @@ func (o *Orchestrator) emitAIReviewDecision(ctx context.Context, t *task.Task, d
 		}
 	}
 	payload := map[string]any{
-		"approve":      decision.Approve,
-		"feedback":     decision.Feedback,
-		"summary":      decision.Summary,
-		"rework_count": reworkCount,
-		"round":        round,
-		"model":        model,
+		"approve":            decision.Approve,
+		"feedback":           decision.Feedback,
+		"summary":            decision.Summary,
+		"rework_count":       reworkCount,
+		"round":              round,
+		"model":              model,
+		"rework_cap_reached": capReached,
 	}
 	o.appendAuxEvent(ctx, t, &task.AgentEvent{
 		Kind:    task.EventAIReviewDecision,
@@ -1354,6 +1627,89 @@ func (o *Orchestrator) emitStatus(ctx context.Context, taskID string, from, to t
 	if o.cfg.Sink != nil {
 		o.cfg.Sink(ev)
 	}
+}
+
+// evolverTimeout caps the LLM-side patch-generation session. Longer is
+// wasteful (recent observations don't change, so re-asking rarely helps)
+// and shorter risks timing out the initial exploration turn. 60 s mirrors
+// ihr.proposerTimeout so the ihr-side cap is never the actual stopping
+// point.
+const evolverTimeout = 60 * time.Second
+
+// kickEvolver launches the asynchronous patch-generation goroutine for
+// a pending harness_attempt row. The goroutine uses rootCtx (not the
+// per-task context, which may be cancelled as soon as runAIReview
+// returns) with an additional timeout so proposer failures are bounded.
+//
+// Any error path — proposer failure, stale pending row, malformed
+// diff — is logged at warn level only. The observation row is already
+// durable; the worst case is that the Proposals view shows the row
+// with an empty proposed_patch, which users can still action manually.
+func (o *Orchestrator) kickEvolver(attemptID, taskID string, round int, failureClass, observation string, log *slog.Logger) {
+	if o.evolver == nil || o.harnessAttempts == nil {
+		return
+	}
+	charter := o.charter.Load()
+	if charter == nil {
+		// Without a charter there is no SKILL.md text to diff against;
+		// the proposer would have nothing to propose. Skip quietly —
+		// charter-absent environments (tests / first run before
+		// bootstrap) are expected.
+		return
+	}
+
+	obs := []ihr.Observation{{
+		TaskID:       taskID,
+		ReworkRound:  round,
+		FailureClass: failureClass,
+		FeedbackMD:   observation,
+	}}
+
+	o.wg.Add(1)
+	go func() {
+		defer o.wg.Done()
+		ctx, cancel := context.WithTimeout(o.rootCtx, evolverTimeout)
+		defer cancel()
+
+		patch, err := o.evolver.Propose(ctx, *charter, obs)
+		if err != nil {
+			log.Warn("evolver: propose failed", "task", taskID, "attempt", attemptID, "err", err)
+			return
+		}
+		if patch == "" {
+			// Proposer declined — leave the observation row as-is.
+			return
+		}
+
+		// Validate the patch applies cleanly against the charter we sent
+		// the proposer. Rejecting an unappliable diff at record time
+		// prevents the Proposals UI from ever surfacing a rotten patch
+		// for user approval.
+		if _, applyErr := ihr.ApplyPatch([]byte(charter.RawContent), patch); applyErr != nil {
+			log.Warn("evolver: proposed patch does not apply; discarding",
+				"task", taskID, "attempt", attemptID, "err", applyErr)
+			return
+		}
+
+		sum := sha256.Sum256([]byte(patch))
+		hash := hex.EncodeToString(sum[:])
+		if err := o.harnessAttempts.UpdateProposedPatch(ctx, attemptID, patch, hash); err != nil {
+			// A stale / superseded row is a normal outcome — the user
+			// may have rejected the attempt while the LLM was still
+			// generating. Log at info level for those cases, warn for
+			// real failures.
+			if errors.Is(err, store.ErrAlreadyDecided) || errors.Is(err, store.ErrHarnessAttemptNotFound) {
+				log.Info("evolver: attempt no longer pending, discarding patch",
+					"task", taskID, "attempt", attemptID, "err", err)
+				return
+			}
+			log.Warn("evolver: update proposed patch failed",
+				"task", taskID, "attempt", attemptID, "err", err)
+			return
+		}
+		log.Info("evolver: proposed patch recorded",
+			"task", taskID, "attempt", attemptID, "hash", hash, "bytes", len(patch))
+	}()
 }
 
 // worktreeMissing reports whether the given path is absent on disk. Used

@@ -70,6 +70,15 @@ service SubtaskService {
   rpc UpdateSubtask    (UpdateSubtaskRequest)    returns (Subtask);
   rpc DeleteSubtask    (IdRequest)               returns (google.protobuf.Empty);
   rpc ReorderSubtasks  (ReorderSubtasksRequest)  returns (google.protobuf.Empty);
+
+  // GetSubtaskContext returns the full prompt + injected context the
+  // Copilot agent saw for a given subtask execution — system prompt,
+  // user prompt, plan summary, prior-subtask summaries, memory block,
+  // and the harness SKILL.md that was active at run time. Round 0
+  // means "latest round recorded". Returns a CopilotSubtaskContext
+  // with not_recorded=true when the subtask predates the v18 schema
+  // or has not been executed yet — the UI shows a fallback notice.
+  rpc GetSubtaskContext (GetSubtaskContextRequest) returns (CopilotSubtaskContext);
 }
 
 service RepositoryService {
@@ -200,6 +209,15 @@ service AuthService {
   // when no PAT is configured. Premium-request quotas are not exposed by the
   // GitHub public API, so the response intentionally omits them.
   rpc GetGitHubAccountInfo   (google.protobuf.Empty)           returns (GitHubAccountInfo);
+
+  // GetCopilotQuota returns the Copilot billing quota snapshots for the
+  // currently authenticated user (premium interactions / chat / completions
+  // etc.), sourced from the SDK's account.getQuota RPC. Unlike
+  // GetGitHubAccountInfo this works with device-flow login alone — no PAT
+  // required — so the UI can surface remaining premium requests out of the
+  // box. Returns UNAVAILABLE when the embedded Copilot CLI is not running,
+  // or UNIMPLEMENTED if the bundled CLI predates the quota RPC.
+  rpc GetCopilotQuota        (google.protobuf.Empty)           returns (CopilotQuotaInfo);
 }
 
 service SystemService {
@@ -227,32 +245,23 @@ service SystemService {
   // the UI should reserve headroom in any client-side gRPC timeout.
   rpc InstallPrecondition (InstallPreconditionRequest)  returns (InstallPreconditionResponse);
 
-  // GetAgentSettings / SetAgentSettings expose user-controlled prompt
-  // and language preferences. A non-empty prompt field fully replaces
-  // the corresponding built-in system message; empty falls back to the
-  // built-in. Output language is always appended on top.
+  // GetAgentSettings / SetAgentSettings expose the user-controlled
+  // output-language preference. Per-stage prompt customisation was
+  // removed in favour of the IHR Charter (harness-skill/SKILL.md) —
+  // that is the sanctioned surface for editing planner / runner /
+  // reviewer behaviour.
   rpc GetAgentSettings (google.protobuf.Empty) returns (AgentSettings);
   rpc SetAgentSettings (AgentSettings)         returns (AgentSettings);
-
-  // GetDefaultAgentPrompts returns the sidecar's built-in plan / code /
-  // review system messages. The UI pre-populates the Settings text
-  // boxes with these values on first open so the user can see the
-  // full default prompt and decide whether to keep, tweak, or rewrite
-  // it — saving then persists whatever the user has in the box as an
-  // override. (AgentSettings returns the raw override, which may be
-  // empty; this RPC provides the display baseline.)
-  rpc GetDefaultAgentPrompts (google.protobuf.Empty) returns (AgentSettings);
 }
 
-// AgentSettings holds per-stage prompt overrides the user wants
-// FleetKanban to inject into every Copilot session, plus a free-form
-// output language directive (e.g. "Japanese", "Spanish", "casual
-// English"). Empty fields are no-ops; the agent runs with the
-// built-in defaults only.
+// AgentSettings carries the free-form output-language directive
+// (e.g. "Japanese", "Spanish", "casual English") the agent uses when
+// choosing the language of its summaries / explanations / feedback.
+// Empty means "no language hint"; the agent falls back to the
+// model's default.
 message AgentSettings {
-  string plan_prompt    = 1;
-  string code_prompt    = 2;
-  string review_prompt  = 3;
+  reserved 1, 2, 3;
+  reserved "plan_prompt", "code_prompt", "review_prompt";
   // Free-form natural-language identifier the agent uses to choose
   // the language of its summaries / explanations / feedback. The
   // sidecar passes this verbatim — the AI is expected to recognise
@@ -369,6 +378,10 @@ message Task {
   // artifact without inspecting the event stream.
   string plan_model   = 19;
   string review_model = 20;
+  // harness_version is the HarnessSkill version active when this task was
+  // last run. 0 means the task predates NLAH Phase A or no harness was
+  // loaded. Populated by the orchestrator at run-time; read-only from the UI.
+  int32 harness_version = 21;
 }
 
 // Subtask mirrors internal/task.Subtask. Status is a 4-value string
@@ -557,6 +570,59 @@ message ListSubtasksResponse {
   repeated Subtask subtasks = 1;
 }
 
+// GetSubtaskContextRequest identifies one (subtask_id, round) row in
+// subtask_context.
+//
+// Semantics of the round field:
+//   * round >  0 — exact lookup, equivalent to
+//                  `SELECT * FROM subtask_context WHERE subtask_id=? AND round=?`.
+//                  Missing rows return not_recorded=true, not an error.
+//   * round <= 0 — "latest": resolves to MAX(round) for this subtask via
+//                  `ORDER BY round DESC LIMIT 1`. Zero and negative values
+//                  behave identically; the UI passes 0 on the first open
+//                  and the specific round when the user steps back through
+//                  rework history.
+//
+// Rounds are monotonic per subtask (see v11 migration); a new round is
+// created each time the orchestrator re-executes after an AI Review
+// rework. There is no "round=0" row on disk — 0 is purely a wire shorthand.
+message GetSubtaskContextRequest {
+  string subtask_id = 1;
+  int32  round      = 2;
+}
+
+// CopilotSubtaskContext mirrors store.SubtaskContext plus the harness
+// SKILL.md content resolved via harness_skill_version_id so the UI
+// only needs one RPC round-trip to render every tab of the Subtask
+// Summary dialog.
+message CopilotSubtaskContext {
+  string subtask_id              = 1;
+  int32  round                   = 2;
+  // Full SDK SystemMessage content (DefaultCodePrompt + output-language
+  // addendum).
+  string system_prompt           = 3;
+  // Full SDK user MessageOptions.Prompt (memory block + BuildSubtask
+  // PromptWithContext composition).
+  string user_prompt             = 4;
+  // Raw stage template (DefaultCodePrompt) before language addendum.
+  string stage_prompt_template   = 5;
+  string plan_summary            = 6;
+  // Already formatted display lines, one per prior subtask, in DAG order.
+  repeated string prior_summaries = 7;
+  string memory_block            = 8;
+  string output_language         = 9;
+  // Active harness version at run time. id is empty when the embedded
+  // fallback was used (no user-authored SKILL.md yet).
+  string harness_skill_version_id = 10;
+  // SKILL.md content as of run time. Empty when harness_skill_version_id
+  // is empty or the row has since been purged.
+  string harness_skill_md         = 11;
+  // True when no subtask_context row exists (legacy subtasks executed
+  // before the v18 schema, or not yet executed). All other fields are
+  // zero values in that case.
+  bool   not_recorded             = 12;
+}
+
 message CreateSubtaskRequest {
   string task_id   = 1;
   string title     = 2;
@@ -736,6 +802,41 @@ message GitHubTokenLabelRequest {
   string label = 1;
 }
 
+// CopilotQuotaInfo carries every quota snapshot the SDK's account.getQuota
+// RPC returns, keyed by quota type ("premium_interactions", "chat",
+// "completions", …). The UI surfaces whichever key it finds interesting —
+// "premium_interactions" is the headline number for the account-card panel.
+message CopilotQuotaInfo {
+  map<string, CopilotQuotaSnapshot> snapshots = 1;
+}
+
+// CopilotQuotaSnapshot mirrors SDK rpc.QuotaSnapshot. All counts are
+// "number of requests" (not tokens); billing multiplier is applied upstream
+// in the Copilot CLI before snapshots are exposed, so one used_requests
+// unit equals one premium-request charge on the user's plan.
+message CopilotQuotaSnapshot {
+  // Number of premium requests included in the user's plan for the current
+  // billing period.
+  double entitlement_requests = 1;
+  // Number of premium requests already consumed this billing period.
+  double used_requests = 2;
+  // Percentage of entitlement remaining, on a 0-100 scale. The SDK
+  // supplies this directly; clients should prefer it over dividing
+  // used/entitlement to match the server's rounding rules. Note: the
+  // upstream SDK doc comment claims "0.0 to 1.0" but empirically the
+  // Copilot CLI returns 0-100 (verified against CLI 1.0.21 / SDK v0.2.2).
+  double remaining_percentage = 3;
+  // Requests charged against pay-per-request overage after the entitlement
+  // was exhausted. Zero for users who haven't exceeded their plan.
+  double overage = 4;
+  // When true, the account is configured to keep serving requests beyond
+  // the entitlement (billing the user for each) instead of hard-stopping.
+  bool overage_allowed_with_exhausted_quota = 5;
+  // ISO-8601 timestamp of the next quota reset, or empty when the SDK did
+  // not provide one (e.g. unmetered plans).
+  string reset_date = 6;
+}
+
 // GitHubAccountInfo mirrors a subset of the `/user` response. Copilot-plan
 // specific fields (premium_requests_remaining etc.) are not filled because
 // GitHub does not expose them on the public REST API; the UI surfaces a
@@ -887,6 +988,21 @@ service ContextService {
 
   rpc GetMemorySettings    (RepoIdRequest)              returns (MemorySettings);
   rpc UpdateMemorySettings (UpdateMemorySettingsRequest) returns (MemorySettings);
+
+  // GetMemoryHealth is a fast status probe separate from GetOverview —
+  // cheap enough to poll every few seconds so the Settings panel and
+  // Kanban badge can show whether Memory is actually working (provider
+  // reachable, vectors present) without blocking on node/edge counts.
+  rpc GetMemoryHealth      (RepoIdRequest)              returns (MemoryHealth);
+
+  // SuggestForNewTask runs hybrid retrieval against finalized Task +
+  // promoted Decision + Constraint nodes using the user's draft goal
+  // as query text. The New Task dialog calls this on a 400ms debounce
+  // so the user sees past similar tasks and applicable decisions
+  // before they spend tokens running the plan again. Returns an empty
+  // bundle (no error) when Memory is disabled — the UI renders
+  // nothing in that case.
+  rpc SuggestForNewTask    (SuggestForNewTaskRequest)   returns (SuggestForNewTaskResponse);
 
   // WatchContextChanges streams node / edge / fact / scratchpad updates
   // scoped to a repository so the Context UI can refresh incrementally
@@ -1264,6 +1380,51 @@ message UpdateMemorySettingsRequest {
   MemorySettings settings = 1;
 }
 
+// MemoryHealth is the lightweight snapshot returned by GetMemoryHealth.
+// Purpose-built for polling: no expensive aggregates (counts by kind,
+// scratchpad buckets) — those live on ContextOverview.
+message MemoryHealth {
+  bool enabled            = 1;
+  bool provider_reachable = 2;
+  int32 vector_count      = 3;
+  google.protobuf.Timestamp last_rebuild_at = 4;
+  // Human-readable error from the last provider build or reachability
+  // probe. Empty when healthy. Rendered verbatim in the Settings panel.
+  string last_error       = 5;
+}
+
+message SuggestForNewTaskRequest {
+  string repo_id    = 1;
+  string draft_goal = 2;
+  // Per-bucket cap. Defaults to 5 when unset. The server pulls 3x this
+  // from the fused channel so each bucket has headroom.
+  int32  limit      = 3;
+}
+
+message TaskSuggestion {
+  string node_id        = 1;
+  string label          = 2;
+  string summary_md     = 3;
+  float  score          = 4;
+  // Original task ID — UI uses this to deep-link back to the Kanban row.
+  string source_task_id = 5;
+}
+
+message ContextNodeSummary {
+  string node_id    = 1;
+  // Decision | Constraint (filtered server-side to those two kinds).
+  string kind       = 2;
+  string label      = 3;
+  string content_md = 4;
+  float  score      = 5;
+}
+
+message SuggestForNewTaskResponse {
+  repeated TaskSuggestion     similar_tasks        = 1;
+  repeated ContextNodeSummary related_decisions    = 2;
+  repeated ContextNodeSummary related_constraints  = 3;
+}
+
 // WatchContextRequest resumes a stream by passing the server sequence
 // of the last observed change per change-kind. Unset → send only
 // future changes (no backfill).
@@ -1416,4 +1577,185 @@ message OllamaPullProgressEvent {
   string digest    = 4;
   string error     = 5;
   bool   done      = 6;
+}
+
+// ---------------------------------------------------------------------------
+// ArtifactService — NLAH Phase A/B file-backed artifact registry
+// ---------------------------------------------------------------------------
+//
+// Artifacts are file-backed outputs produced by plan / code / review / harness
+// / attempt stages. They are stored on disk and indexed in SQLite via
+// internal/store.ArtifactStore. kind / stage strings are NOT enums — same
+// rationale as AgentEvent.kind (forward compatibility without proto bumps).
+
+service ArtifactService {
+  rpc List       (ListArtifactsRequest)       returns (ListArtifactsResponse);
+  rpc Get        (GetArtifactRequest)         returns (Artifact);
+  rpc GetContent (GetArtifactContentRequest)  returns (stream ArtifactChunk);
+}
+
+// Artifact mirrors internal/store.Artifact. attrs_json is a free-form
+// JSON object for kind-specific metadata (e.g. subtask_id for code
+// artifacts, harness version for harness artifacts).
+message Artifact {
+  string id           = 1;
+  string task_id      = 2;
+  string subtask_id   = 3;
+  // stage: plan | code | review | harness | attempt
+  string stage        = 4;
+  string path         = 5;
+  string kind         = 6;
+  string content_hash = 7;
+  int64  size_bytes   = 8;
+  string attrs_json   = 9;
+  google.protobuf.Timestamp created_at = 10;
+}
+
+message ListArtifactsRequest {
+  string task_id = 1;
+  // Optional filter on stage string. Empty = all stages.
+  string stage   = 2;
+  // Legacy hard cap (kept for wire compatibility with pre-pagination
+  // clients). New callers should use page_size instead. When both are
+  // set page_size wins.
+  int32  limit   = 3;
+  // Maximum number of rows to return in this page. 0 delegates to the
+  // server default (currently 500). The server may return fewer rows
+  // than requested at the end of the result set.
+  int32  page_size = 4;
+  // Opaque cursor returned by a previous ListArtifacts call. Empty on
+  // the first page. Callers MUST pass the exact bytes the server
+  // returned — format is an implementation detail and may change.
+  string page_token = 5;
+}
+
+message ListArtifactsResponse {
+  repeated Artifact artifacts = 1;
+  // Non-empty when more rows are available. Pass to the next
+  // ListArtifacts call's page_token to continue. Empty on the final page.
+  string next_page_token = 2;
+}
+
+message GetArtifactRequest {
+  string id = 1;
+}
+
+message GetArtifactContentRequest {
+  string id = 1;
+}
+
+// ArtifactChunk is one streaming chunk from GetContent. eof is set on
+// the final message; data may be empty when eof is true (flush sentinel).
+message ArtifactChunk {
+  bytes data = 1;
+  bool  eof  = 2;
+}
+
+// ---------------------------------------------------------------------------
+// HarnessService — NLAH Phase B/C editable NL harness + self-evolution
+// ---------------------------------------------------------------------------
+//
+// The harness is the user-editable Markdown skill file that FleetKanban
+// injects into every Copilot session. HarnessService exposes versioned
+// read/write/rollback of that skill so the UI can surface a live editor
+// and the self-evolution loop can propose updates.
+
+service HarnessService {
+  rpc GetActiveSkill     (google.protobuf.Empty)    returns (HarnessSkill);
+  rpc ListSkillVersions  (google.protobuf.Empty)    returns (ListSkillVersionsResponse);
+  rpc ValidateSkill      (ValidateSkillRequest)     returns (ValidateSkillResponse);
+  rpc UpdateSkill        (UpdateSkillRequest)       returns (HarnessSkill);
+  rpc RollbackSkill      (RollbackSkillRequest)     returns (HarnessSkill);
+}
+
+// HarnessSkill is one immutable snapshot of the NL skill file. Each
+// UpdateSkill call mints a new version; the active version is the one
+// with the highest version number. artifact_id links back to the
+// Artifact row that backs this version on disk.
+message HarnessSkill {
+  string artifact_id  = 1;
+  int32  version      = 2;
+  string content_md   = 3;
+  google.protobuf.Timestamp created_at = 4;
+  string content_hash = 5;
+}
+
+message ListSkillVersionsResponse {
+  repeated HarnessSkill versions = 1;
+}
+
+message ValidateSkillRequest {
+  string content_md = 1;
+}
+
+// ValidateSkillResponse carries lint results for the proposed harness
+// content. ok=true means the content is safe to activate; warnings are
+// non-fatal style notes the UI may surface as inline hints.
+message ValidateSkillResponse {
+  bool             ok       = 1;
+  repeated string  errors   = 2;
+  repeated string  warnings = 3;
+}
+
+message UpdateSkillRequest {
+  string content_md = 1;
+}
+
+message RollbackSkillRequest {
+  // artifact_id of the HarnessSkill version to restore as the new active
+  // version. A new version row is created (rather than mutating history)
+  // so the audit trail is preserved.
+  string artifact_id = 1;
+}
+
+// ---------------------------------------------------------------------------
+// HarnessAttemptService — NLAH Phase C REWORK structured recording
+// ---------------------------------------------------------------------------
+//
+// Every AI-review REWORK cycle that the orchestrator detects produces a
+// harness_attempt row. HarnessAttemptService lets the UI enumerate pending
+// attempts and record a human approve/reject decision. LLM-driven patch
+// generation and SKILL.md application are deferred to Phase C LLM integration.
+
+service HarnessAttemptService {
+  rpc ListPending  (google.protobuf.Empty)               returns (ListHarnessAttemptsResponse);
+  rpc ListForTask  (ListHarnessAttemptsForTaskRequest)   returns (ListHarnessAttemptsResponse);
+  rpc Approve      (ApproveHarnessAttemptRequest)        returns (HarnessAttempt);
+  rpc Reject       (RejectHarnessAttemptRequest)         returns (HarnessAttempt);
+}
+
+// HarnessAttempt mirrors internal/store.HarnessAttempt.
+// decision is one of: pending | approved | rejected | superseded.
+// proposed_patch is intentionally empty in Phase C; LLM patch generation
+// is wired in the subsequent Phase C LLM integration step.
+message HarnessAttempt {
+  string id             = 1;
+  string task_id        = 2;
+  int32  rework_round   = 3;
+  string failure_class  = 4;
+  string observation_md = 5;
+  string proposed_patch = 6;
+  string proposed_hash  = 7;
+  string decision       = 8;
+  string decided_by     = 9;
+  google.protobuf.Timestamp decided_at  = 10;
+  google.protobuf.Timestamp created_at  = 11;
+}
+
+message ListHarnessAttemptsResponse {
+  repeated HarnessAttempt attempts = 1;
+}
+
+message ListHarnessAttemptsForTaskRequest {
+  string task_id = 1;
+}
+
+message ApproveHarnessAttemptRequest {
+  string id         = 1;
+  string decided_by = 2;
+}
+
+message RejectHarnessAttemptRequest {
+  string id         = 1;
+  string decided_by = 2;
 }

@@ -97,7 +97,7 @@ class ReviewPage extends ConsumerWidget {
   pb.Task? _findTask(WidgetRef ref, String id) {
     final repoId = ref.read(selectedRepoIdProvider);
     if (repoId == null) return null;
-    final tasks = ref.read(tasksProvider(repoId)).valueOrNull;
+    final tasks = ref.read(tasksProvider(repoId)).value;
     if (tasks == null) return null;
     for (final t in tasks) {
       if (t.id == id) return t;

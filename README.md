@@ -1,188 +1,105 @@
 # FleetKanban
 
-A **Windows 11-native** autonomous multi-agent development framework built
-around the GitHub Copilot CLI.
+**English** | [日本語](./README.ja.md) | [简体中文](./README.zh-CN.md) | [Русский](./README.ru.md) | [Español](./README.es.md) | [Deutsch](./README.de.md) | [Português (BR)](./README.pt-BR.md)
 
-The design rests on three pillars:
+<!-- TODO(phase1): replace with docs/screenshots/hero-kanban-board.png -->
+<p align="center">
+  <img src="docs/screenshots/coming-soon.png"
+       alt="FleetKanban Kanban board with multiple AI tasks running in parallel (screenshot coming in Phase 1)"
+       width="880">
+</p>
 
-- **Agent substrate**: launch the **GitHub Copilot CLI** as a child process and
-  stream-parse its stdout / stderr
-- **Desktop stack**: **Flutter (Windows desktop) + Go gRPC sidecar** for native
-  rendering and child-process isolation
-- **Windows 11 only**: no compromises for multi-OS support — Job Object, Mica,
-  Jump List, Toast, and DPAPI are called directly from Go
+<p align="center">
+  <b>Autonomous multi-agent task runner for your Windows 11 desktop.</b><br>
+  Describe what you want. It plans, runs tasks in parallel on isolated git worktrees,
+  and hands every diff back to you for the final call.
+</p>
 
-Users submit what they want as a task; agents plan, implement, and verify in
-parallel on git worktrees, then integrate the result back into the main branch
-under explicit user control.
+<p align="center">
+  <a href="#download"><img src="https://img.shields.io/badge/Download-Windows%2011-0078D4?logo=windows11&logoColor=white" alt="Download for Windows 11"></a>
+  <img src="https://img.shields.io/badge/status-Early%20Preview-orange" alt="Early Preview">
+  <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License">
+  <img src="https://img.shields.io/badge/platform-Windows%2011%20only-blue" alt="Windows 11 only">
+</p>
 
-## Intended Key Features
+---
 
-| Category | Feature | Phase |
-| --- | --- | --- |
-| Execution substrate | Task isolation via automatic git-worktree create/teardown | 1 |
-| Execution substrate | Launch the Copilot CLI as a child process and stream-parse stdout / stderr | 1 |
-| Execution substrate | Parallel execution of multiple tasks (goroutine + semaphore, configurable cap) | 1 |
-| Execution substrate | Reliably terminate child processes via Windows Job Object | 1 |
-| Persistence | Local storage of task state and logs (SQLite / `modernc.org/sqlite`) | 1 |
-| UI | Kanban board and agent terminal in Flutter (Windows desktop) + fluent_ui | 1 |
-| QA | Automated verification loop (build / test / lint) | 2 |
-| Integration | GitHub integration, PR creation (manual trigger) | 2 |
-| Knowledge | Multi-session memory (learning from past tasks) | 3 |
+## Why FleetKanban
 
-## Tech Stack
+- **Plan → parallel execute → you approve.** The AI plans the implementation, runs up to 12 tasks in parallel on isolated git worktrees, and leaves the final **Keep / Merge / Discard** call to you.
+- **Never writes to your remote.** No `git push`, no PR creation, no auto-merge — remote writes only happen when you do them yourself.
+- **No telemetry. Safe for the enterprise.** No usage analytics, no crash reports, no phone-home. The only outbound traffic is the Copilot API calls your agents make — safe to roll out behind an enterprise boundary.
+- **A real Windows 11 app.** Mica / Acrylic, Jump List, toast notifications, taskbar progress — built with Flutter desktop, not Electron.
 
-Latest stable versions as of April 2026.
+## Download
 
-**Backend (Go sidecar)**
+- Latest build: [GitHub Releases](https://github.com/FleetKanban/fleetkanban/releases/latest) → `com.fleetkanban.FleetKanban-win-Setup.exe`
+- You need: **Windows 11 64-bit** · **GitHub Copilot subscription** · **Git for Windows**
+- After install, the app **updates itself with one click** from an in-app InfoBar.
 
-- **Language**: Go 1.25+ (headless gRPC sidecar)
-- **Concurrency**: `golang.org/x/sync/semaphore`
-- **Persistence**: [`modernc.org/sqlite`](https://gitlab.com/cznic/sqlite) (pure Go, no CGO)
-- **Windows API**: `golang.org/x/sys/windows` + direct syscalls (Job Object / Mica / Toast / Jump List / DPAPI)
-- **ID generation**: `github.com/oklog/ulid/v2`
-- **Logging**: standard `log/slog`
+> **Early Preview.** FleetKanban is in Phase 1 development. Until the first tagged release lands, see [CONTRIBUTING.md](./CONTRIBUTING.md) to build from source today.
 
-**UI (Flutter)**
+> **SmartScreen.** Phase 1 ships unsigned, so Windows SmartScreen will show "Windows protected your PC" on first launch. Click "More info" → "Run anyway" to proceed. EV / Azure Trusted Signing is planned for Phase 2.
 
-- **Framework**: [Flutter](https://flutter.dev) (Windows desktop) + [fluent_ui](https://pub.dev/packages/fluent_ui)
-- **Distribution**: MSIX (`dart run msix:create`)
+## How it works
 
-**IPC / Agent engine**
+1. **Describe your task in natural language**
+   For example: *"Update the sidebar to support dark mode."*
+   <!-- TODO(phase1): replace with docs/screenshots/how-1-new-task.png -->
+   <img src="docs/screenshots/coming-soon.png" alt="New task dialog on the Kanban board" width="720">
 
-- **IPC**: gRPC over loopback (protobuf; schemas in `proto/fleetkanban/v1/`)
-- **Copilot engine**: [GitHub Copilot CLI](https://github.com/github/copilot-cli) v1.0.29+ launched as a child process
+2. **The AI plans and splits it into a subtask DAG**
+   The Plan stage produces an execution plan and breaks the work into parallel / serial subtasks, visualised with a Sugiyama layout.
+   <!-- TODO(phase1): replace with docs/screenshots/how-2-subtask-dag.png -->
+   <img src="docs/screenshots/coming-soon.png" alt="Subtask DAG visualisation showing parallel and serial dependencies" width="720">
 
-**Tooling**
+3. **Parallel execution on isolated git worktrees**
+   4 tasks in parallel by default, up to 12. Each subtask runs in its own git worktree — your `main` branch stays clean and tasks never collide.
+   <!-- TODO(phase1): replace with docs/screenshots/how-3-parallel-running.png -->
+   <img src="docs/screenshots/coming-soon.png" alt="Multiple AI tasks running in parallel on the Kanban board" width="720">
 
-- **Test**: Go `testing` + `testify`; Flutter `flutter_test` + `integration_test`
-- **Lint / Format**: `golangci-lint` (Go); `analysis_options.yaml` via `flutter analyze` (Dart)
-- **Build tasks**: Taskfile ([`go-task/task`](https://taskfile.dev)) + [buf](https://buf.build) for proto generation
-- **Target OS**: Windows 11 (64-bit) only — macOS / Linux are not supported
+4. **AI Review → Human Review**
+   After the AI self-reviews, you read the diff and choose **Keep / Merge / Discard**. Nothing auto-merges.
+   <!-- TODO(phase1): replace with docs/screenshots/how-4-diff-review.png -->
+   <img src="docs/screenshots/coming-soon.png" alt="Diff review pane with Keep, Merge, and Discard actions" width="720">
 
-## Project Layout
+## What makes FleetKanban different
 
-```
-FleetKanban/
-├── README.md
-├── LICENSE
-├── CONTRIBUTING.md                  # contributor guide
-├── CODE_OF_CONDUCT.md               # Contributor Covenant v2.1
-├── SECURITY.md                      # vulnerability-reporting flow
-├── CHANGELOG.md                     # release notes
-├── Taskfile.yml                     # cross-package task runner (sidecar / ui)
-├── .github/                         # Issue / PR templates, CI workflow
-├── docs/                            # architecture.md / roadmap.md
-├── proto/                           # contract between sidecar and ui (source of truth)
-│   ├── buf.yaml / buf.gen.yaml / buf.gen.dart.yaml
-│   └── fleetkanban/v1/              # fleetkanban.proto / housekeeping.proto / insights.proto
-├── sidecar/                         # Go gRPC backend (headless)
-│   ├── go.mod                       # module github.com/FleetKanban/fleetkanban
-│   ├── cmd/
-│   │   ├── fleetkanban-sidecar/     # entry + bundler-generated embedded CLI
-│   │   └── dbquery/                 # local SQLite inspection helper
-│   └── internal/
-│       ├── app/                     # domain services (invoked from gRPC)
-│       ├── task/                    # Task model and state machine
-│       ├── store/                   # SQLite (modernc)
-│       ├── worktree/                # git worktree management
-│       ├── orchestrator/            # parallel-execution control
-│       ├── copilot/                 # Copilot SDK adapter
-│       ├── ipc/                     # gRPC server / auth / event broker
-│       ├── reaper/                  # process reclamation
-│       ├── setup/                   # runtime-dependency checks (pwsh / winget)
-│       ├── winapi/                  # Windows 11-specific features
-│       └── branding/                # app identifiers
-├── ui/                              # Flutter UI (Windows desktop)
-│   ├── pubspec.yaml
-│   ├── windows/
-│   └── lib/                         # app / domain / features / infra / theme
-└── build/
-    └── bin/                         # fleetkanban-sidecar.exe
-```
+FleetKanban takes a deliberately different path from Claude Code, Cursor, and GitHub Copilot Workspace:
 
-## Prerequisites
+- **Native Windows 11 desktop.** Not a web IDE, not a VS Code fork. Fluent Design, Mica, Jump List, and taskbar progress are all first-class.
+- **Many tasks in parallel, fully isolated.** Run several independent tasks against the same repository at once — branches and working trees never collide.
+- **Fully local.** Task state, logs, and the repository knowledge base live in SQLite under `%APPDATA%`. Your code doesn't get shipped to a cloud service (Copilot API traffic is the same as any other Copilot client).
+- **A designable agent runtime (IHR).** The Intelligent Harness Runtime drives Plan / Code / Review stage transitions from a YAML charter you can hot-edit from the UI. Behaviour is designed, not hidden.
+- **Property graph + FTS5 + embeddings.** FleetKanban indexes your repo as a Context / Graph Memory and injects only the relevant context into each agent session, in three tiers (Passive / Reactive / Active) fused with RRF.
 
-- **OS**: Windows 11 64-bit
-- **Go**: 1.25+ (`winget install GoLang.Go` recommended)
-- **Flutter**: 3.27+ — enable Windows desktop with `flutter config --enable-windows-desktop`
-- **Git for Windows**: 2.45+ (worktree / longpaths enabled)
-- **Visual Studio 2022 Build Tools**: C++ Desktop Development workload (required for Flutter Windows builds)
-- **GitHub Copilot CLI**: v1.0.29+ — install via `winget install GitHub.CopilotCLI` or `npm i -g @github/copilot`, then run `copilot` and `/login`
-- **GitHub Copilot subscription**: Individual / Business / Enterprise
-- **PowerShell 7 (pwsh)**: required as the Copilot CLI's child shell — distinct from the bundled `powershell.exe` (5.1)
-  - Install in advance: `winget install Microsoft.PowerShell`, or consent to install from the UI on first launch (winget requires user interaction)
-  - CI / headless environments: set `FLEETKANBAN_SKIP_PWSH_CHECK=1` to skip the check
+## Requirements
 
-## Quick Start (Envisioned After Phase 1)
+- Windows 11 64-bit
+- GitHub Copilot subscription (Individual, Business, or Enterprise)
+- Git for Windows 2.45+
+- PowerShell 7 (the app offers a one-click install on first launch if it's missing)
 
-```powershell
-# Toolchain (first time only)
-go install github.com/go-task/task/v3/cmd/task@latest
-task proto:tools          # buf / protoc-gen-* / protoc_plugin
+Full prerequisites and CI skip flags live in [CONTRIBUTING.md](./CONTRIBUTING.md#environment-setup).
 
-# Fetch Flutter dependencies
-task flutter:pub
+## FAQ
 
-# Dev mode (auto-build sidecar → launch Flutter on Windows desktop)
-task flutter:run
+- **Does my code get sent to the cloud?** Task state, logs, and the knowledge index are all stored locally in SQLite. When the agent runs, the Copilot SDK talks to the GitHub Copilot API just like any other Copilot client — nothing else leaves your machine.
+- **Does FleetKanban collect telemetry?** No. There is no usage analytics, no crash reporting, and no phone-home endpoint. The only outbound traffic from the app is the Copilot API calls the agent makes during task execution (same as any other Copilot client) plus the version check the in-app update prompt performs against GitHub Releases. This makes FleetKanban safe to deploy in enterprise environments — pair it with a Copilot Business or Enterprise subscription and your code stays inside the enterprise boundary.
+- **Will it push to my remote by itself?** No. `git push`, PR creation, and auto-merge are simply not implemented. Pushing and opening PRs is something you do explicitly, using the Git CLI, GitHub Desktop, or your IDE.
+- **Does it work on macOS / Linux?** No. FleetKanban is Windows 11 64-bit only — permanently.
 
-# Distribution build (generate MSIX package)
-task build:msix
-```
+## Documentation & Links
 
-After launch, from the Kanban board:
-
-1. Select the target git repository
-2. Click **"+ New Task"**, enter the goal (natural language), and pick a **base branch** (any branch, not just `main`)
-3. Drag the card from `Pending` → `Running`, or press the `▶` button to start
-4. Follow streaming logs and diffs in real time in the agent pane
-5. On completion, the default is **`Keep`** (tear down the worktree but retain the `fleetkanban/<task-id>` branch). Optionally choose `Merge` / `Discard` explicitly
-
-> **No automatic remote writes.** The app never performs `git push`, PR
-> creation, or auto-merge. Pushing and opening PRs is done explicitly by the
-> user with external tools (Git CLI / GitHub Desktop / IDE).
-
-> **SmartScreen.** Phase 1 ships without code signing, so Windows SmartScreen
-> will show "Windows protected your PC" on first launch. Click "More info" →
-> "Run anyway" to proceed. EV signing / Azure Trusted Signing is planned for
-> Phase 2.
-
-## Releases
-
-FleetKanban is distributed via GitHub Releases as a Velopack-packaged Windows
-installer. Grab `FleetKanban-Setup.exe` from the latest Release and run it;
-the app self-updates on a one-click InfoBar prompt after that.
-
-- [docs/release-process.md](./docs/release-process.md) — how to cut a release
-  (version bump points, tag push, CI flow, rollback)
-- [docs/signing-future.md](./docs/signing-future.md) — when and how to
-  introduce code signing (Azure Trusted Signing vs SSL.com OV)
-
-Tagging `v*` on this repository triggers `.github/workflows/release.yml`,
-which builds the Flutter UI + Go sidecar, runs `vpk pack`, and uploads the
-Setup / delta / full packages to the Release. Nothing else is automated —
-version bumps, changelog edits, and tag pushes stay manual.
-
-## Contributing
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for development-environment setup,
-branching strategy, local verification (`task lint && task test`), and the
-PR flow.
-
-All communication on Issues / PRs / Discussions must follow
-[Contributor Covenant v2.1](./CODE_OF_CONDUCT.md).
-
-Deeper design material:
-
-- [docs/architecture.md](./docs/architecture.md)
-- [docs/roadmap.md](./docs/roadmap.md)
+- [docs/architecture.md](./docs/architecture.md) — internal architecture
+- [docs/roadmap.md](./docs/roadmap.md) — Phase 2 / 3 plans
+- [CHANGELOG.md](./CHANGELOG.md) — version history
+- [CONTRIBUTING.md](./CONTRIBUTING.md) — build & development flow (for developers who want to try it from source)
+- [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)
 
 ## Security
 
-If you find a vulnerability, **do not open a public Issue**. Follow
-[SECURITY.md](./SECURITY.md) and report non-publicly via GitHub Security
-Advisories (the repository's Security tab) as the most reliable path.
+If you find a vulnerability, **do not open a public Issue.** Follow the procedure in [SECURITY.md](./SECURITY.md) and report non-publicly via GitHub Security Advisories (the repository's Security tab).
 
 ## License
 

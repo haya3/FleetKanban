@@ -1,5 +1,7 @@
 // Settings page: concurrency, PAT, default model, Copilot login.
 
+import 'dart:async';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:protobuf/well_known_types/google/protobuf/empty.pb.dart'
@@ -140,16 +142,17 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               child: _StageModelPickers(),
             ),
             const _Section(
-              title: 'Agent prompts',
+              title: 'Output language',
               subtitle:
-                  'Each block is appended to the corresponding stage\'s built-in '
-                  'system message. Use it to add house-rules, persona, or '
-                  'codebase conventions you want every Plan / Code / Review '
-                  'session to follow. Empty fields are no-ops.\n'
-                  'The output language hint is forwarded verbatim — write it '
-                  'in any natural form ("日本語", "Japanese", "casual English", '
-                  '"Português brasileiro") and the agent will recognise it.',
-              child: _AgentPromptsEditor(),
+                  'Free-form language hint appended to every Plan / Code / '
+                  'Review / Analyze system message. Write it in any natural '
+                  'form ("日本語", "Japanese", "casual English", '
+                  '"Português brasileiro") and the agent will recognise it. '
+                  'Leave blank to let the model pick its own default.\n'
+                  'For per-stage prompt / persona customisation, edit the '
+                  'IHR Charter at %APPDATA%/FleetKanban/harness-skill/SKILL.md '
+                  '— the sidecar hot-reloads charter changes without a restart.',
+              child: _OutputLanguageEditor(),
             ),
             _Section(
               title: 'GitHub access tokens (multiple saved, labeled)',
@@ -286,18 +289,15 @@ class _TokenTable extends StatelessWidget {
   }
 }
 
-class _AgentPromptsEditor extends ConsumerStatefulWidget {
-  const _AgentPromptsEditor();
+class _OutputLanguageEditor extends ConsumerStatefulWidget {
+  const _OutputLanguageEditor();
 
   @override
-  ConsumerState<_AgentPromptsEditor> createState() =>
-      _AgentPromptsEditorState();
+  ConsumerState<_OutputLanguageEditor> createState() =>
+      _OutputLanguageEditorState();
 }
 
-class _AgentPromptsEditorState extends ConsumerState<_AgentPromptsEditor> {
-  final _planController = TextEditingController();
-  final _codeController = TextEditingController();
-  final _reviewController = TextEditingController();
+class _OutputLanguageEditorState extends ConsumerState<_OutputLanguageEditor> {
   final _languageController = TextEditingController();
   bool _seeded = false;
   bool _saving = false;
@@ -305,36 +305,14 @@ class _AgentPromptsEditorState extends ConsumerState<_AgentPromptsEditor> {
 
   @override
   void dispose() {
-    _planController.dispose();
-    _codeController.dispose();
-    _reviewController.dispose();
     _languageController.dispose();
     super.dispose();
   }
 
-  void _seedFrom(pb.AgentSettings saved, pb.AgentSettings defaults) {
+  void _seedFrom(pb.AgentSettings saved) {
     if (_seeded) return;
     _seeded = true;
-    // Saved override takes priority; when the user has never touched a
-    // field the built-in default is shown verbatim so they can see what
-    // the agent is getting and decide whether to tweak it.
-    _planController.text = saved.planPrompt.isNotEmpty
-        ? saved.planPrompt
-        : defaults.planPrompt;
-    _codeController.text = saved.codePrompt.isNotEmpty
-        ? saved.codePrompt
-        : defaults.codePrompt;
-    _reviewController.text = saved.reviewPrompt.isNotEmpty
-        ? saved.reviewPrompt
-        : defaults.reviewPrompt;
     _languageController.text = saved.outputLanguage;
-  }
-
-  Future<void> _resetToDefault(
-    TextEditingController ctrl,
-    String defaultText,
-  ) async {
-    setState(() => ctrl.text = defaultText);
   }
 
   Future<void> _save() async {
@@ -345,12 +323,7 @@ class _AgentPromptsEditorState extends ConsumerState<_AgentPromptsEditor> {
     try {
       await ref
           .read(agentSettingsProvider.notifier)
-          .save(
-            planPrompt: _planController.text,
-            codePrompt: _codeController.text,
-            reviewPrompt: _reviewController.text,
-            outputLanguage: _languageController.text,
-          );
+          .save(outputLanguage: _languageController.text);
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = '$e');
@@ -361,117 +334,43 @@ class _AgentPromptsEditorState extends ConsumerState<_AgentPromptsEditor> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
     final settingsAsync = ref.watch(agentSettingsProvider);
-    final defaultsAsync = ref.watch(defaultAgentPromptsProvider);
     return settingsAsync.when(
       loading: () => const SizedBox(height: 40, child: ProgressBar()),
       error: (e, _) => CopyableErrorText(
         text: '$e',
-        reportTitle: 'Settings / agent prompts fetch',
+        reportTitle: 'Settings / agent output language fetch',
       ),
       data: (saved) {
-        return defaultsAsync.when(
-          loading: () => const SizedBox(height: 40, child: ProgressBar()),
-          error: (e, _) => CopyableErrorText(
-            text: '$e',
-            reportTitle: 'Settings / default agent prompts fetch',
-          ),
-          data: (defaults) {
-            _seedFrom(saved, defaults);
-            Widget promptField(
-              String label,
-              TextEditingController ctrl,
-              String defaultText,
-            ) {
-              return Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            label,
-                            style: theme.typography.caption?.copyWith(
-                              color: theme.resources.textFillColorSecondary,
-                            ),
-                          ),
-                        ),
-                        HyperlinkButton(
-                          onPressed: _saving
-                              ? null
-                              : () => _resetToDefault(ctrl, defaultText),
-                          child: const Text('Reset to default'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    TextBox(
-                      controller: ctrl,
-                      maxLines: 10,
-                      minLines: 4,
-                      enabled: !_saving,
-                    ),
-                  ],
-                ),
-              );
-            }
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+        _seedFrom(saved);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextBox(
+              controller: _languageController,
+              placeholder:
+                  'e.g. 日本語 / Japanese / casual English (leave blank for default)',
+              enabled: !_saving,
+            ),
+            const SizedBox(height: 12),
+            Row(
               children: [
-                promptField(
-                  'Plan prompt',
-                  _planController,
-                  defaults.planPrompt,
-                ),
-                promptField(
-                  'Code prompt',
-                  _codeController,
-                  defaults.codePrompt,
-                ),
-                promptField(
-                  'Review prompt',
-                  _reviewController,
-                  defaults.reviewPrompt,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Output language',
-                  style: theme.typography.caption?.copyWith(
-                    color: theme.resources.textFillColorSecondary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                TextBox(
-                  controller: _languageController,
-                  placeholder:
-                      'e.g. 日本語 / Japanese / casual English (leave blank for default)',
-                  enabled: !_saving,
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    if (_error != null)
-                      Expanded(
-                        child: Text(
-                          _error!,
-                          style: const TextStyle(color: Color(0xFFC42B1C)),
-                        ),
-                      )
-                    else
-                      const Spacer(),
-                    FilledButton(
-                      onPressed: _saving ? null : _save,
-                      child: Text(_saving ? 'Saving…' : 'Save'),
+                if (_error != null)
+                  Expanded(
+                    child: Text(
+                      _error!,
+                      style: const TextStyle(color: Color(0xFFC42B1C)),
                     ),
-                  ],
+                  )
+                else
+                  const Spacer(),
+                FilledButton(
+                  onPressed: _saving ? null : _save,
+                  child: Text(_saving ? 'Saving…' : 'Save'),
                 ),
               ],
-            );
-          },
+            ),
+          ],
         );
       },
     );
@@ -536,7 +435,7 @@ class _StagePickerRow extends ConsumerWidget {
     // user sees the rotted-out ID and can deliberately re-select.
     final ids = available.map((m) => m.id).toList(growable: false);
     final options = <String>['', ...ids];
-    final savedValue = saved.valueOrNull;
+    final savedValue = saved.value;
     if (savedValue != null &&
         savedValue.isNotEmpty &&
         !ids.contains(savedValue)) {
@@ -1179,6 +1078,8 @@ class _MemorySettingsPanelState extends ConsumerState<_MemorySettingsPanel> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            _MemoryHealthBadge(repoId: widget.repoId),
+            const SizedBox(height: 8),
             Row(
               children: [
                 ToggleSwitch(
@@ -1251,6 +1152,106 @@ class _MemorySettingsPanelState extends ConsumerState<_MemorySettingsPanel> {
           ],
         );
       },
+    );
+  }
+}
+
+// _MemoryHealthBadge polls ContextService.GetMemoryHealth every few
+// seconds so the Settings panel can show whether Memory is actually
+// working, not just whether the toggle is on. Tells the user *why*
+// nothing is being injected when things look OK at the settings layer
+// (provider unreachable, embeddings not yet rebuilt, etc).
+class _MemoryHealthBadge extends ConsumerStatefulWidget {
+  const _MemoryHealthBadge({required this.repoId});
+  final String repoId;
+  @override
+  ConsumerState<_MemoryHealthBadge> createState() => _MemoryHealthBadgeState();
+}
+
+class _MemoryHealthBadgeState extends ConsumerState<_MemoryHealthBadge> {
+  pb.MemoryHealth? _health;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) => _refresh());
+  }
+
+  @override
+  void didUpdateWidget(covariant _MemoryHealthBadge old) {
+    super.didUpdateWidget(old);
+    if (old.repoId != widget.repoId) _refresh();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _refresh() async {
+    try {
+      final client = ref.read(ipcClientProvider);
+      final h = await client.context.getMemoryHealth(
+        pb.RepoIdRequest(repoId: widget.repoId),
+      );
+      if (mounted) setState(() => _health = h);
+    } catch (_) {
+      // Swallow: sidecar may be restarting; next tick will retry.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final h = _health;
+    if (h == null) {
+      return const SizedBox(
+        height: 48,
+        child: Center(child: ProgressRing(strokeWidth: 2)),
+      );
+    }
+    if (!h.enabled) {
+      return InfoBar(
+        title: const Text('Memory disabled'),
+        content: const Text(
+          'Turn the toggle below on to let Copilot sessions pull '
+          'repository-specific context (Decisions, Constraints, related files).',
+        ),
+        severity: InfoBarSeverity.info,
+      );
+    }
+    if (!h.providerReachable) {
+      return InfoBar(
+        title: const Text('Embedding provider unreachable'),
+        content: Text(
+          h.lastError.isNotEmpty
+              ? h.lastError
+              : 'The embedding provider is not responding. '
+                    'Check the Ollama service or the configured API key.',
+        ),
+        severity: InfoBarSeverity.warning,
+      );
+    }
+    if (h.vectorCount == 0) {
+      return InfoBar(
+        title: const Text('Preparing memory'),
+        content: const Text(
+          'Embeddings are still rebuilding. Search, similar-task '
+          'suggestions, and reviewer injection will activate automatically '
+          'once the first pass completes.',
+        ),
+        severity: InfoBarSeverity.info,
+      );
+    }
+    return InfoBar(
+      title: Text('Memory ready · ${h.vectorCount} vectors'),
+      content: const Text(
+        'Copilot sessions on this repository receive Passive injection '
+        'from the Graph Memory.',
+      ),
+      severity: InfoBarSeverity.success,
     );
   }
 }

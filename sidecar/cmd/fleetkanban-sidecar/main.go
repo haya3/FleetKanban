@@ -26,8 +26,10 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -39,6 +41,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -60,9 +63,11 @@ import (
 	ctxretrieval "github.com/FleetKanban/fleetkanban/internal/ctxmem/retrieval"
 	ctxstore "github.com/FleetKanban/fleetkanban/internal/ctxmem/store"
 	ctxsvc "github.com/FleetKanban/fleetkanban/internal/ctxmem/svc"
+	"github.com/FleetKanban/fleetkanban/internal/ihr"
 	"github.com/FleetKanban/fleetkanban/internal/ipc"
 	"github.com/FleetKanban/fleetkanban/internal/orchestrator"
 	"github.com/FleetKanban/fleetkanban/internal/reaper"
+	"github.com/FleetKanban/fleetkanban/internal/runstate"
 	"github.com/FleetKanban/fleetkanban/internal/store"
 	"github.com/FleetKanban/fleetkanban/internal/task"
 	"github.com/FleetKanban/fleetkanban/internal/winapi"
@@ -188,16 +193,10 @@ func run(parent context.Context, log *slog.Logger, port int) error {
 	settingsForRuntime := func(ctx context.Context) (copilot.AgentSettings, error) {
 		ss := store.NewSettingsStore(db)
 		var out copilot.AgentSettings
-		read := func(key string, dst *string) {
-			var v string
-			if _, err := ss.GetJSON(ctx, key, &v); err == nil {
-				*dst = v
-			}
+		var v string
+		if _, err := ss.GetJSON(ctx, "agent.output_language", &v); err == nil {
+			out.OutputLanguage = v
 		}
-		read("agent.prompt.plan", &out.PlanPrompt)
-		read("agent.prompt.code", &out.CodePrompt)
-		read("agent.prompt.review", &out.ReviewPrompt)
-		read("agent.output_language", &out.OutputLanguage)
 		return out, nil
 	}
 
@@ -252,11 +251,39 @@ func run(parent context.Context, log *slog.Logger, port int) error {
 		Logger:    log.With("component", "ctxmem"),
 	})
 
+	// Persist the full prompt + injected context for every subtask run so
+	// the UI's Subtask Summary dialog can surface "what exactly did the
+	// agent see?" without re-simulating. The recorder fetches the active
+	// harness version on each call so rows stay pinned to the SKILL.md
+	// snapshot that was live at execution time.
+	subtaskContextStore := store.NewSubtaskContextStore(db)
+	harnessStoreForRecorder := store.NewHarnessSkillStore(db)
+	contextRecorder := app.NewSubtaskContextRecorder(
+		subtaskContextStore,
+		harnessStoreForRecorder,
+		log.With("component", "subtask_context"),
+	)
+
+	// charterHolder carries the current IHR charter between the startup
+	// parse (below, around the skill-root bootstrap) and the hot-reload
+	// callback wired to HarnessServer. Copilot runtime's StagePrompts
+	// lookup reads from it on every session creation so planner /
+	// runner / reviewer pick up UpdateSkill edits without restart.
+	// nil until the charter is first parsed — ResolveStagePrompt treats
+	// an empty lookup return as "fall back to Default*Prompt", which is
+	// the right behaviour during the pre-parse window.
+	var charterHolder atomic.Pointer[ihr.Charter]
+	stagePromptLookup := func(stage string) string {
+		return charterHolder.Load().PromptFor(stage)
+	}
+
 	rt := copilot.NewRuntime(copilot.RuntimeConfig{
-		LogLevel:    "error",
-		GitHubToken: initialToken,
-		Settings:    settingsForRuntime,
-		Memory:      ctxService,
+		LogLevel:        "error",
+		GitHubToken:     initialToken,
+		Settings:        settingsForRuntime,
+		Memory:          ctxService,
+		ContextRecorder: contextRecorder,
+		StagePrompts:    stagePromptLookup,
 	})
 	if err := rt.Start(parent); err != nil {
 		return fmt.Errorf("copilot runtime: %w", err)
@@ -323,17 +350,94 @@ func run(parent context.Context, log *slog.Logger, port int) error {
 
 	subtaskStore := store.NewSubtaskStore(db)
 
+	// NLAH file-backed durable state (arXiv:2603.25723v1 Phase A).
+	// runs/ is created on demand by InitTaskDir; NewWriter does no FS work.
+	artifactStore := store.NewArtifactStore(db)
+	runsDir := filepath.Join(paths.DataDir, "runs")
+	rsWriter := runstate.NewWriter(artifactStore, runsDir, log.With("component", "runstate"))
+	defer func() {
+		if err := rsWriter.Close(); err != nil {
+			log.Warn("runstate close", "err", err)
+		}
+	}()
+
+	// NLAH Phase B: seed harness-skill/ from the embedded defaults on first
+	// launch. Subsequent launches are a no-op when the directory is present,
+	// so user edits are preserved. The returned path points to the active
+	// SKILL.md; HarnessService reads it for GetActiveSkill fallback.
+	skillRoot := filepath.Join(paths.DataDir, "harness-skill")
+	if _, _, err := copilot.BootstrapHarnessSkill(parent, skillRoot, log.With("component", "harness-bootstrap")); err != nil {
+		log.Warn("harness-skill bootstrap", "err", err)
+	}
+
+	// "Togarishi" Windows 11 native integrations: Terminal profile fragment
+	// and taskbar jump list Tasks category.  Both are best-effort — a failure
+	// here must never prevent the sidecar's primary gRPC function from starting.
+	if err := winapi.EnsureTerminalFragment(skillRoot); err != nil {
+		log.Warn("terminal fragment", "err", err)
+	}
+	if exePath, exeErr := os.Executable(); exeErr != nil {
+		log.Warn("jump list: os.Executable", "err", exeErr)
+	} else if err := winapi.RegisterJumpList(exePath); err != nil {
+		log.Warn("jump list", "err", err)
+	}
+
+	// Parse the active SKILL.md so the orchestrator can consult charter
+	// policy (max_rework_count etc.) at runtime, and so Copilot session
+	// creation picks up the charter's per-stage prompts via
+	// stagePromptLookup (captured by the Copilot runtime above). A
+	// malformed or missing file is non-fatal — the orchestrator falls
+	// back to its hardcoded constants when charter is nil, and
+	// ResolveStagePrompt falls back to DefaultPlanPrompt / DefaultCodePrompt
+	// / DefaultReviewPrompt.
+	var charter *ihr.Charter
+	if skillBytes, err := os.ReadFile(filepath.Join(skillRoot, "SKILL.md")); err == nil {
+		if c, perr := ihr.ParseCharter(skillBytes); perr == nil {
+			charter = c
+			charterHolder.Store(c)
+		} else {
+			log.Warn("charter parse", "err", perr)
+		}
+	}
+
+	// NLAH Phase C: attempt records for failed reviews. Orchestrator
+	// writes a row per AI rework so the UI Proposals view can surface
+	// recurring failure classes.
+	harnessAttemptStoreForOrch := store.NewHarnessAttemptStore(db)
+
+	// Self-evolution: wrap the Copilot runtime's SDK client in a
+	// patch-proposer so the orchestrator can asynchronously ask the LLM
+	// for a unified diff against SKILL.md after a failed review. A nil
+	// evolver is a valid configuration — observations are still recorded
+	// but no patch proposal is generated.
+	var evolver *ihr.Evolver
+	if sdkClient := rt.Client(); sdkClient != nil {
+		if proposer, pErr := ihr.NewCopilotProposer(ihr.CopilotProposerConfig{
+			Client: sdkClient,
+			Logger: log.With("component", "evolver-proposer"),
+		}); pErr != nil {
+			log.Warn("evolver: proposer init failed; self-evolution disabled", "err", pErr)
+		} else {
+			evolver = ihr.NewEvolver(proposer, log.With("component", "evolver"))
+		}
+	}
+
 	orchCfg := orchestrator.Config{
-		TaskStore:    store.NewTaskStore(db),
-		EventStore:   store.NewEventStore(db),
-		Repositories: repoAdapter,
-		Worktrees:    wtMgr,
-		Runner:       runner,
-		Reviewer:     reviewer,
-		Planner:      planner,
-		SubtaskStore: subtaskStore,
-		Logger:       log.With("component", "orch"),
-		Sink:         broker.Sink(),
+		TaskStore:       store.NewTaskStore(db),
+		EventStore:      store.NewEventStore(db),
+		Repositories:    repoAdapter,
+		Worktrees:       wtMgr,
+		Runner:          runner,
+		Reviewer:        reviewer,
+		Planner:         planner,
+		SubtaskStore:    subtaskStore,
+		Runstate:        rsWriter,
+		Charter:         charter,
+		HarnessAttempts: harnessAttemptStoreForOrch,
+		Evolver:         evolver,
+		TaskMirror:      ctxTaskMirror{svc: ctxService},
+		Logger:          log.With("component", "orch"),
+		Sink:            broker.Sink(),
 		Notifier: func(n orchestrator.Notification) {
 			go func() {
 				title, body := buildToastContent(n)
@@ -355,6 +459,7 @@ func run(parent context.Context, log *slog.Logger, port int) error {
 		Worktrees:    wtMgr,
 		Runtime:      rt,
 		Secrets:      secrets,
+		SkillRoot:    skillRoot,
 		Publish:      broker.Sink(),
 		Logger:       log.With("component", "app"),
 	})
@@ -397,6 +502,7 @@ func run(parent context.Context, log *slog.Logger, port int) error {
 		Events:       store.NewEventStore(db),
 		Worktrees:    wtMgr,
 		ArchiveDir:   filepath.Join(paths.DataDir, "archive"),
+		Publish:      broker.Sink(),
 		Logger:       log.With("component", "reaper"),
 	})
 	if rerr != nil {
@@ -502,6 +608,66 @@ func run(parent context.Context, log *slog.Logger, port int) error {
 	pb.RegisterScratchpadServiceServer(grpcServer, ipcServer)
 	pb.RegisterOllamaServiceServer(grpcServer, ipcServer)
 
+	// NLAH Phase A: file-backed durable artifacts exposed over gRPC.
+	// ArtifactServer reads the artifact SQL table + streams file bytes
+	// from <DataDir>/runs/<taskId>/ with root-containment checks.
+	pb.RegisterArtifactServiceServer(grpcServer, ipc.NewArtifactServer(artifactStore))
+
+	// NLAH Phase B: HarnessService exposes SKILL.md versioning + editing
+	// over gRPC. Active SKILL.md is stored at skillRoot/SKILL.md; every
+	// UpdateSkill writes a row into harness_skill_version (migration v16)
+	// so ListSkillVersions / RollbackSkill can walk history without FK
+	// sentinel rows in tasks/repositories.
+	// Hot-reload: when the user edits SKILL.md via the UI (UpdateSkill /
+	// RollbackSkill), HarnessServer calls back here with the freshly parsed
+	// charter so the running orchestrator sees the new policy on the very
+	// next stage transition — no sidecar restart required.
+	harnessSkillStore := store.NewHarnessSkillStore(db)
+
+	// Hand-edit drift detection. When the disk SKILL.md hash does not
+	// match the most-recent harness_skill_version row, the Harness pane
+	// in the UI (which reads from the DB via GetActiveSkill) and the
+	// running orchestrator (which parsed the disk file above) are out
+	// of sync. This happens whenever a user edits SKILL.md with a text
+	// editor instead of going through HarnessService.UpdateSkill, and
+	// the EDITING NOTE in SKILL.md warns about it — but nothing
+	// actually surfaces the condition, so the divergence stays
+	// invisible until the user notices their UI changes don't match
+	// runtime behaviour. A startup WARN at least turns this from
+	// "silent" into "there's a log line when someone goes looking".
+	// We do NOT auto-reconcile either way: picking disk would clobber
+	// UI-saved versions the user expects to be active; picking DB
+	// would clobber hand-edits the user explicitly made. Forcing the
+	// user to resolve via UpdateSkill / restart (their choice) keeps
+	// intent explicit.
+	checkHarnessDrift(parent, harnessSkillStore, skillRoot, log)
+
+	harnessSrv := ipc.NewHarnessServer(harnessSkillStore, skillRoot,
+		log.With("component", "harness-service"),
+		func(c *ihr.Charter) {
+			// Order matters: publish to the Copilot runtime's lookup
+			// first so any session created between the two stores sees
+			// the new prompts; orchestrator charter swap second.
+			charterHolder.Store(c)
+			orch.SetCharter(c)
+		})
+	pb.RegisterHarnessServiceServer(grpcServer, harnessSrv)
+	// NLAH Phase C: HarnessAttemptService records structured REWORK events
+	// and exposes approve/reject for the UI. LLM patch generation and
+	// SKILL.md application are deferred to Phase C LLM integration. The
+	// same store is shared with the orchestrator above so the server and
+	// the writer observe identical rows.
+	// Approve-to-apply wire: when the user clicks Approve on a proposal
+	// that carries a non-empty proposed_patch, HarnessAttemptServer calls
+	// through to harnessSrv.ApplyEvolverPatch so the patch is applied to
+	// SKILL.md and a new version is published atomically with the
+	// decision flip. Without this wire (applier = nil), Approve would
+	// only record the decision and leave SKILL.md untouched — a state
+	// that would strand the user halfway through the self-evolution loop.
+	harnessAttemptStore := harnessAttemptStoreForOrch
+	pb.RegisterHarnessAttemptServiceServer(grpcServer,
+		ipc.NewHarnessAttemptServer(harnessAttemptStore, harnessSrv))
+
 	// Reflection lets grpcurl / Flutter devtools introspect services at runtime
 	// without shipping the .proto files. The sidecar is loopback-only so the
 	// schema exposure has no attack surface.
@@ -569,6 +735,52 @@ func run(parent context.Context, log *slog.Logger, port int) error {
 }
 
 // --- helpers ---------------------------------------------------------------
+
+// checkHarnessDrift emits a WARN when the on-disk SKILL.md hash does not
+// match the most-recent harness_skill_version row. See the call site for
+// rationale; this function is side-effect-free beyond logging.
+func checkHarnessDrift(ctx context.Context, versions *store.HarnessSkillStore, skillRoot string, log *slog.Logger) {
+	skillMdPath := filepath.Join(skillRoot, "SKILL.md")
+	diskBytes, err := os.ReadFile(skillMdPath)
+	if err != nil {
+		// Missing disk file is already handled by BootstrapHarnessSkill;
+		// if we're here and the read failed it's either a permissions
+		// problem or a race with external tooling — neither is something
+		// this check can remediate. Logging once is enough.
+		log.Warn("harness drift: cannot read SKILL.md for drift check",
+			"path", skillMdPath, "err", err)
+		return
+	}
+	diskHash := sha256Hex(diskBytes)
+
+	latest, err := versions.Latest(ctx)
+	if errors.Is(err, store.ErrNoSkillVersion) {
+		// Brand-new install: DB has no rows yet. That's expected; the
+		// first UpdateSkill through the UI will seed the table. No drift.
+		return
+	}
+	if err != nil {
+		log.Warn("harness drift: cannot query latest harness_skill_version",
+			"err", err)
+		return
+	}
+	if diskHash == latest.ContentHash {
+		return // aligned — the common case
+	}
+	log.Warn("harness drift: disk SKILL.md does not match latest harness_skill_version — UI and runtime will disagree",
+		"disk_hash", diskHash,
+		"db_hash", latest.ContentHash,
+		"db_created_at", latest.CreatedAt,
+		"db_created_by", latest.CreatedBy,
+		"hint", "resolve by either hitting Save in the Harness pane (commits disk → DB) or RollbackSkill to the DB version (commits DB → disk), then restart")
+}
+
+// sha256Hex returns the hex-encoded SHA-256 of b. Duplicates contentHash
+// from internal/ipc to avoid importing that package just for the helper.
+func sha256Hex(b []byte) string {
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
+}
 
 // runHousekeeping executes one pass of every reaper background job: orphan
 // worktree cleanup, branch-existence refresh, event archiving, and the opt-in
@@ -750,6 +962,23 @@ func (a *ctxRepoPathAdapter) Path(ctx context.Context, repoID string) (string, e
 		return "", err
 	}
 	return repo.Path, nil
+}
+
+// ctxTaskMirror implements orchestrator.TaskMirror by delegating to
+// ctxsvc.Service.IngestTaskAsNode. Lives in main.go so the
+// orchestrator package does not depend on ctxmem (the adapter is
+// constructed at wiring time only, not referenced from orchestrator
+// logic). Idempotent: IngestTaskAsNode derives node ID from task ID.
+type ctxTaskMirror struct {
+	svc *ctxsvc.Service
+}
+
+func (m ctxTaskMirror) IngestTask(ctx context.Context, repoID, taskID, goal, summary string) error {
+	if m.svc == nil {
+		return nil
+	}
+	_, err := m.svc.IngestTaskAsNode(ctx, repoID, taskID, goal, summary)
+	return err
 }
 
 // observerTaskLookup implements ctxmem/observer.TaskLookup by calling

@@ -5,31 +5,32 @@
 // missing precondition does not block the UI — tasks just can't execute
 // until it's resolved — so the dialog is non-blocking.
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:protobuf/well_known_types/google/protobuf/empty.pb.dart'
     show Empty;
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../infra/ipc/generated/fleetkanban/v1/fleetkanban.pb.dart' as pb;
 import '../../infra/ipc/providers.dart';
+
+part 'providers.g.dart';
 
 /// Current list of precondition states from the sidecar. Family-free: the
 /// server returns every known precondition in one call. Autodispose so
 /// the next invalidate triggers a fresh check (used by the install flow
 /// to re-fetch after winget finishes).
-final preconditionsProvider = FutureProvider.autoDispose<List<pb.Precondition>>(
-  (ref) async {
-    final client = ref.watch(ipcClientProvider);
-    final resp = await client.system.getPreconditions(Empty());
-    return resp.preconditions;
-  },
-);
+@riverpod
+Future<List<pb.Precondition>> preconditions(Ref ref) async {
+  final client = ref.watch(ipcClientProvider);
+  final resp = await client.system.getPreconditions(Empty());
+  return resp.preconditions;
+}
 
 /// Runs the sidecar-side auto-install for [kind]. The RPC blocks until
 /// winget (or the equivalent installer) finishes, which can take 1–3
 /// minutes — callers must not race with other provider invalidations
 /// over that window.
-class InstallPreconditionNotifier
-    extends AutoDisposeAsyncNotifier<pb.Precondition?> {
+@riverpod
+class InstallPrecondition extends _$InstallPrecondition {
   @override
   Future<pb.Precondition?> build() async => null;
 
@@ -41,8 +42,6 @@ class InstallPreconditionNotifier
         pb.InstallPreconditionRequest(kind: kind),
       );
       state = AsyncValue.data(resp.precondition);
-      // Invalidate so any banner / dialog subscribers see the post-install
-      // snapshot without needing their own refetch plumbing.
       ref.invalidate(preconditionsProvider);
       return resp;
     } catch (e, st) {
@@ -51,9 +50,3 @@ class InstallPreconditionNotifier
     }
   }
 }
-
-final installPreconditionProvider =
-    AsyncNotifierProvider.autoDispose<
-      InstallPreconditionNotifier,
-      pb.Precondition?
-    >(InstallPreconditionNotifier.new);

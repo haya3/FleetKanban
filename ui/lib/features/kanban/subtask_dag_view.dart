@@ -21,7 +21,7 @@ import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/ui_utils.dart';
@@ -609,7 +609,7 @@ class _SubtaskDagViewState extends ConsumerState<SubtaskDagView> {
     // React to font-scale changes from the toolbar. When the value
     // drifts, mark the layout dirty so it gets recomputed below.
     final scaleAsync = ref.watch(dagFontScaleProvider);
-    final desiredScale = scaleAsync.valueOrNull ?? dagFontScaleDefault;
+    final desiredScale = scaleAsync.value ?? dagFontScaleDefault;
     if ((desiredScale - _layoutScale).abs() > 0.001) {
       _layoutScale = desiredScale;
       _layoutDirty = true;
@@ -1200,7 +1200,7 @@ class SubtaskDagFontControls extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = FluentTheme.of(context);
     final scaleAsync = ref.watch(dagFontScaleProvider);
-    final scale = scaleAsync.valueOrNull ?? dagFontScaleDefault;
+    final scale = scaleAsync.value ?? dagFontScaleDefault;
     final canDecrease = scale > dagFontScaleMin + 0.001;
     final canIncrease = scale < dagFontScaleMax - 0.001;
     return Row(

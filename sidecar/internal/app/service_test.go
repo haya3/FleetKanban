@@ -92,6 +92,9 @@ func (stubRuntime) ListModels(_ context.Context) ([]copilot.Model, error) {
 		{ID: "gpt-5", Name: "GPT-5", Multiplier: 0},
 	}, nil
 }
+func (stubRuntime) GetQuota(_ context.Context) (map[string]copilot.QuotaSnapshot, error) {
+	return map[string]copilot.QuotaSnapshot{}, nil
+}
 
 func newService(t *testing.T, runner orchestrator.AgentRunner) (*Service, *store.DB, string) {
 	t.Helper()
@@ -625,4 +628,69 @@ func TestService_CreateTask_AutoDetectsDefaultBranchWhenUnpinned(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "main", tk.BaseBranch,
 		"unpinned repos should resolve to main via auto-detect")
+}
+
+// TestService_GetSubtaskContext_RoundSemantics pins the round-resolution
+// contract documented on GetSubtaskContextRequest (proto) and
+// Service.GetSubtaskContext (Go): round > 0 is an exact lookup, round <= 0
+// resolves to MAX(round). The UI relies on this when the Subtask Summary
+// dialog first opens (it passes round=0) and when the user steps back
+// through rework history (it passes the specific round).
+func TestService_GetSubtaskContext_RoundSemantics(t *testing.T) {
+	svc, db, _ := newService(t, &fakeRunner{})
+	ctx := t.Context()
+
+	// Seed a repo + task + subtask chain so the FK on subtask_context holds.
+	rs := store.NewRepositoryStore(db)
+	ts := store.NewTaskStore(db)
+	ss := store.NewSubtaskStore(db)
+	_, err := rs.Create(ctx, store.RepositoryInput{
+		ID: "r1", Path: t.TempDir(), DisplayName: "r1",
+	})
+	require.NoError(t, err)
+	require.NoError(t, ts.Create(ctx, &task.Task{
+		ID: "t1", RepoID: "r1", Goal: "g", BaseBranch: "main",
+		Branch: "fleetkanban/t1", Status: task.StatusQueued,
+		CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+	}))
+	require.NoError(t, ss.Create(ctx, &task.Subtask{
+		ID: "s1", TaskID: "t1", Title: "s1",
+		AgentRole: "coder", Status: task.SubtaskPending, OrderIdx: 1, Round: 1,
+	}))
+
+	scs := store.NewSubtaskContextStore(db)
+	for _, r := range []int{1, 2, 3} {
+		require.NoError(t, scs.Upsert(ctx, store.SubtaskContext{
+			SubtaskID:           "s1",
+			Round:               r,
+			SystemPrompt:        "round-" + string(rune('0'+r)),
+			StagePromptTemplate: "tmpl",
+		}))
+	}
+
+	// round == 0 → MAX(round) (latest)
+	var got SubtaskContextInfo
+	got, err = svc.GetSubtaskContext(ctx, "s1", 0)
+	require.NoError(t, err)
+	assert.Equal(t, 3, got.Round)
+	assert.Equal(t, "round-3", got.SystemPrompt)
+	assert.False(t, got.NotRecorded)
+
+	// round < 0 behaves identically to round == 0 so callers don't need
+	// to sanitize input.
+	got, err = svc.GetSubtaskContext(ctx, "s1", -42)
+	require.NoError(t, err)
+	assert.Equal(t, 3, got.Round)
+
+	// round > 0 is an exact lookup.
+	got, err = svc.GetSubtaskContext(ctx, "s1", 1)
+	require.NoError(t, err)
+	assert.Equal(t, 1, got.Round)
+	assert.Equal(t, "round-1", got.SystemPrompt)
+
+	// Missing rows come back as NotRecorded without an error so the
+	// dialog can show a fallback tab.
+	got, err = svc.GetSubtaskContext(ctx, "s1", 99)
+	require.NoError(t, err)
+	assert.True(t, got.NotRecorded)
 }

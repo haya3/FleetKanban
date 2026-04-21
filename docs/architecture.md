@@ -15,8 +15,11 @@ We make no compromises for multi-OS support (all code assumes
 1. **Windows 11 Optimization (Top Priority)**
    Paths, filesystem, processes, Git, UI/fonts, notifications, and signing all
    use Windows 11-specific APIs as first-class citizens; no cross-OS abstraction
-   layer is interposed. See [phase1-spec.md §9](./phase1-spec.md#9-windows-11-optimization)
-   for details.
+   layer is interposed. (Historical note: earlier drafts referenced a separate
+   `phase1-spec.md` §9 for the Windows-specific details; that spec has been
+   absorbed into this document and the relevant material now lives across §2.6,
+   §5, §6, and §8. Stale `phase1-spec.md` mentions that still appear in source
+   comments will be cleaned up in a follow-up pass.)
 2. **Safe Isolation of the Agent Execution Substrate**
    Each task gets its own git worktree, and the Copilot CLI is launched as an
    independent child process with that worktree as its cwd. It does not affect
@@ -67,6 +70,7 @@ We make no compromises for multi-OS support (all code assumes
 │   └─ Service (domain use cases invoked via gRPC)                 │
 │                                                                  │
 │  internal/ ── orchestrator / task / store (SQLite) /             │
+│               ctxmem / runstate / ihr / harnessembed / setup /   │
 │               worktree / copilot / reaper / winapi / branding    │
 └─────────────────────────────────┬────────────────────────────────┘
                                   │
@@ -176,8 +180,8 @@ the Flutter side).
   the base64 token generated at sidecar startup and `metadata["x-auth-token"]`.
 - `broker.go`: Fans out `task.AgentEvent`s received on the Orchestrator's
   `EventSink` to each Dart client subscribed to the gRPC server-streaming RPC
-  (`SubscribeEvents`). Backpressure for slow subscribers is absorbed by a
-  per-subscriber ring buffer.
+  (`TaskService.WatchEvents`). Backpressure for slow subscribers is absorbed by
+  a per-subscriber ring buffer.
 - `convert.go`: Converts between protobuf and Go types (`pb.Task ↔ task.Task`,
   etc.).
 
@@ -195,16 +199,23 @@ the Flutter side).
   (Windows 11 native-style UI), [`grpc`](https://pub.dev/packages/grpc) +
   `protobuf`, [`flutter_acrylic`](https://pub.dev/packages/flutter_acrylic)
   (Mica / Acrylic), [`window_manager`](https://pub.dev/packages/window_manager),
-  [`xterm`](https://pub.dev/packages/xterm), [`riverpod`](https://pub.dev/packages/riverpod)-based
-  state management (finalized during Phase 1 implementation).
+  [`graphview`](https://pub.dev/packages/graphview) (Sugiyama layout for the
+  Subtask DAG), [`flutter_riverpod`](https://pub.dev/packages/flutter_riverpod) 3.x
+  with `riverpod_generator` code generation. `xterm` is pinned in `pubspec.yaml`
+  as a Phase D placeholder (interactive agent terminal is not wired in Phase 1;
+  the `status/` feature shows a read-only streaming agent activity log instead).
 - Directory layout (under `lib/`):
-  - `app/` — `MaterialApp` / `FluentApp` initialization, routing, theme.
-  - `domain/` — Dart-side domain types (Task / AgentEvent, etc.; proto artifacts
-    are projected into domain models).
-  - `features/` — per-screen (`kanban/` / `agent_terminal/` / `review/` /
-    `settings/`).
+  - `app/` — `FluentApp` initialization, routing, theme, `version.dart`
+    (sidecar protocol version the UI expects).
+  - `domain/` — Dart-side domain types (Task / Subtask / AgentEvent, etc.;
+    proto artifacts are projected into domain models).
+  - `features/` — per-screen: `auth/`, `kanban/`, `context/`, `review/`,
+    `harness/`, `insights/`, `worktrees/`, `housekeeping/`, `preconditions/`,
+    `status/` (streaming agent activity log; read-only), `settings/`,
+    `placeholder/` (ComingSoon stubs for later-phase features).
   - `infra/ipc/` — `SidecarSupervisor` (sidecar child-process management +
     handshake), gRPC client wrappers, and proto stubs under `generated/`.
+  - `infra/platform/` — Win32 interop (e.g. `taskbar_overlay.dart`).
   - `theme/` — font and color tokens.
 - Lint: `analysis_options.yaml` (based on `flutter_lints`).
 
@@ -219,86 +230,107 @@ package task
 
 type Status string
 
+// Kanban columns map 1:1 to primary statuses:
+// planning / queued / in_progress / ai_review / human_review / done.
+// Cancelled / Aborted / Failed are side branches, not columns.
 const (
-    StatusPending        Status = "pending"
-    StatusRunning        Status = "running"
-    StatusAwaitingReview Status = "awaiting_review"
-    StatusCompleted      Status = "completed"  // Kept: worktree removed, branch retained
-    StatusMerged         Status = "merged"     // explicit user merge, worktree+branch deleted
-    StatusAborted        Status = "aborted"    // aborted: worktree+branch retained (for diff review)
-    StatusCancelled      Status = "cancelled"  // Discard: worktree+branch deleted
-    StatusFailed         Status = "failed"     // timeout / runtime / interrupted
+    StatusPlanning    Status = "planning"     // just created; editable, not yet queued
+    StatusQueued      Status = "queued"       // user pressed Run; awaiting orchestrator pick
+    StatusInProgress  Status = "in_progress"  // Copilot session active
+    StatusAIReview    Status = "ai_review"    // automated verification (Phase 2 populates this stage)
+    StatusHumanReview Status = "human_review" // awaiting user Keep / Merge / Discard decision
+    StatusDone        Status = "done"         // finalized successfully; see Task.Finalization
+    StatusCancelled   Status = "cancelled"    // Discard: worktree and branch both removed
+    StatusAborted     Status = "aborted"      // User aborted during InProgress; worktree and branch kept
+    StatusFailed      Status = "failed"       // Runtime error
+)
+
+// FinalizationKind distinguishes how a Done task was closed. Empty for
+// non-Done statuses; required for Done.
+type FinalizationKind string
+
+const (
+    FinalizationNone   FinalizationKind = ""       // non-Done status
+    FinalizationKeep   FinalizationKind = "keep"   // worktree removed, branch preserved
+    FinalizationMerged FinalizationKind = "merged" // merged into target branch; both removed
 )
 
 type ErrorCode string
 
 const (
-    ErrTimeout          ErrorCode = "timeout"
-    ErrInterrupted      ErrorCode = "interrupted"      // crash recovery
-    ErrRuntime          ErrorCode = "runtime"          // CLI exception, parse failure, etc.
-    ErrPermissionDenied ErrorCode = "permission_denied"
+    ErrCodeNone          ErrorCode = ""
+    ErrCodeRuntime       ErrorCode = "runtime"        // Copilot CLI exit non-zero or unexpected
+    ErrCodeInterrupted   ErrorCode = "interrupted"    // crash recovery: running at app crash
+    ErrCodePathEscape    ErrorCode = "path_escape"    // attempted write outside worktree
+    ErrCodeMergeConflict ErrorCode = "merge_conflict" // reserved for merge operation failures
+    ErrCodeTimeout       ErrorCode = "timeout"
+    ErrCodeAuth          ErrorCode = "auth"           // Copilot CLI not authenticated
+    ErrCodeAIReview      ErrorCode = "ai_review"      // automated verification failed (Phase 2)
 )
 
 type Task struct {
-    ID           string     `json:"id"`           // ULID
-    Goal         string     `json:"goal"`
-    RepositoryID string     `json:"repositoryId"`
-    BaseBranch   string     `json:"baseBranch"`
-    WorktreePath string     `json:"worktreePath,omitempty"`
-    Branch       string     `json:"branch,omitempty"` // fleetkanban/<id>
-    BranchExists bool       `json:"branchExists"`
-    Status       Status     `json:"status"`
-    CreatedAt    time.Time  `json:"createdAt"`
-    UpdatedAt    time.Time  `json:"updatedAt"`
-    StartedAt    *time.Time `json:"startedAt,omitempty"`
-    FinishedAt   *time.Time `json:"finishedAt,omitempty"`
-    SessionID    string     `json:"sessionId,omitempty"` // COPILOT_AGENT_SESSION_ID
-    Error        *Error     `json:"error,omitempty"`
+    ID             string           // ULID
+    RepoID         string           // FK repositories.id
+    Goal           string
+    BaseBranch     string
+    Branch         string           // fleetkanban/<ID>
+    WorktreePath   string
+    Model          string           // Code-stage model (primary Copilot CLI identifier)
+    PlanModel      string           // model that actually ran the Plan stage ("" if none)
+    ReviewModel    string           // model that actually ran the Review stage ("" if none)
+    Status         Status
+    Finalization   FinalizationKind // set only when Status == StatusDone
+    ErrorCode      ErrorCode        // set only when Status == StatusFailed
+    ErrorMessage   string
+    SessionID      string           // Copilot SDK session identifier
+    BranchExists   bool             // false once reaper detects external branch deletion
+    ReviewFeedback string           // most recent reviewer feedback; prepended on rework
+    ReworkCount    int              // AI Review → Queued auto-rework counter (capped to prevent loops)
+    CreatedAt      time.Time
+    UpdatedAt      time.Time
+    StartedAt      *time.Time       // first StatusInProgress entry
+    FinishedAt     *time.Time       // most recent review/terminal entry (cleared on rework)
 }
-
-type Error struct {
-    Code    ErrorCode `json:"code"`
-    Message string    `json:"message"`
-    Stack   string    `json:"stack,omitempty"`
-}
-
-// The JSONL path for raw events is implicitly determined as
-// %APPDATA%\FleetKanban\logs\<task-id>.jsonl (not stored in the Task type or DB).
 ```
 
+Subtasks are a separate first-class model (see §2.4 and §3.4). The planner
+emits a DAG; `Subtask.DependsOn` is a JSON array of ULIDs stored in a single
+column (Phase 1 DAGs are < 20 nodes, so a join table is over-engineered).
+Status vocabulary: `pending / doing / done / failed`. Each subtask also
+records the `CodeModel` it ran with and a `Round` counter so successive
+rework iterations stack side by side in the UI instead of overwriting.
+
 On the Dart side, proto artifacts (`pb.Task`, etc.) are projected into domain
-models (`lib/domain/`) for use. JSON tags are for sidecar-internal logs /
-debugging only; exchange with Flutter uses protobuf exclusively.
+models (`lib/domain/`) for use; exchange with Flutter uses protobuf
+exclusively.
 
 ### 3.2 AgentEvent
 
+The `events` table and the on-wire `AgentEvent` message use a free-form
+`kind TEXT` string rather than a fixed enum. This matches the proto
+convention (adding a new category requires no schema change or proto
+bump) and lets us extend the vocabulary gracefully as Phase 2+ stages
+surface new event kinds. Representative kinds emitted today:
+
+- `assistant.delta`, `assistant.reasoning.delta`
+- `tool.start`, `tool.end`
+- `permission.request`, `session.idle`
+- `review.submitted`, `stage.transition`, `subtask.started`
+- `error`, `security.path_escape`
+
 ```go
-package task
-
-type EventType string
-
-const (
-    EventAssistantDelta    EventType = "assistant.delta"
-    EventAssistantMessage  EventType = "assistant.message"
-    EventReasoningDelta    EventType = "assistant.reasoning.delta"
-    EventToolStart         EventType = "tool.start"
-    EventToolEnd           EventType = "tool.end"
-    EventPermissionRequest EventType = "permission.request"
-    EventSessionIdle       EventType = "session.idle"
-    EventError             EventType = "error"
-)
-
-type Event struct {
-    Type   EventType       `json:"type"`
-    TaskID string          `json:"taskId"`
-    Seq    int64           `json:"seq"`
-    TS     time.Time       `json:"ts"`
-    Data   json.RawMessage `json:"data,omitempty"`
+type AgentEvent struct {
+    ID         string    // ULID
+    TaskID     string
+    Seq        int64
+    OccurredAt time.Time
+    Kind       string    // free-form; see representative kinds above
+    Payload    string    // JSON-encoded kind-specific fields
 }
 ```
 
-The SDK's `SessionEvent` is parsed and normalized into the above Event (see §5),
-then delivered to Flutter as a gRPC `SubscribeEvents` stream.
+The SDK's `SessionEvent` is normalized into `AgentEvent`s (see §5) and
+fanned out to Flutter as a gRPC `WatchEvents` server-streaming RPC.
 
 ### 3.3 Data Storage Location
 
@@ -329,51 +361,102 @@ repository's parent directory:
 
 ### 3.4 SQLite Schema
 
+The live schema is defined forward-only by `sidecar/internal/store/migrations.go`
+(v18 as of this writing); the summary below captures the current shape.
+Future migrations update this section when they land.
+
 ```sql
 CREATE TABLE repositories (
-  id TEXT PRIMARY KEY,              -- ULID
-  path TEXT NOT NULL UNIQUE,        -- absolute path (normalized to lowercase)
-  display_name TEXT NOT NULL,       -- UI display name (user-editable)
-  default_base_branch TEXT,         -- detected value; overridable
-  created_at TEXT NOT NULL,
-  last_used_at TEXT
+  id                  TEXT PRIMARY KEY,              -- ULID
+  path                TEXT NOT NULL UNIQUE,          -- absolute path (lowercased)
+  display_name        TEXT NOT NULL,
+  default_base_branch TEXT,                          -- empty = auto-detect mode
+  created_at          TEXT NOT NULL,
+  last_used_at        TEXT
 );
 
 CREATE TABLE tasks (
-  id TEXT PRIMARY KEY,
-  goal TEXT NOT NULL,
-  repository_id TEXT NOT NULL REFERENCES repositories(id) ON DELETE RESTRICT,
-  base_branch TEXT NOT NULL,
-  worktree_path TEXT,
-  branch TEXT,                      -- fleetkanban/<id>; retained after completed / aborted / failed
-  branch_exists INTEGER DEFAULT 1,  -- 0 if externally deleted
-  status TEXT NOT NULL CHECK(status IN (
-    'pending','running','awaiting_review',
-    'completed','merged','aborted','cancelled','failed'
+  id              TEXT PRIMARY KEY,
+  repository_id   TEXT NOT NULL REFERENCES repositories(id) ON DELETE RESTRICT,
+  goal            TEXT NOT NULL,
+  base_branch     TEXT NOT NULL,
+  branch          TEXT,                              -- fleetkanban/<id>
+  worktree_path   TEXT,
+  branch_exists   INTEGER NOT NULL DEFAULT 1,        -- 0 if externally deleted
+  model           TEXT NOT NULL DEFAULT '',          -- Code-stage model
+  plan_model      TEXT NOT NULL DEFAULT '',          -- model that ran Plan
+  review_model    TEXT NOT NULL DEFAULT '',          -- model that ran Review
+  status          TEXT NOT NULL CHECK(status IN (
+    'planning','queued','in_progress','ai_review','human_review',
+    'done','aborted','cancelled','failed'
   )),
-  session_id TEXT,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  started_at TEXT,
-  finished_at TEXT,
-  error_json TEXT                   -- JSON: { code, message, stack? }
+  finalization    TEXT NOT NULL DEFAULT '' CHECK(finalization IN ('','keep','merged')),
+  error_code      TEXT NOT NULL DEFAULT '',
+  error_message   TEXT NOT NULL DEFAULT '',
+  session_id      TEXT NOT NULL DEFAULT '',
+  review_feedback TEXT NOT NULL DEFAULT '',          -- prepended on rework
+  rework_count    INTEGER NOT NULL DEFAULT 0,        -- ai_review→queued auto-rework cap
+  created_at      TEXT NOT NULL,
+  updated_at      TEXT NOT NULL,
+  started_at      TEXT,
+  finished_at     TEXT
 );
 CREATE INDEX tasks_status_updated ON tasks(status, updated_at DESC);
-CREATE INDEX tasks_repository ON tasks(repository_id);
+CREATE INDEX tasks_repository     ON tasks(repository_id);
+
+CREATE TABLE subtasks (
+  id         TEXT PRIMARY KEY,
+  task_id    TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  title      TEXT NOT NULL,
+  agent_role TEXT NOT NULL DEFAULT '',               -- planner-assigned specialist role
+  depends_on TEXT NOT NULL DEFAULT '[]',             -- JSON array of subtask ULIDs (DAG edges)
+  prompt     TEXT NOT NULL DEFAULT '',               -- planner-authored per-node instruction
+  status     TEXT NOT NULL DEFAULT 'pending'
+             CHECK(status IN ('pending','doing','done','failed')),
+  order_idx  INTEGER NOT NULL DEFAULT 0,
+  round      INTEGER NOT NULL DEFAULT 1,             -- rework iteration counter
+  code_model TEXT NOT NULL DEFAULT '',               -- model that ran this subtask's code stage
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX subtasks_task_order ON subtasks(task_id, order_idx);
+CREATE INDEX subtasks_task_round ON subtasks(task_id, round);
 
 CREATE TABLE events (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-  seq INTEGER NOT NULL,
-  ts TEXT NOT NULL,
-  payload_json TEXT NOT NULL
+  id          TEXT NOT NULL PRIMARY KEY,
+  task_id     TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  seq         INTEGER NOT NULL,
+  occurred_at TEXT NOT NULL,
+  kind        TEXT NOT NULL,                         -- free-form (see §3.2)
+  payload     TEXT NOT NULL,                         -- JSON-encoded kind-specific fields
+  UNIQUE(task_id, seq)
 );
 CREATE INDEX events_task_seq ON events(task_id, seq);
 
 CREATE TABLE settings (
-  key TEXT PRIMARY KEY,
+  key        TEXT PRIMARY KEY,
   value_json TEXT NOT NULL
 );
+
+-- Context / Graph Memory (ctxmem) tables — property graph + retrieval.
+-- ctx_node / ctx_edge / ctx_closure: graph structure
+-- ctx_fact: bi-temporal facts (valid_from / valid_to)
+-- ctx_scratchpad: trust-gated pending queue for proposed nodes
+-- ctx_node_vec: float32 BLOB embeddings (pure-Go cosine similarity; sqlite-vec
+--   extension is not used because modernc.org/sqlite runs without CGO)
+-- ctx_node_fts: FTS5 virtual table mirroring ctx_node for BM25 keyword search
+-- ctx_memory_settings: per-repo embedding / LLM / budget configuration
+-- See sidecar/internal/store/migrations.go v13 for the exact definitions.
+
+-- NLAH runstate tables — artifacts indexed on top of on-disk files.
+-- artifact: index of files under <DataDir>\runs\<taskId>\
+--   stages: plan / code / review / harness / attempt
+-- task_run_root: per-task absolute FS root (survives DataDir relocation)
+-- harness_attempt: self-evolution patch proposals (Phase C; human-gated)
+-- harness_skill_version: SKILL.md version history (Phase B)
+-- subtask_context: per-round prompt ingredient snapshot for the Subtask
+--   Summary dialog (system / user prompt, plan summary, memory block, ...)
+-- See migrations.go v14 / v15 / v16 / v18.
 ```
 
 The following PRAGMAs are always applied at startup (for write concurrency and
@@ -398,41 +481,53 @@ line of defense.
 
 ## 4. Task Lifecycle
 
+The primary Kanban path has six columns; Cancelled / Aborted / Failed are
+side branches surfaced elsewhere in the UI.
+
 ```
-  pending
-     │   Run button in Kanban or card drag
+  planning
+     │   User edits goal / model / base branch, then presses Run.
      ▼
-  [WorktreeManager.Create (base_branch)]
+  queued
+     │   Orchestrator picks the next task (semaphore-gated).
+     ▼
+  [Planner — Copilot session drafts the subtask DAG]
      │
      ▼
-  running  ──── Copilot SDK session streams SessionEvents
+  in_progress  ──── Copilot SDK executes subtasks in topological order
      │
-     ├─ normal exit ──▶ awaiting_review
-     │                    │  user choice (default: Keep)
-     │      ┌─────────────┼─────────────────┐
-     │      ▼             ▼                 ▼
-     │   completed      merged           cancelled
-     │   (branch keep)  (branch gone)    (worktree+branch gone)
-     │   worktree rm    worktree rm       ← Discard
+     ▼
+  ai_review    ──── Automated verification (Phase 2 populates this stage;
+     │              Phase 1 short-circuits straight to human_review).
+     │              If the AI reviewer rejects, the orchestrator re-queues
+     │              the task up to MaxReworkCount times (rework_count++).
+     ▼
+  human_review ──── User picks Keep / Merge / Discard
      │
-     ├─ timeout ─▶ failed(code=timeout)    worktree / branch retained
-     ├─ exception ─▶ failed(code=runtime)  worktree / branch retained
-     └─ abort (■) ─▶ aborted               worktree / branch retained (for diff review)
+     │   ┌──────────────────┬───────────────────┐
+     ▼   ▼                  ▼                   ▼
+  done (keep)           done (merged)        cancelled
+  worktree removed,     merged into base,    Discard:
+  branch preserved      both removed         worktree+branch removed
 
-  Crash recovery: tasks that were running at startup transition to
-    failed(code=interrupted) (see §3.3 / phase1-spec §3.4).
+  Side branches (any in_progress-or-later state):
+   ├─ timeout  ─▶ failed(code=timeout)           worktree / branch kept
+   ├─ runtime  ─▶ failed(code=runtime)           worktree / branch kept
+   ├─ crash    ─▶ failed(code=interrupted)       crash recovery at startup
+   └─ user ■   ─▶ aborted                        worktree / branch kept
+                  (non-terminal; user may subsequently finalize as
+                   done-keep, done-merged, or cancelled)
 ```
 
-**Important**: Phase 1 does not automate merging. Transitioning from
-`awaiting_review` to `merged` happens only via explicit user action, and
-**the default endpoint is `completed` (branch retained)**. The app never
-performs `git push`, and PR creation is not implemented until the manual
-trigger feature planned for Phase 2.
+**Important**: Phase 1 does not automate merging. Transitioning to
+`done(merged)` happens only via explicit user action, and **the default
+endpoint is `done(keep)` (branch retained)**. The app never performs
+`git push`, and PR creation is not implemented until the manual trigger
+feature planned for Phase 2.
 
-`aborted` and `cancelled` appear in the same Kanban column (Cancelled column)
-but are kept as distinct statuses in the DB / Task type (the former retains its
-branch and is thus a candidate for Merge / duplication; the latter has been
-erased).
+`aborted` and `cancelled` are kept as distinct statuses in the DB / Task
+type: `aborted` retains its branch and is thus still a candidate for a
+later Keep / Merge / Discard decision; `cancelled` has been erased.
 
 ### 4.1 Orphan Worktree Reclamation (Startup)
 
@@ -605,5 +700,5 @@ See [roadmap.md](./roadmap.md) for these.
 | R5 | SQLite write contention | Serialize a write-only `sql.DB` with `SetMaxOpenConns(1)`; handle reads on a separate `sql.DB` (concurrent WAL reads) |
 | R6 | SDK not supporting `claude-sonnet-4.6` | Verify at startup with `ListModels` and fall back in the order `claude-sonnet-4.5 → gpt-5` |
 | R7 | Flutter ↔ sidecar handshake failure (e.g., OS-side EDR blocking) | If the sidecar does not emit the READY line to stdout within 5 s, the UI shows `SidecarStartupFailed`. The sidecar writes structured logs to stderr (for fallback) |
-| R8 | Reliability of SDK auth detection | The `auth.getStatus` RPC is an official SDK-provided API and is more reliable than regex parsing `--list-env` output. Must be called after `Runtime.Start` |
+| R8 | ~~Reliability of SDK auth detection~~ (resolved) | Addressed: `auth.getStatus` SDK RPC replaced `--list-env` regex parsing. Documented here for historical context; no ongoing mitigation required. |
 | R9 | Confidentiality of loopback gRPC | Verify the base64 token generated at sidecar startup via the `x-auth-token` metadata (`subtle.ConstantTimeCompare`). Non-localhost connections are physically excluded by `net.Listen("tcp", "127.0.0.1:0")` |

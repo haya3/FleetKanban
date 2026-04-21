@@ -558,10 +558,11 @@ class _PrimaryAction extends ConsumerWidget {
         );
       case 'planning':
         // Planning is owned by the orchestrator — the AI planner is either
-        // running or about to run. Surfacing a Run button here would hit the
-        // sidecar's `cannot run a task in status planning` guard, so show a
-        // non-actionable progress pill instead.
-        return const _PlanningPill();
+        // running or about to run. Surfacing a Run button here would hit
+        // the sidecar's `cannot run a task in status planning` guard, so
+        // pair the progress indicator with a Stop button that cancels the
+        // planner goroutine (transitions the task to cancelled).
+        return _PlanningActions(task: task);
       case 'in_progress':
         return _pill(
           icon: FluentIcons.stop,
@@ -610,6 +611,34 @@ class _PrimaryAction extends ConsumerWidget {
       default:
         return const SizedBox.shrink();
     }
+  }
+}
+
+// _PlanningActions renders a non-interactive "Planning…" progress pill
+// paired with a Stop button so the user can abort while the AI planner
+// is still drafting the plan. Cancel transitions the task straight to
+// cancelled (no worktree was created yet); the detail-dialog delete
+// path additionally removes the row.
+class _PlanningActions extends ConsumerWidget {
+  const _PlanningActions({required this.task});
+  final pb.Task task;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        const _PlanningPill(),
+        _kanbanMiniPill(
+          icon: FluentIcons.stop,
+          label: 'Stop',
+          color: const Color(0xFF8A3B00),
+          onPressed: () => ref.read(cancelTaskProvider.notifier).run(task.id),
+        ),
+      ],
+    );
   }
 }
 

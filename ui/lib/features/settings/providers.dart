@@ -3,6 +3,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:protobuf/well_known_types/google/protobuf/empty.pb.dart'
     show Empty;
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../infra/ipc/generated/fleetkanban/v1/fleetkanban.pb.dart' as pb;
@@ -10,47 +11,23 @@ import '../../infra/ipc/providers.dart';
 import '../kanban/providers.dart'
     show kanbanRepositoriesProvider, repositoryBranchesProvider;
 
-/// Built-in default agent prompts, fetched from the sidecar. Used by
-/// the Settings page to pre-populate each editor with the full default
-/// text so the user can see exactly what the planner / runner /
-/// reviewer will use when no override is saved.
-final defaultAgentPromptsProvider = FutureProvider<pb.AgentSettings>((
-  ref,
-) async {
-  final client = ref.watch(ipcClientProvider);
-  return client.system.getDefaultAgentPrompts(Empty());
-});
+part 'providers.g.dart';
 
-/// Agent prompt + output language overrides. Persisted on the sidecar
-/// (SettingsStore) so changes apply to every Copilot session without a
-/// restart. The UI exposes 3 multi-line text fields and 1 single-line
-/// language field.
-final agentSettingsProvider =
-    AsyncNotifierProvider<AgentSettingsNotifier, pb.AgentSettings>(
-      AgentSettingsNotifier.new,
-    );
-
-class AgentSettingsNotifier extends AsyncNotifier<pb.AgentSettings> {
+/// Output-language preference. Persisted on the sidecar (SettingsStore)
+/// so changes apply to every Copilot session without a restart. Per-stage
+/// prompt customisation lives in the IHR Charter (harness-skill/SKILL.md);
+/// this provider only owns the free-form language directive.
+@Riverpod(keepAlive: true)
+class AgentSettings extends _$AgentSettings {
   @override
   Future<pb.AgentSettings> build() async {
     final client = ref.watch(ipcClientProvider);
     return client.system.getAgentSettings(Empty());
   }
 
-  Future<void> save({
-    String? planPrompt,
-    String? codePrompt,
-    String? reviewPrompt,
-    String? outputLanguage,
-  }) async {
+  Future<void> save({required String outputLanguage}) async {
     final client = ref.read(ipcClientProvider);
-    final current = state.valueOrNull ?? pb.AgentSettings();
-    final next = pb.AgentSettings(
-      planPrompt: planPrompt ?? current.planPrompt,
-      codePrompt: codePrompt ?? current.codePrompt,
-      reviewPrompt: reviewPrompt ?? current.reviewPrompt,
-      outputLanguage: outputLanguage ?? current.outputLanguage,
-    );
+    final next = pb.AgentSettings(outputLanguage: outputLanguage);
     state = const AsyncLoading();
     try {
       final saved = await client.system.setAgentSettings(next);
@@ -105,12 +82,8 @@ final availableModelsProvider = FutureProvider<List<pb.ModelInfo>>((ref) async {
 
 /// Per-stage model selection. Defaults to empty string meaning "server
 /// picks" — the sidecar's Runner already has a preference/fallback list.
-final modelForStageProvider =
-    AsyncNotifierProvider.family<StageModelNotifier, String, ModelStage>(
-      StageModelNotifier.new,
-    );
-
-class StageModelNotifier extends FamilyAsyncNotifier<String, ModelStage> {
+@Riverpod(keepAlive: true)
+class ModelForStage extends _$ModelForStage {
   @override
   Future<String> build(ModelStage stage) async {
     final prefs = await SharedPreferences.getInstance();
@@ -120,7 +93,7 @@ class StageModelNotifier extends FamilyAsyncNotifier<String, ModelStage> {
   Future<void> set(String value) async {
     state = const AsyncLoading();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_modelPrefKey[arg]!, value);
+    await prefs.setString(_modelPrefKey[stage]!, value);
     state = AsyncData(value);
   }
 }

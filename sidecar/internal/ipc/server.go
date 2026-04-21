@@ -291,6 +291,14 @@ func (s *Server) ReorderSubtasks(ctx context.Context, req *pb.ReorderSubtasksReq
 	return &emptypb.Empty{}, nil
 }
 
+func (s *Server) GetSubtaskContext(ctx context.Context, req *pb.GetSubtaskContextRequest) (*pb.CopilotSubtaskContext, error) {
+	info, err := s.app.GetSubtaskContext(ctx, req.GetSubtaskId(), int(req.GetRound()))
+	if err != nil {
+		return nil, mapAppError(err)
+	}
+	return subtaskContextInfoToPB(info), nil
+}
+
 func (s *Server) TaskEvents(ctx context.Context, req *pb.TaskEventsRequest) (*pb.TaskEventsResponse, error) {
 	events, err := s.app.TaskEvents(ctx, req.GetTaskId(), req.GetSinceSeq(), int(req.GetLimit()))
 	if err != nil {
@@ -516,6 +524,14 @@ func (s *Server) GetGitHubAccountInfo(ctx context.Context, _ *emptypb.Empty) (*p
 	}, nil
 }
 
+func (s *Server) GetCopilotQuota(ctx context.Context, _ *emptypb.Empty) (*pb.CopilotQuotaInfo, error) {
+	snapshots, err := s.app.GetCopilotQuota(ctx)
+	if err != nil {
+		return nil, mapAppError(err)
+	}
+	return copilotQuotaToPB(snapshots), nil
+}
+
 // --- SystemService ---------------------------------------------------------
 
 func (s *Server) GetConcurrency(ctx context.Context, _ *emptypb.Empty) (*pb.IntValue, error) {
@@ -550,15 +566,8 @@ func (s *Server) SetAgentSettings(ctx context.Context, req *pb.AgentSettings) (*
 	return agentSettingsToPB(a), nil
 }
 
-func (s *Server) GetDefaultAgentPrompts(ctx context.Context, _ *emptypb.Empty) (*pb.AgentSettings, error) {
-	return agentSettingsToPB(s.app.GetDefaultAgentPrompts(ctx)), nil
-}
-
 func agentSettingsToPB(a app.AgentSettings) *pb.AgentSettings {
 	return &pb.AgentSettings{
-		PlanPrompt:     a.PlanPrompt,
-		CodePrompt:     a.CodePrompt,
-		ReviewPrompt:   a.ReviewPrompt,
 		OutputLanguage: a.OutputLanguage,
 	}
 }
@@ -568,9 +577,6 @@ func agentSettingsFromPB(p *pb.AgentSettings) app.AgentSettings {
 		return app.AgentSettings{}
 	}
 	return app.AgentSettings{
-		PlanPrompt:     p.GetPlanPrompt(),
-		CodePrompt:     p.GetCodePrompt(),
-		ReviewPrompt:   p.GetReviewPrompt(),
 		OutputLanguage: p.GetOutputLanguage(),
 	}
 }

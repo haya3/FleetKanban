@@ -2,7 +2,8 @@
 //
 // Boot order:
 //   1. Ensure Flutter bindings and system_theme (OS accent colour cache).
-//   2. Configure bitsdojo_window minimum size + center.
+//   2. Configure window_manager: frameless, minimum size, center, title,
+//      and wait until ready before showing (avoids a pre-layout flash).
 //   3. Apply Mica via flutter_acrylic so Fluent UI Acrylic layers composite
 //      onto the OS Mica backdrop instead of an opaque canvas.
 //   4. Spawn the Go sidecar and wait for the READY handshake.
@@ -12,11 +13,11 @@
 import 'dart:io';
 import 'dart:ui';
 
-import 'package:bitsdojo_window/bitsdojo_window.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_acrylic/flutter_acrylic.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:system_theme/system_theme.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'app/app_shell.dart';
 import 'app/error_display.dart';
@@ -26,6 +27,7 @@ import 'infra/ipc/sidecar_supervisor.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemTheme.accentColor.load();
+  await windowManager.ensureInitialized();
   await Window.initialize();
   await Window.setEffect(
     effect: WindowEffect.mica,
@@ -58,17 +60,21 @@ Future<void> main() async {
     return true;
   };
 
-  doWhenWindowReady(() {
-    final win = appWindow;
-    win.minSize = const Size(960, 640);
-    // Kanban has 6 columns + NavigationView compact rail + per-card stage
-    // stepper: 1280 leaves cards clipped and the detail dialog (900 wide)
-    // barely fits. 1600×1000 lands the default inside a reasonable chunk of
-    // the FHD viewport without overflowing common 1920×1080 setups.
-    win.size = const Size(1600, 1000);
-    win.alignment = Alignment.center;
-    win.title = 'FleetKanban';
-    win.show();
+  // Kanban has 6 columns + NavigationView compact rail + per-card stage
+  // stepper: 1280 leaves cards clipped and the detail dialog (900 wide)
+  // barely fits. 1600×1000 lands the default inside a reasonable chunk of
+  // the FHD viewport without overflowing common 1920×1080 setups.
+  const windowOptions = WindowOptions(
+    size: Size(1600, 1000),
+    minimumSize: Size(960, 640),
+    center: true,
+    title: 'FleetKanban',
+    titleBarStyle: TitleBarStyle.hidden,
+    backgroundColor: Colors.transparent,
+  );
+  await windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.show();
+    await windowManager.focus();
   });
 
   final supervisor = SidecarSupervisor(binaryPath: resolveSidecarBinary());

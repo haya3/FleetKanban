@@ -44,6 +44,12 @@ var allowedTransitions = map[Status]map[Status]struct{}{
 		StatusInProgress: {},
 		StatusFailed:     {},
 		StatusAborted:    {},
+		// User-initiated cancel while the AI planner is drafting the plan.
+		// Matches queued → cancelled: no worktree exists yet, so Cancelled
+		// (not Aborted) is the correct terminal — Aborted implies "progress
+		// was made that the user may want to keep", which does not hold
+		// here.
+		StatusCancelled: {},
 	},
 	StatusInProgress: {
 		StatusAIReview: {},

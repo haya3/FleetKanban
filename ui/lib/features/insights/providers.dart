@@ -5,6 +5,7 @@
 // would be wasteful.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 
 import '../../infra/ipc/generated/fleetkanban/v1/insights.pb.dart' as ins_pb;
 import '../../infra/ipc/providers.dart';

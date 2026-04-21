@@ -42,14 +42,14 @@ type AuthStatus struct {
 var ErrNotAuthenticated = fmt.Errorf("copilot: not authenticated")
 
 // AgentSettings mirrors app.AgentSettings but lives in the copilot
-// package to avoid a circular dependency. Carries the user's
-// per-stage prompt overrides plus a free-form output-language
-// directive that planner / runner / reviewer fold into their
-// system messages at session creation time.
+// package to avoid a circular dependency. Carries the free-form
+// output-language directive that planner / runner / reviewer /
+// analyzer append to their system messages at session creation time.
+// Per-stage prompt text itself comes from the IHR Charter via
+// StagePromptLookup (see RuntimeConfig.StagePrompts); AgentSettings
+// only carries the output-language addendum that is concatenated onto
+// whatever base prompt the charter (or Default*Prompt fallback) yields.
 type AgentSettings struct {
-	PlanPrompt     string
-	CodePrompt     string
-	ReviewPrompt   string
 	OutputLanguage string
 }
 
@@ -60,6 +60,33 @@ type AgentSettings struct {
 // non-blocking; failures should return zero values + nil error so
 // the agent stays runnable on a settings glitch.
 type SettingsLookup func(context.Context) (AgentSettings, error)
+
+// StagePromptLookup returns the IHR-charter-defined system prompt for the
+// named stage ("plan" / "code" / "review"). An empty return means the
+// active charter has no entry for that stage; callers fall back to the
+// built-in Default*Prompt constant. nil lookups are treated the same as
+// empty returns so tests and bootstrapping paths that have no charter
+// wired can proceed without special-casing.
+//
+// Implementations are expected to be cheap (a single atomic.Pointer load)
+// and safe to call concurrently — the runtime invokes this once per SDK
+// session, and the hot-reload path in HarnessServer.UpdateSkill swaps
+// the backing charter atomically.
+type StagePromptLookup func(stage string) string
+
+// ResolveStagePrompt picks the active prompt body for a stage: charter
+// first (via lookup), falling back to the supplied built-in when the
+// charter is nil or silent on the stage. Centralised here so every
+// caller (planner / runner / reviewer) shares the same precedence.
+func ResolveStagePrompt(lookup StagePromptLookup, stage, fallback string) string {
+	if lookup == nil {
+		return fallback
+	}
+	if s := lookup(stage); s != "" {
+		return s
+	}
+	return fallback
+}
 
 // RuntimeConfig configures a Runtime.
 type RuntimeConfig struct {
@@ -73,11 +100,24 @@ type RuntimeConfig struct {
 	// at session creation to fetch the user's prompt + language
 	// preferences. nil disables overrides (built-in defaults only).
 	Settings SettingsLookup
+	// StagePrompts, when non-nil, is called by planner / runner /
+	// reviewer at session creation to resolve the per-stage system
+	// prompt from the active IHR charter (harness-skill/SKILL.md).
+	// Empty return or nil lookup falls through to the built-in
+	// Default*Prompt constants so the pipeline stays runnable even
+	// when the charter is absent or missing prompt entries.
+	StagePrompts StagePromptLookup
 	// Memory, when non-nil, is called by the runner at session start
 	// to build the Passive injection block prepended to every Copilot
 	// prompt. nil disables memory injection entirely — existing tasks
 	// continue to run against the built-in prompts only.
 	Memory MemoryInjector
+	// ContextRecorder, when non-nil, receives one SubtaskContextSnapshot
+	// per RunSubtask call — the full system + user prompt the Copilot
+	// SDK saw, plus the plan/prior/memory/language inputs that fed into
+	// it. Persisted so the UI's Subtask Summary dialog can answer "what
+	// context did the agent have for this step?" without re-simulating.
+	ContextRecorder SubtaskContextRecorder
 }
 
 // Runtime owns the single SDK Client and its lifecycle. It is safe for
@@ -225,6 +265,52 @@ func (r *Runtime) ListModels(ctx context.Context) ([]Model, error) {
 		})
 	}
 	return models, nil
+}
+
+// QuotaSnapshot is a per-quota-type view of the user's Copilot billing
+// state. Mirrors SDK rpc.QuotaSnapshot as a value type so the app / IPC
+// layers never depend on copilot-sdk internals. Counts are "number of
+// requests" after the per-model multiplier has been applied upstream.
+type QuotaSnapshot struct {
+	Entitlement         float64
+	Used                float64
+	RemainingPercentage float64
+	Overage             float64
+	OverageAllowed      bool
+	ResetDate           string
+}
+
+// GetQuota calls the SDK's account.getQuota RPC and returns the snapshot map
+// keyed by quota type ("premium_interactions", "chat", …). Requires the
+// client to already be started; the underlying CLI server must implement the
+// RPC (available in Copilot CLI shipped with copilot-sdk/go ≥ v0.2.2, per
+// github.com/github/copilot-sdk#406).
+func (r *Runtime) GetQuota(ctx context.Context) (map[string]QuotaSnapshot, error) {
+	r.mu.RLock()
+	c := r.client
+	r.mu.RUnlock()
+	result, err := c.RPC.Account.GetQuota(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("copilot: get quota: %w", err)
+	}
+	if result == nil {
+		return map[string]QuotaSnapshot{}, nil
+	}
+	out := make(map[string]QuotaSnapshot, len(result.QuotaSnapshots))
+	for k, v := range result.QuotaSnapshots {
+		snap := QuotaSnapshot{
+			Entitlement:         v.EntitlementRequests,
+			Used:                v.UsedRequests,
+			RemainingPercentage: v.RemainingPercentage,
+			Overage:             v.Overage,
+			OverageAllowed:      v.OverageAllowedWithExhaustedQuota,
+		}
+		if v.ResetDate != nil {
+			snap.ResetDate = *v.ResetDate
+		}
+		out[k] = snap
+	}
+	return out, nil
 }
 
 // CheckAuth uses auth.getStatus (a side-effect-free RPC call introduced by the
@@ -387,9 +473,13 @@ func (r *Runtime) NewRunner(cfg RunnerConfig) (*Runner, error) {
 	c := r.client
 	settings := r.cfg.Settings
 	memory := r.cfg.Memory
+	recorder := r.cfg.ContextRecorder
+	stagePrompts := r.cfg.StagePrompts
 	r.mu.RUnlock()
 	cfg.settings = settings
 	cfg.memory = memory
+	cfg.contextRecorder = recorder
+	cfg.stagePrompts = stagePrompts
 	return newRunner(c, cfg)
 }
 

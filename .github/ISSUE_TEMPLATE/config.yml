@@ -3,6 +3,3 @@ contact_links:
   - name: Report a security vulnerability
     url: https://github.com/FleetKanban/fleetkanban/security/advisories/new
     about: Report vulnerabilities via Security Advisories, not public Issues
-  - name: Questions / discussions
-    url: https://github.com/FleetKanban/fleetkanban/discussions
-    about: Usage questions and idea discussions go here

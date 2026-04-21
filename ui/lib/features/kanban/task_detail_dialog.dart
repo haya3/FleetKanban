@@ -176,10 +176,13 @@ class _TaskDetailDialogState extends ConsumerState<_TaskDetailDialog> {
   }
 
   Future<void> _confirmDelete(BuildContext context, pb.Task task) async {
-    // Sidecar's DeleteTask rejects in_progress with FAILED_PRECONDITION. For
-    // running tasks we ask for a combined Stop + Delete instead of bouncing
-    // the user back to the card with a raw gRPC error.
-    final running = task.status == 'in_progress';
+    // Sidecar's DeleteTask rejects in_progress with FAILED_PRECONDITION
+    // and transparently cancels the planner goroutine when called on a
+    // planning row. Both cases surface as a combined Stop + Delete so
+    // the user isn't bounced back to the card with a raw gRPC error or
+    // left wondering whether the AI planner is still burning premium
+    // requests in the background.
+    final running = task.status == 'in_progress' || task.status == 'planning';
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => ContentDialog(
@@ -233,14 +236,18 @@ class _TaskDetailDialogState extends ConsumerState<_TaskDetailDialog> {
     try {
       if (running) {
         await ref.read(cancelTaskProvider.notifier).run(task.id);
-        // orch.Cancel signals the running goroutine but the status flip to
-        // aborted happens asynchronously. Poll GetTask for up to ~6s so the
-        // follow-up DeleteTask doesn't hit ErrTaskStillRunning again.
+        // orch.Cancel signals the running goroutine but the status flip
+        // happens asynchronously. Poll GetTask for up to ~6s so the
+        // follow-up DeleteTask doesn't hit ErrTaskStillRunning again
+        // (only in_progress is rejected; planning is accepted either
+        // way, but the poll makes the resulting UI state consistent).
         final client = ref.read(ipcClientProvider);
         for (var i = 0; i < 30; i++) {
           await Future<void>.delayed(const Duration(milliseconds: 200));
           final fresh = await client.task.getTask(pb.IdRequest(id: task.id));
-          if (fresh.status != 'in_progress') break;
+          if (fresh.status != 'in_progress' && fresh.status != 'planning') {
+            break;
+          }
         }
       }
       await ref.read(deleteTaskProvider.notifier).run(task.id);

@@ -150,6 +150,44 @@ func authStatusToPB(s copilot.AuthStatus) *pb.AuthStatus {
 	}
 }
 
+func subtaskContextInfoToPB(info app.SubtaskContextInfo) *pb.CopilotSubtaskContext {
+	priors := info.PriorSummaries
+	if priors == nil {
+		priors = []string{}
+	}
+	return &pb.CopilotSubtaskContext{
+		SubtaskId:             info.SubtaskID,
+		Round:                 int32(info.Round),
+		SystemPrompt:          info.SystemPrompt,
+		UserPrompt:            info.UserPrompt,
+		StagePromptTemplate:   info.StagePromptTemplate,
+		PlanSummary:           info.PlanSummary,
+		PriorSummaries:        priors,
+		MemoryBlock:           info.MemoryBlock,
+		OutputLanguage:        info.OutputLanguage,
+		HarnessSkillVersionId: info.HarnessSkillVersionID,
+		HarnessSkillMd:        info.HarnessSkillMD,
+		NotRecorded:           info.NotRecorded,
+	}
+}
+
+func copilotQuotaToPB(snapshots map[string]copilot.QuotaSnapshot) *pb.CopilotQuotaInfo {
+	out := &pb.CopilotQuotaInfo{
+		Snapshots: make(map[string]*pb.CopilotQuotaSnapshot, len(snapshots)),
+	}
+	for k, v := range snapshots {
+		out.Snapshots[k] = &pb.CopilotQuotaSnapshot{
+			EntitlementRequests:              v.Entitlement,
+			UsedRequests:                     v.Used,
+			RemainingPercentage:              v.RemainingPercentage,
+			Overage:                          v.Overage,
+			OverageAllowedWithExhaustedQuota: v.OverageAllowed,
+			ResetDate:                        v.ResetDate,
+		}
+	}
+	return out
+}
+
 func tokenListToPB(entries []app.TokenEntry, active string) *pb.ListGitHubTokensResponse {
 	out := &pb.ListGitHubTokensResponse{
 		Tokens:      make([]*pb.GitHubTokenEntry, 0, len(entries)),
