@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/haya3/fleetkanban/internal/ctxmem"
+	"github.com/haya3/FleetKanban/internal/ctxmem"
 )
 
 // Provider is the interface every embedding backend implements. Callers

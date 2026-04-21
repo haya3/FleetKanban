@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/haya3/fleetkanban/internal/task"
+	"github.com/haya3/FleetKanban/internal/task"
 )
 
 // waitEvent reads one event with a timeout so a broken broker does not hang

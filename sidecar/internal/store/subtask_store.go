@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/haya3/fleetkanban/internal/task"
+	"github.com/haya3/FleetKanban/internal/task"
 )
 
 // SubtaskStore persists task.Subtask rows. Same read/write split as TaskStore.

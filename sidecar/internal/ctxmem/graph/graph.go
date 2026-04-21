@@ -11,8 +11,8 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/haya3/fleetkanban/internal/ctxmem"
-	"github.com/haya3/fleetkanban/internal/ctxmem/store"
+	"github.com/haya3/FleetKanban/internal/ctxmem"
+	"github.com/haya3/FleetKanban/internal/ctxmem/store"
 )
 
 // DefaultMaxDepth caps BFS traversal when RebuildClosure runs. Five

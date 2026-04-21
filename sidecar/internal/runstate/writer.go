@@ -37,7 +37,7 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
-	"github.com/haya3/fleetkanban/internal/store"
+	"github.com/haya3/FleetKanban/internal/store"
 )
 
 // Writer owns the NLAH run directory for every active task. A single

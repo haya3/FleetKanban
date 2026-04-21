@@ -19,9 +19,9 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
-	"github.com/haya3/fleetkanban/internal/ctxmem"
-	"github.com/haya3/fleetkanban/internal/ctxmem/store"
-	"github.com/haya3/fleetkanban/internal/task"
+	"github.com/haya3/FleetKanban/internal/ctxmem"
+	"github.com/haya3/FleetKanban/internal/ctxmem/store"
+	"github.com/haya3/FleetKanban/internal/task"
 )
 
 // nodeLookup is the subset of store.NodeStore used for dedup checks.

@@ -81,7 +81,7 @@ jobs:
           go tool bundler --platform windows/amd64 --output ./cmd/fleetkanban-sidecar
           $out = "${{ github.workspace }}/build/bin/fleetkanban-sidecar.exe"
           New-Item -ItemType Directory -Force -Path (Split-Path $out) | Out-Null
-          go build -trimpath -ldflags "-s -w -X github.com/haya3/fleetkanban/internal/branding.AppVersion=${{ steps.version.outputs.version }}" -o $out ./cmd/fleetkanban-sidecar
+          go build -trimpath -ldflags "-s -w -X github.com/haya3/FleetKanban/internal/branding.AppVersion=${{ steps.version.outputs.version }}" -o $out ./cmd/fleetkanban-sidecar
         shell: pwsh
 
       - name: Flutter pub get

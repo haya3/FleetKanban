@@ -16,7 +16,7 @@ import (
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/oklog/ulid/v2"
 
-	"github.com/haya3/fleetkanban/internal/task"
+	"github.com/haya3/FleetKanban/internal/task"
 )
 
 // plannerTimeout is the wall-clock cap on a single planning session. Kept

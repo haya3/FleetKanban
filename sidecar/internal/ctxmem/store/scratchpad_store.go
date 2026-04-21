@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/haya3/fleetkanban/internal/ctxmem"
+	"github.com/haya3/FleetKanban/internal/ctxmem"
 )
 
 // ScratchpadStore persists ctxmem.ScratchpadEntry rows.

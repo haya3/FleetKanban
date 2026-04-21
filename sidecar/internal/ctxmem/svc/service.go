@@ -17,15 +17,15 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
-	"github.com/haya3/fleetkanban/internal/ctxmem"
-	"github.com/haya3/fleetkanban/internal/ctxmem/analyzer"
-	"github.com/haya3/fleetkanban/internal/ctxmem/codegraph"
-	"github.com/haya3/fleetkanban/internal/ctxmem/embed"
-	"github.com/haya3/fleetkanban/internal/ctxmem/graph"
-	"github.com/haya3/fleetkanban/internal/ctxmem/inject"
-	"github.com/haya3/fleetkanban/internal/ctxmem/promotion"
-	"github.com/haya3/fleetkanban/internal/ctxmem/retrieval"
-	"github.com/haya3/fleetkanban/internal/ctxmem/store"
+	"github.com/haya3/FleetKanban/internal/ctxmem"
+	"github.com/haya3/FleetKanban/internal/ctxmem/analyzer"
+	"github.com/haya3/FleetKanban/internal/ctxmem/codegraph"
+	"github.com/haya3/FleetKanban/internal/ctxmem/embed"
+	"github.com/haya3/FleetKanban/internal/ctxmem/graph"
+	"github.com/haya3/FleetKanban/internal/ctxmem/inject"
+	"github.com/haya3/FleetKanban/internal/ctxmem/promotion"
+	"github.com/haya3/FleetKanban/internal/ctxmem/retrieval"
+	"github.com/haya3/FleetKanban/internal/ctxmem/store"
 )
 
 // RepoPathLookup resolves a repo ID to its absolute filesystem path.

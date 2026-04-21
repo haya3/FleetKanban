@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/haya3/fleetkanban/internal/task"
+	"github.com/haya3/FleetKanban/internal/task"
 )
 
 // TaskStore persists task.Task rows. All writes flow through the serialized

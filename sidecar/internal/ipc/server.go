@@ -14,17 +14,17 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/haya3/fleetkanban/internal/app"
-	"github.com/haya3/fleetkanban/internal/branding"
-	"github.com/haya3/fleetkanban/internal/copilot"
-	"github.com/haya3/fleetkanban/internal/ctxmem"
-	"github.com/haya3/fleetkanban/internal/ctxmem/svc"
-	"github.com/haya3/fleetkanban/internal/orchestrator"
-	"github.com/haya3/fleetkanban/internal/setup"
-	"github.com/haya3/fleetkanban/internal/store"
-	"github.com/haya3/fleetkanban/internal/task"
+	"github.com/haya3/FleetKanban/internal/app"
+	"github.com/haya3/FleetKanban/internal/branding"
+	"github.com/haya3/FleetKanban/internal/copilot"
+	"github.com/haya3/FleetKanban/internal/ctxmem"
+	"github.com/haya3/FleetKanban/internal/ctxmem/svc"
+	"github.com/haya3/FleetKanban/internal/orchestrator"
+	"github.com/haya3/FleetKanban/internal/setup"
+	"github.com/haya3/FleetKanban/internal/store"
+	"github.com/haya3/FleetKanban/internal/task"
 
-	pb "github.com/haya3/fleetkanban/internal/ipc/gen/fleetkanban/v1"
+	pb "github.com/haya3/FleetKanban/internal/ipc/gen/fleetkanban/v1"
 )
 
 // Server bundles the gRPC service implementations. It owns no state of

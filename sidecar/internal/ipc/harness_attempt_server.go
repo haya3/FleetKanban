@@ -20,8 +20,8 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	pb "github.com/haya3/fleetkanban/internal/ipc/gen/fleetkanban/v1"
-	"github.com/haya3/fleetkanban/internal/store"
+	pb "github.com/haya3/FleetKanban/internal/ipc/gen/fleetkanban/v1"
+	"github.com/haya3/FleetKanban/internal/store"
 )
 
 // SkillPatchApplier is the subset of HarnessServer the Approve path uses

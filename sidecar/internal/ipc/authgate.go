@@ -7,7 +7,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/haya3/fleetkanban/internal/copilot"
+	"github.com/haya3/FleetKanban/internal/copilot"
 )
 
 // CopilotAuthChecker is the subset of copilot.Runtime that the gate needs.

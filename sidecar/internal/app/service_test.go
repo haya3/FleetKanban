@@ -16,11 +16,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/haya3/fleetkanban/internal/copilot"
-	"github.com/haya3/fleetkanban/internal/orchestrator"
-	"github.com/haya3/fleetkanban/internal/store"
-	"github.com/haya3/fleetkanban/internal/task"
-	"github.com/haya3/fleetkanban/internal/worktree"
+	"github.com/haya3/FleetKanban/internal/copilot"
+	"github.com/haya3/FleetKanban/internal/orchestrator"
+	"github.com/haya3/FleetKanban/internal/store"
+	"github.com/haya3/FleetKanban/internal/task"
+	"github.com/haya3/FleetKanban/internal/worktree"
 )
 
 // initRepo is copied in miniature from internal/worktree/manager_test.go to

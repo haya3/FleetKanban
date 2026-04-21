@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/haya3/fleetkanban/internal/task"
-	"github.com/haya3/fleetkanban/internal/worktree"
+	"github.com/haya3/FleetKanban/internal/task"
+	"github.com/haya3/FleetKanban/internal/worktree"
 )
 
 // Finalization is the post-run action the user picks from the review gate.

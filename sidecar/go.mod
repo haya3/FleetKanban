@@ -1,4 +1,4 @@
-module github.com/haya3/fleetkanban
+module github.com/haya3/FleetKanban
 
 go 1.25.0
 

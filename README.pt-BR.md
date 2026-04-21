@@ -33,7 +33,7 @@
 
 ## Download
 
-- Último build: [GitHub Releases](https://github.com/haya3/fleetkanban/releases/latest) → `com.fleetkanban.FleetKanban-win-Setup.exe`
+- Último build: [GitHub Releases](https://github.com/haya3/FleetKanban/releases/latest) → `com.fleetkanban.FleetKanban-win-Setup.exe`
 - Você precisa de: **Windows 11 64 bits** · **Assinatura do GitHub Copilot** · **Git for Windows**
 - Após a instalação, o app **se atualiza sozinho com um clique** a partir de um InfoBar dentro do próprio app.
 

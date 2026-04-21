@@ -3,8 +3,8 @@ package app
 import (
 	"context"
 
-	"github.com/haya3/fleetkanban/internal/orchestrator"
-	"github.com/haya3/fleetkanban/internal/store"
+	"github.com/haya3/FleetKanban/internal/orchestrator"
+	"github.com/haya3/FleetKanban/internal/store"
 )
 
 // RepositoryAdapter exposes *store.RepositoryStore through the narrower

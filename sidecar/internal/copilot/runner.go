@@ -9,8 +9,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/haya3/fleetkanban/internal/copilot/tools"
-	"github.com/haya3/fleetkanban/internal/task"
+	"github.com/haya3/FleetKanban/internal/copilot/tools"
+	"github.com/haya3/FleetKanban/internal/task"
 	copilot "github.com/github/copilot-sdk/go"
 )
 

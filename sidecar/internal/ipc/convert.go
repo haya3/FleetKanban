@@ -5,13 +5,13 @@ import (
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/haya3/fleetkanban/internal/app"
-	"github.com/haya3/fleetkanban/internal/copilot"
-	"github.com/haya3/fleetkanban/internal/store"
-	"github.com/haya3/fleetkanban/internal/task"
-	"github.com/haya3/fleetkanban/internal/worktree"
+	"github.com/haya3/FleetKanban/internal/app"
+	"github.com/haya3/FleetKanban/internal/copilot"
+	"github.com/haya3/FleetKanban/internal/store"
+	"github.com/haya3/FleetKanban/internal/task"
+	"github.com/haya3/FleetKanban/internal/worktree"
 
-	pb "github.com/haya3/fleetkanban/internal/ipc/gen/fleetkanban/v1"
+	pb "github.com/haya3/FleetKanban/internal/ipc/gen/fleetkanban/v1"
 )
 
 // ts wraps a time.Time as *timestamppb.Timestamp. Zero time maps to nil so the

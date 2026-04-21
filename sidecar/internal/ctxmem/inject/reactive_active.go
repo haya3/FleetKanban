@@ -3,8 +3,8 @@ package inject
 import (
 	"context"
 
-	"github.com/haya3/fleetkanban/internal/ctxmem"
-	"github.com/haya3/fleetkanban/internal/ctxmem/retrieval"
+	"github.com/haya3/FleetKanban/internal/ctxmem"
+	"github.com/haya3/FleetKanban/internal/ctxmem/retrieval"
 )
 
 // BuildReactive handles the search_memory tool invocation. The agent

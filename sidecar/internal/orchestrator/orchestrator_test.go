@@ -17,8 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/haya3/fleetkanban/internal/task"
-	"github.com/haya3/fleetkanban/internal/worktree"
+	"github.com/haya3/FleetKanban/internal/task"
+	"github.com/haya3/FleetKanban/internal/worktree"
 )
 
 // --- In-memory fakes -------------------------------------------------------

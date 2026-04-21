@@ -15,7 +15,7 @@ package fleetkanban.v1;
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/haya3/fleetkanban/internal/ipc/gen/fleetkanban/v1;fleetkanbanv1";
+option go_package = "github.com/haya3/FleetKanban/internal/ipc/gen/fleetkanban/v1;fleetkanbanv1";
 
 // ---------------------------------------------------------------------------
 // Services

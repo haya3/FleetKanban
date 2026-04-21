@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/haya3/fleetkanban/internal/ctxmem"
-	"github.com/haya3/fleetkanban/internal/ctxmem/retrieval"
+	"github.com/haya3/FleetKanban/internal/ctxmem"
+	"github.com/haya3/FleetKanban/internal/ctxmem/retrieval"
 )
 
 // IngestTaskAsNode mirrors a finalized Task into ctx_node with

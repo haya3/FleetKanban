@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/haya3/fleetkanban/internal/branding"
+	"github.com/haya3/FleetKanban/internal/branding"
 )
 
 func TestShowToast(t *testing.T) {

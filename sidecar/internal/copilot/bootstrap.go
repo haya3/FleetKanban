@@ -11,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/haya3/fleetkanban/internal/harnessembed"
+	"github.com/haya3/FleetKanban/internal/harnessembed"
 )
 
 // BootstrapHarnessSkill seeds <skillRoot>/ from the embedded defaults
