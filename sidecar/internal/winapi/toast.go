@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/FleetKanban/fleetkanban/internal/branding"
+	"github.com/haya3/fleetkanban/internal/branding"
 )
 
 const (

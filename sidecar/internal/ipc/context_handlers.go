@@ -10,12 +10,12 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/FleetKanban/fleetkanban/internal/ctxmem"
-	"github.com/FleetKanban/fleetkanban/internal/ctxmem/embed"
-	"github.com/FleetKanban/fleetkanban/internal/ctxmem/retrieval"
-	"github.com/FleetKanban/fleetkanban/internal/ctxmem/store"
+	"github.com/haya3/fleetkanban/internal/ctxmem"
+	"github.com/haya3/fleetkanban/internal/ctxmem/embed"
+	"github.com/haya3/fleetkanban/internal/ctxmem/retrieval"
+	"github.com/haya3/fleetkanban/internal/ctxmem/store"
 
-	pb "github.com/FleetKanban/fleetkanban/internal/ipc/gen/fleetkanban/v1"
+	pb "github.com/haya3/fleetkanban/internal/ipc/gen/fleetkanban/v1"
 )
 
 // --- ContextService RPC handlers --------------------------------------------

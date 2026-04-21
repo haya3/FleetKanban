@@ -10,7 +10,7 @@ syntax = "proto3";
 
 package fleetkanban.v1;
 
-option go_package = "github.com/FleetKanban/fleetkanban/internal/ipc/gen/fleetkanban/v1;fleetkanbanv1";
+option go_package = "github.com/haya3/fleetkanban/internal/ipc/gen/fleetkanban/v1;fleetkanbanv1";
 
 service InsightsService {
   // GetInsights returns a one-shot snapshot of the aggregate metrics for

@@ -3,9 +3,9 @@ package ipc
 import (
 	"context"
 
-	"github.com/FleetKanban/fleetkanban/internal/store"
+	"github.com/haya3/fleetkanban/internal/store"
 
-	pb "github.com/FleetKanban/fleetkanban/internal/ipc/gen/fleetkanban/v1"
+	pb "github.com/haya3/fleetkanban/internal/ipc/gen/fleetkanban/v1"
 )
 
 // GetInsights implements InsightsService.GetInsights. The handler is a thin

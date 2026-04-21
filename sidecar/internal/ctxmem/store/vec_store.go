@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/FleetKanban/fleetkanban/internal/ctxmem"
+	"github.com/haya3/fleetkanban/internal/ctxmem"
 )
 
 // VectorStore persists ctxmem.Vector rows. Vectors are encoded as

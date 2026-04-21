@@ -4,7 +4,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/FleetKanban/fleetkanban/internal/task"
+	"github.com/haya3/fleetkanban/internal/task"
 )
 
 // EventBroker fans a single AgentEvent stream (from the orchestrator) out to

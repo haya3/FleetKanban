@@ -7,7 +7,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/FleetKanban/fleetkanban/internal/task"
+	"github.com/haya3/fleetkanban/internal/task"
 )
 
 // InsightsStore aggregates tasks-table statistics for the Insights pane.

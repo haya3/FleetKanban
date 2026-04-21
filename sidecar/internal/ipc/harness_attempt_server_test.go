@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	pb "github.com/FleetKanban/fleetkanban/internal/ipc/gen/fleetkanban/v1"
-	"github.com/FleetKanban/fleetkanban/internal/store"
-	"github.com/FleetKanban/fleetkanban/internal/task"
+	pb "github.com/haya3/fleetkanban/internal/ipc/gen/fleetkanban/v1"
+	"github.com/haya3/fleetkanban/internal/store"
+	"github.com/haya3/fleetkanban/internal/task"
 )
 
 // openTestAttemptEnv opens a fresh SQLite file and seeds the minimal

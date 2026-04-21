@@ -21,12 +21,12 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
-	"github.com/FleetKanban/fleetkanban/internal/copilot"
-	"github.com/FleetKanban/fleetkanban/internal/orchestrator"
-	"github.com/FleetKanban/fleetkanban/internal/store"
-	"github.com/FleetKanban/fleetkanban/internal/task"
-	"github.com/FleetKanban/fleetkanban/internal/winapi"
-	"github.com/FleetKanban/fleetkanban/internal/worktree"
+	"github.com/haya3/fleetkanban/internal/copilot"
+	"github.com/haya3/fleetkanban/internal/orchestrator"
+	"github.com/haya3/fleetkanban/internal/store"
+	"github.com/haya3/fleetkanban/internal/task"
+	"github.com/haya3/fleetkanban/internal/winapi"
+	"github.com/haya3/fleetkanban/internal/worktree"
 )
 
 // CopilotRuntime is the subset of copilot.Runtime that Service needs.

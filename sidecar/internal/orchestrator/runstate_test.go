@@ -16,10 +16,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/FleetKanban/fleetkanban/internal/runstate"
-	"github.com/FleetKanban/fleetkanban/internal/store"
-	"github.com/FleetKanban/fleetkanban/internal/task"
-	"github.com/FleetKanban/fleetkanban/internal/worktree"
+	"github.com/haya3/fleetkanban/internal/runstate"
+	"github.com/haya3/fleetkanban/internal/store"
+	"github.com/haya3/fleetkanban/internal/task"
+	"github.com/haya3/fleetkanban/internal/worktree"
 )
 
 // fakePlannerFn implements Planner by invoking a function literal.

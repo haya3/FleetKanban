@@ -42,7 +42,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/FleetKanban/fleetkanban/internal/branding"
+	"github.com/haya3/fleetkanban/internal/branding"
 )
 
 // BranchPrefix is the fixed namespace under which task branches are created.

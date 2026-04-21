@@ -11,8 +11,8 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
-	"github.com/FleetKanban/fleetkanban/internal/ctxmem"
-	"github.com/FleetKanban/fleetkanban/internal/ctxmem/store"
+	"github.com/haya3/fleetkanban/internal/ctxmem"
+	"github.com/haya3/fleetkanban/internal/ctxmem/store"
 )
 
 // Gate promotes scratchpad entries into ctx_node under the configured

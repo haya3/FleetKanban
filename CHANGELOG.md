@@ -34,5 +34,5 @@ Planned first public release of Phase 1. Includes the following:
 - DPAPI-encrypted storage of GitHub PATs
 - Three-party deliberation-based QA via Courtroom (Judge / Proposer / Challenger)
 
-[Unreleased]: https://github.com/FleetKanban/fleetkanban/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/FleetKanban/fleetkanban/releases/tag/v0.1.0
+[Unreleased]: https://github.com/haya3/fleetkanban/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/haya3/fleetkanban/releases/tag/v0.1.0

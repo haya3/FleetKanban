@@ -20,9 +20,9 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
-	"github.com/FleetKanban/fleetkanban/internal/store"
-	"github.com/FleetKanban/fleetkanban/internal/task"
-	"github.com/FleetKanban/fleetkanban/internal/worktree"
+	"github.com/haya3/fleetkanban/internal/store"
+	"github.com/haya3/fleetkanban/internal/task"
+	"github.com/haya3/fleetkanban/internal/worktree"
 )
 
 // ArchiveDefaultAge is the default cutoff for ArchiveOldEvents (phase1-spec

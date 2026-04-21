@@ -16,11 +16,11 @@ import (
 	"github.com/oklog/ulid/v2"
 	"golang.org/x/sync/semaphore"
 
-	"github.com/FleetKanban/fleetkanban/internal/ihr"
-	"github.com/FleetKanban/fleetkanban/internal/runstate"
-	"github.com/FleetKanban/fleetkanban/internal/store"
-	"github.com/FleetKanban/fleetkanban/internal/task"
-	"github.com/FleetKanban/fleetkanban/internal/worktree"
+	"github.com/haya3/fleetkanban/internal/ihr"
+	"github.com/haya3/fleetkanban/internal/runstate"
+	"github.com/haya3/fleetkanban/internal/store"
+	"github.com/haya3/fleetkanban/internal/task"
+	"github.com/haya3/fleetkanban/internal/worktree"
 )
 
 // Config configures a new Orchestrator.

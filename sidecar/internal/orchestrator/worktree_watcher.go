@@ -11,7 +11,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/FleetKanban/fleetkanban/internal/task"
+	"github.com/haya3/fleetkanban/internal/task"
 )
 
 // fileChangeDebounce coalesces bursts of file events into a single

@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
   - name: Report a security vulnerability
-    url: https://github.com/FleetKanban/fleetkanban/security/advisories/new
+    url: https://github.com/haya3/fleetkanban/security/advisories/new
     about: Report vulnerabilities via Security Advisories, not public Issues

@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/FleetKanban/fleetkanban/internal/winapi"
+	"github.com/haya3/fleetkanban/internal/winapi"
 )
 
 // dpapiSecrets persists secrets under a directory, each one DPAPI-encrypted

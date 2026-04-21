@@ -33,7 +33,7 @@
 
 ## 下载
 
-- 最新构建：[GitHub Releases](https://github.com/FleetKanban/fleetkanban/releases/latest) → `com.fleetkanban.FleetKanban-win-Setup.exe`
+- 最新构建：[GitHub Releases](https://github.com/haya3/fleetkanban/releases/latest) → `com.fleetkanban.FleetKanban-win-Setup.exe`
 - 运行条件：**Windows 11 64 位** · **GitHub Copilot 订阅** · **Git for Windows**
 - 安装后，应用可通过应用内 InfoBar **一键自更新**。
 

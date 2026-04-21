@@ -5,7 +5,7 @@ package copilot
 import (
 	copilot "github.com/github/copilot-sdk/go"
 
-	"github.com/FleetKanban/fleetkanban/internal/task"
+	"github.com/haya3/fleetkanban/internal/task"
 )
 
 // usageAccumulator folds AssistantUsageData events from one Copilot

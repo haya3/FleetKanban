@@ -3,8 +3,8 @@ package inject
 import (
 	"context"
 
-	"github.com/FleetKanban/fleetkanban/internal/ctxmem"
-	"github.com/FleetKanban/fleetkanban/internal/ctxmem/retrieval"
+	"github.com/haya3/fleetkanban/internal/ctxmem"
+	"github.com/haya3/fleetkanban/internal/ctxmem/retrieval"
 )
 
 // BuildForReview produces the Markdown block the Reviewer session sees.

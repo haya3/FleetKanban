@@ -3,7 +3,7 @@ package ipc
 import (
 	"google.golang.org/grpc"
 
-	pb "github.com/FleetKanban/fleetkanban/internal/ipc/gen/fleetkanban/v1"
+	pb "github.com/haya3/fleetkanban/internal/ipc/gen/fleetkanban/v1"
 )
 
 // WatchEvents streams every persisted AgentEvent across all tasks until the
