@@ -125,7 +125,7 @@ jobs:
             @signArgs
 
       - name: Upload artefacts to workflow run
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fleetkanban-release-${{ steps.version.outputs.version }}
           path: build/release/*
