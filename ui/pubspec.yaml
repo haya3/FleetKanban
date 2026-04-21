@@ -14,7 +14,10 @@ dependencies:
   fluent_ui: ^4.11.10
 
   # State management (AsyncNotifier for RPC calls, StreamProvider for gRPC server-streaming events).
-  flutter_riverpod: ^2.6.1
+  # Riverpod 3 moves Notifier / AsyncNotifier authoring onto build_runner code
+  # generation via @riverpod; see riverpod_generator below.
+  flutter_riverpod: ^3.3.1
+  riverpod_annotation: ^4.0.2
 
   # Windows desktop window chrome.
   flutter_acrylic: ^1.1.4       # Mica / Acrylic
@@ -38,6 +41,9 @@ dependencies:
   # Win32 FFI for the ITaskbarList3 overlay. Pulled in transitively by a
   # few other deps but declared explicitly since we import it directly.
   ffi: ^2.1.3
+  # win32 6.x bump blocked by bitsdojo_window 0.1.6 which pins win32 ^5.1.1.
+  # Upstream bitsdojo_window is unmaintained since 2024-10; migration requires
+  # swapping to window_manager / windows_window_controller (separate scope).
   win32: ^5.15.0
 
   # Native folder picker for repository registration (IFileOpenDialog on Windows).
@@ -60,6 +66,12 @@ dev_dependencies:
   integration_test:
     sdk: flutter
   msix: ^3.16.8
+  # Riverpod 3 code generation toolchain. The riverpod_lint + custom_lint pair
+  # is intentionally omitted — as of 2026-04, custom_lint 0.8.1 pins analyzer
+  # ^8 while riverpod_lint 3.1.3 needs analyzer ^9, and pub cannot resolve the
+  # pair. Add them back once custom_lint ships an analyzer-9 compatible build.
+  build_runner: ^2.13.1
+  riverpod_generator: ^4.0.3
 
 flutter:
   uses-material-design: true

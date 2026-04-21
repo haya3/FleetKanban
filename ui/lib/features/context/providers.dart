@@ -3,11 +3,15 @@
 // which gRPC client method maps to which tab.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:protobuf/well_known_types/google/protobuf/empty.pb.dart'
     show Empty;
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../infra/ipc/generated/fleetkanban/v1/fleetkanban.pb.dart' as pb;
 import '../../infra/ipc/providers.dart';
+
+part 'providers.g.dart';
 
 /// Currently selected repository. The Context page scopes all its
 /// queries to this id. Empty string = "no selection"; in that case the
@@ -205,7 +209,8 @@ class AnalyzerStatus {
   );
 }
 
-class AnalyzerStateNotifier extends AutoDisposeNotifier<AnalyzerStatus> {
+@riverpod
+class AnalyzerState extends _$AnalyzerState {
   /// Maximum rolling log size. Enough to visualise a lively session
   /// without consuming unbounded memory on a stuck analyzer.
   static const int _maxProgressLines = 100;
@@ -274,11 +279,6 @@ class AnalyzerStateNotifier extends AutoDisposeNotifier<AnalyzerStatus> {
   void markError(String message) =>
       state = AnalyzerStatus(phase: AnalyzerPhase.error, message: message);
 }
-
-final analyzerStateProvider =
-    AutoDisposeNotifierProvider<AnalyzerStateNotifier, AnalyzerStatus>(
-      AnalyzerStateNotifier.new,
-    );
 
 final ollamaStatusProvider = FutureProvider.autoDispose<pb.OllamaStatus>((
   ref,

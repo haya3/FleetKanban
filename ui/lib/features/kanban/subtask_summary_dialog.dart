@@ -640,7 +640,7 @@ class _SubtaskSummaryDialog extends ConsumerWidget {
             return _SummaryBody(
               subtask: subtask,
               exec: exec,
-              reviews: reviewsAsync.valueOrNull ?? const [],
+              reviews: reviewsAsync.value ?? const [],
               theme: theme,
             );
           },

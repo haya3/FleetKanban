@@ -536,7 +536,7 @@ class _StagePickerRow extends ConsumerWidget {
     // user sees the rotted-out ID and can deliberately re-select.
     final ids = available.map((m) => m.id).toList(growable: false);
     final options = <String>['', ...ids];
-    final savedValue = saved.valueOrNull;
+    final savedValue = saved.value;
     if (savedValue != null &&
         savedValue.isNotEmpty &&
         !ids.contains(savedValue)) {

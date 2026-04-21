@@ -8,14 +8,18 @@ import 'dart:async';
 import 'package:bitsdojo_window/bitsdojo_window.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../ipc/generated/fleetkanban/v1/fleetkanban.pb.dart' as pb;
 import '../ipc/providers.dart';
 import 'taskbar_overlay.dart';
 
+part 'taskbar_overlay_controller.g.dart';
+
 /// Count of tasks currently in the `in_progress` state across all repos.
 /// Refreshes on relevant AgentEvent.kind values via ref.invalidateSelf.
-class RunningTaskCountNotifier extends AsyncNotifier<int> {
+@Riverpod(keepAlive: true)
+class RunningTaskCount extends _$RunningTaskCount {
   StreamSubscription<pb.AgentEvent>? _sub;
 
   @override
@@ -35,11 +39,6 @@ class RunningTaskCountNotifier extends AsyncNotifier<int> {
     return resp.tasks.length;
   }
 }
-
-final runningTaskCountProvider =
-    AsyncNotifierProvider<RunningTaskCountNotifier, int>(
-      RunningTaskCountNotifier.new,
-    );
 
 /// Zero-sized widget that listens to [runningTaskCountProvider] and pushes
 /// every change down to the Win32 ITaskbarList3 overlay. Mount it somewhere
@@ -77,7 +76,7 @@ class _TaskbarOverlayHostState extends ConsumerState<TaskbarOverlayHost> {
   @override
   Widget build(BuildContext context) {
     ref.listen<AsyncValue<int>>(runningTaskCountProvider, (_, next) {
-      final count = next.valueOrNull;
+      final count = next.value;
       if (count != null) {
         TaskbarOverlay.instance.update(count);
       }

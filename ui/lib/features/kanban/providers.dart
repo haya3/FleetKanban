@@ -5,14 +5,18 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:protobuf/well_known_types/google/protobuf/empty.pb.dart'
     show Empty;
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../infra/ipc/generated/fleetkanban/v1/fleetkanban.pb.dart' as pb;
 import '../../infra/ipc/providers.dart';
 import 'subtask_summary_dialog.dart'
     show LogBucket, StageUsage, buildPlanLogForRound, buildReviewLogForRound;
+
+part 'providers.g.dart';
 
 /// Kanban column identity. Five columns — AI Review and Human Review are
 /// independent so the pipeline (Pending → Running → AI Review → Human Review
@@ -69,7 +73,8 @@ const double dagFontScaleMax = 2.0;
 const double dagFontScaleStep = 0.1;
 const double dagFontScaleDefault = 1.0;
 
-class DagFontScaleNotifier extends AsyncNotifier<double> {
+@Riverpod(keepAlive: true)
+class DagFontScale extends _$DagFontScale {
   @override
   Future<double> build() async {
     final prefs = await SharedPreferences.getInstance();
@@ -85,22 +90,16 @@ class DagFontScaleNotifier extends AsyncNotifier<double> {
   }
 
   Future<void> increment() async =>
-      set((state.valueOrNull ?? dagFontScaleDefault) + dagFontScaleStep);
+      set((state.value ?? dagFontScaleDefault) + dagFontScaleStep);
   Future<void> decrement() async =>
-      set((state.valueOrNull ?? dagFontScaleDefault) - dagFontScaleStep);
+      set((state.value ?? dagFontScaleDefault) - dagFontScaleStep);
 
   static double _clamp(double v) {
     if (v < dagFontScaleMin) return dagFontScaleMin;
     if (v > dagFontScaleMax) return dagFontScaleMax;
-    // Round to 1 decimal to keep persisted values clean.
     return (v * 10).roundToDouble() / 10;
   }
 }
-
-final dagFontScaleProvider =
-    AsyncNotifierProvider<DagFontScaleNotifier, double>(
-      DagFontScaleNotifier.new,
-    );
 
 /// Currently selected repository. null until the user picks / registers one.
 final selectedRepoIdProvider = StateProvider<String?>((_) => null);
@@ -118,30 +117,21 @@ final selectedTaskIdProvider = StateProvider<String?>((_) => null);
 /// known on disk.
 const _refetchKinds = {'status', 'session.start'};
 
-class TasksNotifier extends FamilyAsyncNotifier<List<pb.Task>, String> {
+/// Tasks scoped to a repository. Family key = repoId; an empty string means
+/// "all repos" (mostly useful for diagnostics, not Kanban).
+@Riverpod(keepAlive: true)
+class Tasks extends _$Tasks {
   StreamSubscription<pb.AgentEvent>? _sub;
 
   @override
   Future<List<pb.Task>> build(String repoId) async {
     final client = ref.read(ipcClientProvider);
 
-    // Subscribe to live events and invalidate on status-carrying kinds.
-    // autoDispose is not used on purpose: the kanban board always lives as
-    // long as a repo is selected, so we want the subscription to persist.
-    _sub = client.task
-        .watchEvents(pb.WatchEventsRequest())
-        .listen(
-          (ev) {
-            if (_refetchKinds.contains(ev.kind)) {
-              // ref.invalidateSelf will re-run build() including a new gRPC call.
-              ref.invalidateSelf();
-            }
-          },
-          onError: (_) {
-            // Sidecar closed the stream — let the next user action surface the
-            // error via the mutation path. Silent here to avoid spam.
-          },
-        );
+    _sub = client.task.watchEvents(pb.WatchEventsRequest()).listen((ev) {
+      if (_refetchKinds.contains(ev.kind)) {
+        ref.invalidateSelf();
+      }
+    }, onError: (_) {});
     ref.onDispose(() {
       _sub?.cancel();
     });
@@ -152,13 +142,6 @@ class TasksNotifier extends FamilyAsyncNotifier<List<pb.Task>, String> {
     return resp.tasks;
   }
 }
-
-/// Tasks scoped to a repository. Family key = repoId; an empty string means
-/// "all repos" (mostly useful for diagnostics, not Kanban).
-final tasksProvider =
-    AsyncNotifierProvider.family<TasksNotifier, List<pb.Task>, String>(
-      TasksNotifier.new,
-    );
 
 // ---------------------------------------------------------------------------
 // Mutations
@@ -178,8 +161,8 @@ enum Mutation {
 }
 
 /// Generic mutation notifier. Keeps error state so the UI can surface it.
-class TaskMutationNotifier
-    extends AutoDisposeFamilyAsyncNotifier<void, Mutation> {
+@riverpod
+class TaskMutation extends _$TaskMutation {
   @override
   Future<void> build(Mutation kind) async {
     // Mutations do no work at build(); they execute on run(taskId).
@@ -189,7 +172,7 @@ class TaskMutationNotifier
     state = const AsyncValue.loading();
     try {
       final client = ref.read(ipcClientProvider);
-      switch (arg) {
+      switch (kind) {
         case Mutation.run:
           await client.task.runTask(pb.IdRequest(id: taskId));
         case Mutation.cancel:
@@ -221,9 +204,6 @@ class TaskMutationNotifier
           await client.task.deleteTaskBranch(pb.IdRequest(id: taskId));
       }
       state = const AsyncValue.data(null);
-
-      // Trigger a re-list. We can't target a specific repoId without walking
-      // every active family instance, so invalidate the whole family.
       ref.invalidate(tasksProvider);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -232,37 +212,34 @@ class TaskMutationNotifier
   }
 }
 
-final _mutationProvider = AsyncNotifierProvider.autoDispose
-    .family<TaskMutationNotifier, void, Mutation>(TaskMutationNotifier.new);
-
 /// RunTask mutation. Call `ref.read(runTaskProvider.notifier).run(id)`.
-final runTaskProvider = _mutationProvider(Mutation.run);
+final runTaskProvider = taskMutationProvider(Mutation.run);
 
 /// CancelTask mutation.
-final cancelTaskProvider = _mutationProvider(Mutation.cancel);
+final cancelTaskProvider = taskMutationProvider(Mutation.cancel);
 
 /// FinalizeTask with action=KEEP. Worktree removed, `fleetkanban/<id>` preserved.
-final finalizeKeepProvider = _mutationProvider(Mutation.finalizeKeep);
+final finalizeKeepProvider = taskMutationProvider(Mutation.finalizeKeep);
 
 /// FinalizeTask with action=MERGE. Advances the task's base branch to the
 /// task branch tip (fast-forward or --no-ff merge commit), then removes
 /// both the worktree and `fleetkanban/<id>`. Surfaces merge conflicts and
 /// dirty-base errors to the caller.
-final finalizeMergeProvider = _mutationProvider(Mutation.finalizeMerge);
+final finalizeMergeProvider = taskMutationProvider(Mutation.finalizeMerge);
 
 /// FinalizeTask with action=DISCARD. Both worktree and `fleetkanban/<id>`
 /// are removed, task transitions to cancelled.
-final finalizeDiscardProvider = _mutationProvider(Mutation.finalizeDiscard);
+final finalizeDiscardProvider = taskMutationProvider(Mutation.finalizeDiscard);
 
 /// DeleteTask mutation — removes the task row + worktree (branch preserved).
 /// The UI surfaces a confirmation dialog before calling this so accidental
 /// clicks on a nearly-adjacent card pill don't nuke user work.
-final deleteTaskProvider = _mutationProvider(Mutation.delete);
+final deleteTaskProvider = taskMutationProvider(Mutation.delete);
 
 /// DeleteTaskBranch mutation — force-removes the `fleetkanban/<id>` branch of
 /// a finalized (Done/Aborted) task while preserving the task row for audit.
 /// Callers must show a confirmation dialog; this call is destructive.
-final deleteBranchProvider = _mutationProvider(Mutation.deleteBranch);
+final deleteBranchProvider = taskMutationProvider(Mutation.deleteBranch);
 
 // ---------------------------------------------------------------------------
 // Review submission
@@ -270,7 +247,8 @@ final deleteBranchProvider = _mutationProvider(Mutation.deleteBranch);
 
 /// Wraps SubmitReview in a stateful Notifier so the UI can surface errors.
 /// Feedback is a required field when action == rework (enforced by sidecar).
-class SubmitReviewNotifier extends AutoDisposeAsyncNotifier<void> {
+@riverpod
+class SubmitReview extends _$SubmitReview {
   @override
   Future<void> build() async {}
 
@@ -293,11 +271,6 @@ class SubmitReviewNotifier extends AutoDisposeAsyncNotifier<void> {
     }
   }
 }
-
-final submitReviewProvider =
-    AsyncNotifierProvider.autoDispose<SubmitReviewNotifier, void>(
-      SubmitReviewNotifier.new,
-    );
 
 // ---------------------------------------------------------------------------
 // Drag & drop transition logic

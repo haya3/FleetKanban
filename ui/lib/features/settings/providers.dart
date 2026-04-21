@@ -3,12 +3,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:protobuf/well_known_types/google/protobuf/empty.pb.dart'
     show Empty;
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../infra/ipc/generated/fleetkanban/v1/fleetkanban.pb.dart' as pb;
 import '../../infra/ipc/providers.dart';
 import '../kanban/providers.dart'
     show kanbanRepositoriesProvider, repositoryBranchesProvider;
+
+part 'providers.g.dart';
 
 /// Built-in default agent prompts, fetched from the sidecar. Used by
 /// the Settings page to pre-populate each editor with the full default
@@ -25,12 +28,8 @@ final defaultAgentPromptsProvider = FutureProvider<pb.AgentSettings>((
 /// (SettingsStore) so changes apply to every Copilot session without a
 /// restart. The UI exposes 3 multi-line text fields and 1 single-line
 /// language field.
-final agentSettingsProvider =
-    AsyncNotifierProvider<AgentSettingsNotifier, pb.AgentSettings>(
-      AgentSettingsNotifier.new,
-    );
-
-class AgentSettingsNotifier extends AsyncNotifier<pb.AgentSettings> {
+@Riverpod(keepAlive: true)
+class AgentSettings extends _$AgentSettings {
   @override
   Future<pb.AgentSettings> build() async {
     final client = ref.watch(ipcClientProvider);
@@ -44,7 +43,7 @@ class AgentSettingsNotifier extends AsyncNotifier<pb.AgentSettings> {
     String? outputLanguage,
   }) async {
     final client = ref.read(ipcClientProvider);
-    final current = state.valueOrNull ?? pb.AgentSettings();
+    final current = state.value ?? pb.AgentSettings();
     final next = pb.AgentSettings(
       planPrompt: planPrompt ?? current.planPrompt,
       codePrompt: codePrompt ?? current.codePrompt,
@@ -105,12 +104,8 @@ final availableModelsProvider = FutureProvider<List<pb.ModelInfo>>((ref) async {
 
 /// Per-stage model selection. Defaults to empty string meaning "server
 /// picks" — the sidecar's Runner already has a preference/fallback list.
-final modelForStageProvider =
-    AsyncNotifierProvider.family<StageModelNotifier, String, ModelStage>(
-      StageModelNotifier.new,
-    );
-
-class StageModelNotifier extends FamilyAsyncNotifier<String, ModelStage> {
+@Riverpod(keepAlive: true)
+class ModelForStage extends _$ModelForStage {
   @override
   Future<String> build(ModelStage stage) async {
     final prefs = await SharedPreferences.getInstance();
@@ -120,7 +115,7 @@ class StageModelNotifier extends FamilyAsyncNotifier<String, ModelStage> {
   Future<void> set(String value) async {
     state = const AsyncLoading();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_modelPrefKey[arg]!, value);
+    await prefs.setString(_modelPrefKey[stage]!, value);
     state = AsyncData(value);
   }
 }

@@ -52,21 +52,21 @@ class _AccountCard extends ConsumerWidget {
         children: [
           Row(
             children: [
-              _Avatar(url: account.valueOrNull?.avatarUrl ?? ''),
+              _Avatar(url: account.value?.avatarUrl ?? ''),
               const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      account.valueOrNull?.name.isNotEmpty == true
-                          ? account.valueOrNull!.name
+                      account.value?.name.isNotEmpty == true
+                          ? account.value!.name
                           : authUser,
                       style: theme.typography.bodyStrong,
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
-                      '@${account.valueOrNull?.login ?? authUser}',
+                      '@${account.value?.login ?? authUser}',
                       style: theme.typography.caption?.copyWith(
                         color: resources.textFillColorSecondary,
                       ),
@@ -78,7 +78,7 @@ class _AccountCard extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 6),
-          _PlanLine(info: account.valueOrNull),
+          _PlanLine(info: account.value),
         ],
       ),
     );
