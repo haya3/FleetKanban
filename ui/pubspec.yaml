@@ -41,8 +41,9 @@ dependencies:
   # Win32 FFI for the ITaskbarList3 overlay. Pulled in transitively by a
   # few other deps but declared explicitly since we import it directly.
   ffi: ^2.1.3
-  # win32 6 bump handled in a follow-up commit — it renames every HANDLE
-  # typedef to opaque types, so taskbar_overlay.dart needs its own pass.
+  # win32 6 bump deferred to v0.1.2 — v6 drops COMObject and does not ship
+  # an ITaskbarList3 binding, so taskbar_overlay.dart needs a full rewrite
+  # on top of the new `IUnknown implements ComInterface` abstraction.
   win32: ^5.15.0
 
   # Native folder picker for repository registration (IFileOpenDialog on Windows).

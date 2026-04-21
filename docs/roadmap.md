@@ -18,10 +18,13 @@ These do not block Phase 2 but should be retired opportunistically.
   main API. The code-gen equivalent is a small `@riverpod class Foo`
   with a `set(value)` method; callers change from
   `ref.read(p.notifier).state = v` to `ref.read(p.notifier).set(v)`.
-- **Swap `bitsdojo_window` for a maintained alternative
-  (`window_manager` etc.).** `bitsdojo_window` 0.1.6 pins `win32 ^5.1.1`
-  and has been unmaintained since 2024-10, which blocks the `win32` 6
-  major bump. Scheduled for `release/v0.2.0`.
+- **Bump `win32` to 6.x and rewrite `taskbar_overlay.dart`.** Blocked
+  previously by `bitsdojo_window` (now removed in v0.1.1). `win32` 6
+  drops `COMObject` and does not ship an `ITaskbarList3` binding, so the
+  262 lines of FFI in `ui/lib/infra/platform/taskbar_overlay.dart` need
+  to be rewritten on top of the new `IUnknown implements ComInterface`
+  abstraction (self-authored `ITaskbarList3` class). Scheduled for
+  `release/v0.1.2`.
 - **Re-enable `riverpod_lint` + `custom_lint`.** Currently omitted
   because `custom_lint 0.8.1` needs analyzer ^8 while `riverpod_lint
   3.1.3` needs analyzer ^9. Restore once `custom_lint` publishes an
