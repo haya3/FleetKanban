@@ -277,6 +277,24 @@ final subtaskExecutionsProvider = FutureProvider.autoDispose
       return _bucketEvents(resp.events);
     });
 
+/// Fetches the persisted system+user prompt and injected context for a
+/// single subtask run. Round 0 (the UI default) asks the sidecar for the
+/// latest recorded round. autoDispose so reopening the dialog refetches,
+/// matching subtaskExecutionsProvider semantics. Returns null on any
+/// transport error so the UI renders "context unavailable" instead of
+/// bubbling a raw gRPC exception into the dialog body.
+final subtaskContextProvider = FutureProvider.autoDispose
+    .family<pb.CopilotSubtaskContext?, String>((ref, subtaskId) async {
+      final client = ref.watch(ipcClientProvider);
+      try {
+        return await client.subtask.getSubtaskContext(
+          pb.GetSubtaskContextRequest(subtaskId: subtaskId),
+        );
+      } catch (_) {
+        return null;
+      }
+    });
+
 /// Review history for a parent task: every AI Reviewer verdict plus every
 /// human SubmitReview decision, in chronological order. Surfaced in the
 /// subtask summary dialog so the user can see what feedback came back
@@ -658,7 +676,7 @@ class _SubtaskSummaryDialog extends ConsumerWidget {
   }
 }
 
-class _SummaryBody extends StatelessWidget {
+class _SummaryBody extends ConsumerWidget {
   const _SummaryBody({
     required this.subtask,
     required this.exec,
@@ -672,7 +690,7 @@ class _SummaryBody extends StatelessWidget {
   final FluentThemeData theme;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final usage = exec?.usage;
     final kv = <(String, String)>[
       ('Status', subtask.status),
@@ -750,6 +768,10 @@ class _SummaryBody extends StatelessWidget {
               ),
             ),
           ],
+          const SizedBox(height: 16),
+          _SectionHeader('Agent context (as the agent saw it)', theme),
+          const SizedBox(height: 4),
+          _ContextSection(subtaskId: subtask.id, theme: theme),
           const SizedBox(height: 16),
           _SectionHeader('Log', theme),
           const SizedBox(height: 4),
@@ -1211,6 +1233,234 @@ class _SectionHeader extends StatelessWidget {
     return Text(
       label,
       style: theme.typography.bodyStrong?.copyWith(fontSize: 13),
+    );
+  }
+}
+
+/// _ContextSection renders the persisted "what the agent saw" for a
+/// subtask run inside four collapsible Expanders (system prompt / user
+/// prompt / injected context / harness). Uses the subtaskContextProvider
+/// so a sidecar that predates the v18 schema, or a subtask that hasn't
+/// been executed under v18+ yet, degrades to a single "not recorded"
+/// notice instead of swallowing the whole section.
+class _ContextSection extends ConsumerWidget {
+  const _ContextSection({required this.subtaskId, required this.theme});
+
+  final String subtaskId;
+  final FluentThemeData theme;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(subtaskContextProvider(subtaskId));
+    return async.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: SizedBox(
+          height: 20,
+          width: 20,
+          child: ProgressRing(strokeWidth: 2),
+        ),
+      ),
+      error: (e, _) => _ContextFallback(
+        message: 'Context unavailable: $e',
+        theme: theme,
+      ),
+      data: (ctx) {
+        if (ctx == null) {
+          return _ContextFallback(
+            message:
+                'The sidecar returned no context snapshot for this subtask.',
+            theme: theme,
+          );
+        }
+        if (ctx.notRecorded) {
+          return _ContextFallback(
+            message:
+                'This subtask ran before the sidecar started recording '
+                'prompts (schema v18+). The agent saw the stage template + '
+                'planner instruction shown above, plus any memory block and '
+                'prior-subtask summaries available at run time, but the '
+                'exact text was not persisted.',
+            theme: theme,
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _ContextExpander(
+              header: 'System prompt (SDK SystemMessage)',
+              hint:
+                  'Stage template + output-language addendum sent as the '
+                  'session-level system message.',
+              body: ctx.systemPrompt,
+              theme: theme,
+            ),
+            _ContextExpander(
+              header: 'User prompt (SDK first message)',
+              hint:
+                  'Memory block (if any) + composed subtask prompt: parent '
+                  'goal, plan summary, prior-subtask summaries, role, title, '
+                  'and the planner-authored instruction.',
+              body: ctx.userPrompt,
+              theme: theme,
+            ),
+            _ContextExpander(
+              header: 'Injected context pieces',
+              hint:
+                  'The individual ingredients the user prompt was built '
+                  'from — useful when the composed prompt is long and you '
+                  'want to find one specific piece.',
+              body: _formatInjected(ctx),
+              theme: theme,
+            ),
+            _ContextExpander(
+              header: _harnessHeader(ctx),
+              hint: ctx.harnessSkillVersionId.isEmpty
+                  ? 'No harness_skill_version row was attached to this run '
+                        '(user has not saved a SKILL.md edit yet). The body '
+                        'below is the live harness-skill/SKILL.md on disk — '
+                        'which falls back to the embedded default when no '
+                        'file exists.'
+                  : 'The IHR Charter (SKILL.md) that was active when this '
+                        'subtask ran. Edits made to harness-skill/SKILL.md '
+                        'after this row was recorded are NOT reflected here.',
+              body: ctx.harnessSkillMd.isEmpty
+                  ? '(SKILL.md content unavailable — the sidecar could not '
+                        'read harness-skill/SKILL.md from disk nor the '
+                        'embedded seed. Check the sidecar log for the '
+                        'underlying error.)'
+                  : ctx.harnessSkillMd,
+              theme: theme,
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Snapshot round ${ctx.round}'
+                '${ctx.harnessSkillVersionId.isEmpty ? '' : ' · harness ${ctx.harnessSkillVersionId}'}',
+                style: theme.typography.caption?.copyWith(
+                  color: theme.resources.textFillColorTertiary,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  static String _harnessHeader(pb.CopilotSubtaskContext ctx) {
+    if (ctx.harnessSkillVersionId.isEmpty) {
+      return 'Harness (embedded default)';
+    }
+    return 'Harness (SKILL.md v${ctx.harnessSkillVersionId.substring(0, 8)})';
+  }
+
+  static String _formatInjected(pb.CopilotSubtaskContext ctx) {
+    final parts = <String>[];
+    parts.add(
+      '# Stage prompt template (raw, pre-addendum)\n${ctx.stagePromptTemplate}',
+    );
+    parts.add(
+      '# Output language addendum\n'
+      '${ctx.outputLanguage.isEmpty ? '(none — defaults to the model preference)' : ctx.outputLanguage}',
+    );
+    parts.add(
+      '# Plan summary\n'
+      '${ctx.planSummary.isEmpty ? '(no plan summary was available)' : ctx.planSummary}',
+    );
+    if (ctx.priorSummaries.isEmpty) {
+      parts.add('# Prior subtask summaries\n(this was the first subtask run)');
+    } else {
+      final buf = StringBuffer('# Prior subtask summaries\n');
+      for (var i = 0; i < ctx.priorSummaries.length; i++) {
+        buf.writeln('${i + 1}. ${ctx.priorSummaries[i]}');
+      }
+      parts.add(buf.toString().trimRight());
+    }
+    parts.add(
+      '# Memory block (Passive injection)\n'
+      '${ctx.memoryBlock.isEmpty ? '(memory injection was disabled or empty for this repo)' : ctx.memoryBlock}',
+    );
+    return parts.join('\n\n');
+  }
+}
+
+class _ContextExpander extends StatelessWidget {
+  const _ContextExpander({
+    required this.header,
+    required this.hint,
+    required this.body,
+    required this.theme,
+  });
+
+  final String header;
+  final String hint;
+  final String body;
+  final FluentThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Expander(
+        header: Text(header, style: theme.typography.body),
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              hint,
+              style: theme.typography.caption?.copyWith(
+                color: theme.resources.textFillColorTertiary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: theme.resources.subtleFillColorSecondary,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color: theme.resources.controlStrokeColorDefault,
+                ),
+              ),
+              child: SelectableText(
+                body.isEmpty ? '(empty)' : body,
+                style: const TextStyle(
+                  fontFamily: 'Consolas',
+                  fontSize: 12,
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ContextFallback extends StatelessWidget {
+  const _ContextFallback({required this.message, required this.theme});
+  final String message;
+  final FluentThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: theme.resources.subtleFillColorSecondary,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: theme.resources.controlStrokeColorDefault),
+      ),
+      child: Text(
+        message,
+        style: theme.typography.caption?.copyWith(
+          color: theme.resources.textFillColorSecondary,
+        ),
+      ),
     );
   }
 }

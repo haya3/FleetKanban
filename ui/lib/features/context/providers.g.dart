@@ -41,7 +41,7 @@ final class AnalyzerStateProvider
   }
 }
 
-String _$analyzerStateHash() => r'adefef1718e23cd78113f05212ca4da51a074a1a';
+String _$analyzerStateHash() => r'3a355c57232060d89bb6941da82c225542804848';
 
 abstract class _$AnalyzerState extends $Notifier<AnalyzerStatus> {
   AnalyzerStatus build();

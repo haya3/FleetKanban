@@ -11,11 +11,14 @@ import 'package:window_manager/window_manager.dart';
 
 import '../features/auth/auth_banner.dart';
 import '../infra/ipc/providers.dart';
+import 'error_display.dart';
 import 'version.dart';
 import '../features/auth/auth_gate.dart';
 import '../features/context/context_page.dart';
+import '../features/harness/harness_page.dart';
 import '../features/insights/insights_page.dart';
 import '../features/kanban/kanban_page.dart';
+import '../features/kanban/providers.dart' as kanban;
 import '../features/placeholder/coming_soon_page.dart';
 import '../features/preconditions/precondition_dialog.dart';
 import '../features/review/review_page.dart';
@@ -232,6 +235,8 @@ class _AppScaffold extends ConsumerWidget {
         ),
         const _VersionMismatchBanner(),
         const _UpdateAvailableBanner(),
+        const _StreamHealthBanner(),
+        const _ActionErrorBanners(),
         Expanded(child: _buildNavigation(context, ref, selected)),
       ],
     );
@@ -242,7 +247,15 @@ class _AppScaffold extends ConsumerWidget {
       pane: NavigationPane(
         selected: selected,
         onChanged: (i) => ref.read(paneIndexProvider.notifier).state = i,
-        displayMode: PaneDisplayMode.compact,
+        displayMode: PaneDisplayMode.expanded,
+        toggleable: false,
+        toggleButton: null,
+        // headerHeight must be set explicitly whenever size is non-null:
+        // fluent_ui defaults it to kOneLineTileHeight (~40 px), which is
+        // too short for our AuthBanner (avatar row + quota line ≈ 80 px),
+        // clipping the user info and producing a vertical RenderFlex
+        // overflow warning.
+        size: const NavigationPaneSize(openWidth: 200, headerHeight: 100),
         header: const Padding(
           padding: EdgeInsets.fromLTRB(12, 8, 12, 12),
           child: AuthBanner(),
@@ -297,6 +310,11 @@ class _AppScaffold extends ConsumerWidget {
               description:
                   'Drafts PR bodies from the agent summary and diff highlights. Creation only runs on explicit user approval — the app never pushes or opens PRs on its own.',
             ),
+          ),
+          PaneItem(
+            icon: const Icon(FluentIcons.edit_note),
+            title: const Text('Harness'),
+            body: const HarnessPage(),
           ),
         ],
         footerItems: <NavigationPaneItem>[
@@ -433,6 +451,77 @@ class _UpdateAvailableBannerState
           ),
         );
       },
+    );
+  }
+}
+
+/// _StreamHealthBanner renders an InfoBar while the WatchEvents stream is
+/// disconnected or still coming up. Without this, a crashed stream would
+/// leave the Kanban silently stale — card state wouldn't advance even
+/// though the sidecar was still working.
+class _StreamHealthBanner extends ConsumerWidget {
+  const _StreamHealthBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final health = ref.watch(kanban.eventStreamHealthProvider);
+    if (health.state != kanban.StreamHealthState.disconnected) {
+      return const SizedBox.shrink();
+    }
+    final retryAt = health.nextRetryAt;
+    final retryIn = retryAt == null
+        ? ''
+        : ' (retrying in ${retryAt.difference(DateTime.now()).inSeconds.clamp(0, 999)}s)';
+    final errorMessage = health.error?.toString() ?? 'connection lost';
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: InfoBar(
+        title: const Text('Live events disconnected'),
+        content: Text(
+          'The sidecar event stream is not reachable$retryIn. '
+          'Kanban columns may not reflect the latest status until the stream '
+          'reconnects. ($errorMessage)',
+        ),
+        severity: InfoBarSeverity.warning,
+        isIconVisible: true,
+      ),
+    );
+  }
+}
+
+/// _ActionErrorBanners surfaces every failed Kanban mutation (Run, Cancel,
+/// Finalize, DeleteBranch, SubmitReview, …) as a dismissible InfoBar. The
+/// underlying log is a bounded ring so a runaway failure loop stays visible
+/// without growing unbounded.
+class _ActionErrorBanners extends ConsumerWidget {
+  const _ActionErrorBanners();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final errors = ref.watch(kanban.actionErrorLogProvider);
+    if (errors.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final err in errors)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: InfoBar(
+                title: Text(err.title),
+                content: CopyableErrorText(
+                  text: err.message,
+                  reportTitle: err.title,
+                  maxLines: 4,
+                ),
+                severity: InfoBarSeverity.error,
+                isIconVisible: true,
+                onClose: () => ref.dismissActionError(err.id),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

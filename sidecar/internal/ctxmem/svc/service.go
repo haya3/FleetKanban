@@ -329,24 +329,106 @@ func (s *Service) UpdateSettings(ctx context.Context, set ctxmem.Settings, opts 
 		provider, err := embed.Build(set, opts)
 		if err != nil {
 			s.log.Warn("ctxmem: embedding provider build failed", "err", err, "repo", set.RepoID)
+			// Surface the failure on WatchContextChanges so the
+			// Settings panel can render an inline warning instead of
+			// having the user discover it only when retrieval returns
+			// empty. Log-only was insufficient — the prior silent-fail
+			// path left users thinking Memory was working.
+			s.Changes.Publish(&ctxmem.ChangeEvent{
+				Kind:    "memory-settings",
+				Op:      "provider-error",
+				RepoID:  set.RepoID,
+				Message: err.Error(),
+			})
 		} else {
 			s.Registry.Set(set.RepoID, provider)
+			s.Changes.Publish(&ctxmem.ChangeEvent{
+				Kind:   "memory-settings",
+				Op:     "provider-ready",
+				RepoID: set.RepoID,
+			})
 		}
 	} else {
 		s.Registry.Set(set.RepoID, nil)
 	}
-	// Seed code graph on the disabled → enabled transition. Skipped
-	// when it was already enabled (avoid redundant rebuilds on every
-	// provider tweak).
+	// Seed code graph + embeddings on the disabled → enabled transition.
+	// Skipped when it was already enabled (avoid redundant rebuilds on
+	// every provider tweak). Embeddings run after the code graph so the
+	// freshly-upserted File nodes are captured in the same pass, which
+	// is what lets the first Passive injection surface something useful
+	// instead of an empty block.
 	if set.Enabled && !prev.Enabled && s.CodeIndex != nil && s.Repos != nil {
 		go func() {
 			bg := context.Background()
 			if _, err := s.RebuildCodeGraph(bg, set.RepoID); err != nil {
 				s.log.Warn("ctxmem: seed code graph on enable", "err", err, "repo", set.RepoID)
 			}
+			if rebuilt, skipped, err := s.RebuildEmbeddings(bg, set.RepoID); err != nil {
+				s.log.Warn("ctxmem: seed embeddings on enable", "err", err, "repo", set.RepoID)
+				s.Changes.Publish(&ctxmem.ChangeEvent{
+					Kind:    "embeddings",
+					Op:      "error",
+					RepoID:  set.RepoID,
+					Message: err.Error(),
+				})
+			} else {
+				s.log.Info("ctxmem: seed embeddings on enable",
+					"repo", set.RepoID, "rebuilt", rebuilt, "skipped", skipped)
+				s.Changes.Publish(&ctxmem.ChangeEvent{
+					Kind:    "embeddings",
+					Op:      "complete",
+					RepoID:  set.RepoID,
+					Message: fmt.Sprintf("rebuilt=%d skipped=%d", rebuilt, skipped),
+				})
+			}
 		}()
 	}
 	return s.Stores.Settings.Get(ctx, set.RepoID)
+}
+
+// GetMemoryHealth returns the runtime state of Memory for a repo so the
+// Settings panel and Kanban badge can show "is it actually working".
+// Separated from Overview because Overview is heavy (counts by kind,
+// scratchpad buckets, etc.) and we poll Health every few seconds.
+func (s *Service) GetMemoryHealth(ctx context.Context, repoID string) (ctxmem.MemoryHealth, error) {
+	if repoID == "" {
+		return ctxmem.MemoryHealth{}, fmt.Errorf("%w: repo_id required", ctxmem.ErrInvalidArg)
+	}
+	set, err := s.Stores.Settings.Get(ctx, repoID)
+	if err != nil {
+		return ctxmem.MemoryHealth{}, err
+	}
+	out := ctxmem.MemoryHealth{
+		Enabled:       set.Enabled,
+		LastRebuildAt: set.UpdatedAt,
+	}
+	vCount, _, _, err := s.Stores.Vectors.CountAndDim(ctx, repoID)
+	if err == nil {
+		out.VectorCount = vCount
+	}
+	// Cheap reachability probe. Ollama has a dedicated admin client;
+	// every other provider is assumed reachable once the registry
+	// accepted its configuration (API key present, URL valid).
+	if set.Enabled {
+		switch set.EmbeddingProvider {
+		case "ollama":
+			if s.Ollama != nil {
+				st := s.Ollama.GetStatus(ctx)
+				out.ProviderReachable = st.Running
+				if !st.Running {
+					out.LastError = st.Message
+				}
+			}
+		default:
+			if _, regErr := s.Registry.Get(repoID); regErr != nil {
+				out.ProviderReachable = false
+				out.LastError = regErr.Error()
+			} else {
+				out.ProviderReachable = true
+			}
+		}
+	}
+	return out, nil
 }
 
 // ---- Node / edge / fact CRUD ----------------------------------------------
@@ -538,6 +620,32 @@ func (s *Service) BuildPassiveForRunner(ctx context.Context, repoID, prompt, tas
 	preview, err := s.PreviewPassive(ctx, repoID, prompt, taskID)
 	if err != nil {
 		s.log.Warn("ctxmem: build passive", "err", err, "repo", repoID)
+		return ""
+	}
+	return preview.SystemPrompt
+}
+
+// BuildReactiveForRunner is the hook the search_memory tool handler calls
+// when an agent decides mid-session that it needs additional context.
+// Returns the Markdown block the LLM consumes; empty string when Memory
+// is disabled or the hybrid search produced no hits.
+func (s *Service) BuildReactiveForRunner(ctx context.Context, repoID, query string) string {
+	preview, err := s.Inject.BuildReactive(ctx, repoID, query)
+	if err != nil {
+		s.log.Warn("ctxmem: build reactive", "err", err, "repo", repoID)
+		return ""
+	}
+	return preview.SystemPrompt
+}
+
+// BuildForReviewer is the hook copilot.Reviewer calls at session start
+// to prepend a Decision / Constraint / Concept-weighted memory block.
+// Returns empty string on any error or when Memory is disabled so the
+// reviewer prompt stays unchanged from its pre-Memory baseline.
+func (s *Service) BuildForReviewer(ctx context.Context, repoID, goal, diffSummary, taskID string) string {
+	preview, err := s.Inject.BuildForReview(ctx, repoID, goal, diffSummary, taskID)
+	if err != nil {
+		s.log.Warn("ctxmem: build review", "err", err, "repo", repoID)
 		return ""
 	}
 	return preview.SystemPrompt

@@ -304,6 +304,62 @@ func (s *Server) UpdateMemorySettings(ctx context.Context, req *pb.UpdateMemoryS
 	return memorySettingsToPB(out), nil
 }
 
+func (s *Server) GetMemoryHealth(ctx context.Context, req *pb.RepoIdRequest) (*pb.MemoryHealth, error) {
+	if err := s.requireCtxmem(); err != nil {
+		return nil, err
+	}
+	h, err := s.ctxmem.GetMemoryHealth(ctx, req.GetRepoId())
+	if err != nil {
+		return nil, mapCtxmemError(err)
+	}
+	return &pb.MemoryHealth{
+		Enabled:           h.Enabled,
+		ProviderReachable: h.ProviderReachable,
+		VectorCount:       h.VectorCount,
+		LastRebuildAt:     toProtoTime(h.LastRebuildAt),
+		LastError:         h.LastError,
+	}, nil
+}
+
+func (s *Server) SuggestForNewTask(ctx context.Context, req *pb.SuggestForNewTaskRequest) (*pb.SuggestForNewTaskResponse, error) {
+	if err := s.requireCtxmem(); err != nil {
+		return nil, err
+	}
+	bundle, err := s.ctxmem.SuggestForNewTask(ctx, req.GetRepoId(), req.GetDraftGoal(), int(req.GetLimit()))
+	if err != nil {
+		return nil, mapCtxmemError(err)
+	}
+	resp := &pb.SuggestForNewTaskResponse{}
+	for _, t := range bundle.SimilarTasks {
+		resp.SimilarTasks = append(resp.SimilarTasks, &pb.TaskSuggestion{
+			NodeId:       t.NodeID,
+			Label:        t.Label,
+			SummaryMd:    t.SummaryMD,
+			Score:        t.Score,
+			SourceTaskId: t.SourceTaskID,
+		})
+	}
+	for _, n := range bundle.RelatedDecisions {
+		resp.RelatedDecisions = append(resp.RelatedDecisions, &pb.ContextNodeSummary{
+			NodeId:    n.NodeID,
+			Kind:      n.Kind,
+			Label:     n.Label,
+			ContentMd: n.ContentMD,
+			Score:     n.Score,
+		})
+	}
+	for _, n := range bundle.RelatedConstraints {
+		resp.RelatedConstraints = append(resp.RelatedConstraints, &pb.ContextNodeSummary{
+			NodeId:    n.NodeID,
+			Kind:      n.Kind,
+			Label:     n.Label,
+			ContentMd: n.ContentMD,
+			Score:     n.Score,
+		})
+	}
+	return resp, nil
+}
+
 // WatchContextChanges streams ctxmem ChangeEvents until the client
 // disconnects. since_seq_by_kind suppresses events whose (kind, seq)
 // is already seen on reconnect, matching the WatchEvents pattern.

@@ -28,6 +28,7 @@ const (
 	NodeKindDecision   = "Decision"
 	NodeKindConstraint = "Constraint"
 	NodeKindTag        = "Tag"
+	NodeKindTask       = "Task"
 )
 
 // Canonical edge relationships.
@@ -218,6 +219,50 @@ type Overview struct {
 	VectorBytes             int64
 	ObservedSessionCount    int32
 	Enabled                 bool
+}
+
+// TaskSuggestion is one finalized Task surfaced as a similar-task
+// candidate on the New Task dialog. Carries the originating taskID so
+// the UI can deep-link back to the task row in Kanban.
+type TaskSuggestion struct {
+	NodeID       string
+	Label        string
+	SummaryMD    string
+	Score        float32
+	SourceTaskID string
+}
+
+// NodeSummary is the slimmer companion of TaskSuggestion used for
+// Decision / Constraint hits. Purpose-built for the New Task dialog —
+// Browse uses Node directly for editing.
+type NodeSummary struct {
+	NodeID    string
+	Kind      string
+	Label     string
+	ContentMD string
+	Score     float32
+}
+
+// SuggestionBundle is the response of SuggestForNewTask. Bucketed by
+// kind so the UI can render three discrete sections (similar past
+// tasks, applicable decisions, binding constraints) instead of a
+// single mixed list.
+type SuggestionBundle struct {
+	SimilarTasks       []TaskSuggestion
+	RelatedDecisions   []NodeSummary
+	RelatedConstraints []NodeSummary
+}
+
+// MemoryHealth is a light snapshot of the Memory subsystem suitable for
+// sub-second polling by the Settings panel and Kanban badge. Distinct
+// from Overview, which aggregates heavier counts across every node
+// kind + scratchpad status.
+type MemoryHealth struct {
+	Enabled           bool
+	ProviderReachable bool
+	VectorCount       int32
+	LastRebuildAt     time.Time
+	LastError         string
 }
 
 // InjectionSource records one memory item that contributed to an

@@ -476,6 +476,213 @@ CREATE TRIGGER ctx_node_au AFTER UPDATE ON ctx_node BEGIN
 END;
 `,
 	},
+	{
+		// v14 introduces NLAH-style file-backed durable state. Each task owns
+		// a directory under <DataDir>\runs\<taskId>\ (DataDir resolves via
+		// resolvePaths in cmd/fleetkanban-sidecar — typically
+		// %APPDATA%\FleetKanban\, with %LOCALAPPDATA%\FleetKanban\ fallback
+		// on UNC-redirected profiles; see internal/runstate).
+		//
+		// Artifacts written to disk (TASK.md, plan.json, review_<n>.md,
+		// harness.md, attempt_<n>.md, children/.../DIFF.patch) are indexed
+		// here so the UI can list/get them without walking the FS.
+		//
+		// artifact.stage is the NLAH stage-layer name; 'harness' holds
+		// SKILL.md versions (Phase B) and 'attempt' holds self-evolution
+		// patch observations (Phase C).
+		//
+		// (task_id, path, content_hash) is UNIQUE so re-writing identical
+		// content is a no-op — writer.go can blindly insert without a
+		// "SELECT ... WHERE hash=?" pre-check.
+		//
+		// task_run_root pins the absolute FS path per task so retrospective
+		// lookups survive a DataDir relocation.
+		Version: 14,
+		Name:    "nlah_file_backed_state",
+		SQL: `
+CREATE TABLE artifact (
+    id            TEXT    PRIMARY KEY,
+    task_id       TEXT    NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    subtask_id    TEXT    REFERENCES subtasks(id) ON DELETE CASCADE,
+    stage         TEXT    NOT NULL CHECK(stage IN ('plan','code','review','harness','attempt')),
+    path          TEXT    NOT NULL,
+    kind          TEXT    NOT NULL,
+    content_hash  TEXT    NOT NULL,
+    size_bytes    INTEGER NOT NULL,
+    attrs_json    TEXT    NOT NULL DEFAULT '{}',
+    created_at    TEXT    NOT NULL,
+    UNIQUE(task_id, path, content_hash)
+);
+CREATE INDEX artifact_task_stage ON artifact(task_id, stage, created_at DESC);
+CREATE INDEX artifact_subtask    ON artifact(subtask_id) WHERE subtask_id IS NOT NULL;
+
+CREATE TABLE task_run_root (
+    task_id    TEXT    PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+    root_path  TEXT    NOT NULL,
+    created_at TEXT    NOT NULL
+);
+`,
+	},
+	{
+		// v15 adds the NLAH self-evolution ("attempt contract") storage
+		// layer. When a task's review cycle fires a REWORK, the evolver
+		// (internal/ihr/evolver.go — Phase C) drafts a unified-diff patch
+		// proposal against harness-skill/SKILL.md and stores it here with
+		// status='pending'. UI approval flips the row to 'approved' and
+		// commits a new 'harness' artifact; rejection is terminal.
+		//
+		// Proposals are never auto-applied — user policy forbids automatic
+		// harness mutation. The table is the human-in-the-loop queue.
+		//
+		// observation_md captures the failure evidence the LLM saw when
+		// drafting the patch (review feedback, relevant diff excerpts,
+		// subtask timings). proposed_patch is a unified diff against the
+		// currently-active SKILL.md content; proposed_hash is the sha256
+		// of the post-apply SKILL.md for idempotent Approve handling.
+		Version: 15,
+		Name:    "nlah_harness_attempt",
+		SQL: `
+CREATE TABLE harness_attempt (
+    id              TEXT    PRIMARY KEY,
+    task_id         TEXT    NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    rework_round    INTEGER NOT NULL,
+    failure_class   TEXT    NOT NULL,
+    observation_md  TEXT    NOT NULL DEFAULT '',
+    proposed_patch  TEXT    NOT NULL DEFAULT '',
+    proposed_hash   TEXT    NOT NULL DEFAULT '',
+    decision        TEXT    NOT NULL DEFAULT 'pending'
+                    CHECK(decision IN ('pending','approved','rejected','superseded')),
+    decided_by      TEXT    NOT NULL DEFAULT '',
+    decided_at      TEXT,
+    created_at      TEXT    NOT NULL
+);
+CREATE INDEX harness_attempt_pending ON harness_attempt(decision, created_at DESC)
+    WHERE decision = 'pending';
+CREATE INDEX harness_attempt_task    ON harness_attempt(task_id, created_at DESC);
+`,
+	},
+	{
+		// v16 replaces the Phase B harness artifact storage model.
+		//
+		// Previously HarnessService stored SKILL.md versions in the artifact
+		// table, satisfying artifact.task_id FK by injecting a synthetic
+		// "__harness__" sentinel row into tasks (and a matching "__harness__"
+		// row into repositories). That sentinel approach is fragile: future
+		// migrations adding NOT NULL columns to tasks/repositories break the
+		// INSERT OR IGNORE insert, and the sentinel rows can leak into UI
+		// task list queries.
+		//
+		// v16 introduces harness_skill_version — a self-contained table with
+		// no FK dependencies on tasks or repositories. Content is stored
+		// directly as a TEXT column (typical size a few KB, max ~100 KB),
+		// eliminating the FS file + DB row dual-write that artifact required.
+		//
+		// parent_id links a rollback or evolver-generated version back to the
+		// source version for history traversal. created_by carries provenance
+		// ("user" | "evolver" | "rollback:<source_id>").
+		//
+		// Existing artifact rows with stage='harness' are migrated into the
+		// new table with empty content_md (artifact rows are FS-reference
+		// only; DB has no content bytes). The empty content is a temporary
+		// placeholder — the next UpdateSkill call from the user will insert
+		// a new row with real content. See HarnessSkillStore comments.
+		//
+		// Note: the artifact table rows for stage='harness' are NOT deleted
+		// here. They remain indexed in artifact_task_stage and are harmless.
+		// A stakeholder-gated v17 migration will DELETE them once the UI
+		// artifact timeline has been confirmed clean.
+		Version: 16,
+		Name:    "harness_skill_version",
+		SQL: `
+CREATE TABLE harness_skill_version (
+    id            TEXT    PRIMARY KEY,   -- ULID
+    content_md    TEXT    NOT NULL,
+    content_hash  TEXT    NOT NULL,
+    created_at    TEXT    NOT NULL,
+    created_by    TEXT    NOT NULL DEFAULT '',  -- 'user' | 'evolver' | 'rollback:<id>'
+    parent_id     TEXT    REFERENCES harness_skill_version(id) ON DELETE SET NULL
+                            -- rollback/evolver 時の由来行、履歴探索用
+);
+CREATE INDEX harness_skill_version_created ON harness_skill_version(created_at DESC);
+-- content_hash is not UNIQUE because rollback deliberately re-inserts prior
+-- content as a new audit-trail row. Deduplication is enforced at the
+-- application layer inside HarnessSkillStore.Insert (when createdBy == "user").
+CREATE INDEX harness_skill_version_hash ON harness_skill_version(content_hash);
+
+-- Migrate existing artifact rows (stage='harness') into the new table.
+-- content_md is intentionally empty: artifact rows are FS-file references;
+-- the DB never stored content bytes. The empty content_md is a temporary
+-- placeholder until the user next calls UpdateSkill, which inserts a new
+-- row with real content. See HarnessSkillStore.Insert for the no-op-on-
+-- duplicate-hash behaviour that makes re-insertion safe.
+INSERT INTO harness_skill_version (id, content_md, content_hash, created_at, created_by)
+SELECT id, '', content_hash, created_at, 'migrated'
+FROM artifact WHERE stage = 'harness';
+`,
+	},
+	{
+		// v17 corrects a v16 backfill invariant break: v16 inserted
+		// placeholder rows with content_md='' but content_hash copied
+		// from the originating artifact row (non-empty content). That
+		// violates the hash(content_md) == content_hash invariant every
+		// other insert path maintains, and would mislead any future code
+		// that trusts the column pair.
+		//
+		// The placeholder rows served only as "the old artifact history
+		// is preserved in the new table" markers — they carry no real
+		// content. Deleting them is safe: HarnessSkillStore.List hides
+		// the rows from the UI version timeline once they are gone, and
+		// the user's next UpdateSkill naturally seeds a fresh row with
+		// the current SKILL.md content.
+		//
+		// Rows with created_by='user' | 'evolver:*' | 'rollback:*' are
+		// left untouched — those all carry real content and satisfy the
+		// invariant.
+		Version: 17,
+		Name:    "drop_v16_placeholder_rows",
+		SQL: `
+DELETE FROM harness_skill_version WHERE created_by = 'migrated';
+`,
+	},
+	{
+		// v18 introduces subtask_context, the per-run snapshot of every
+		// prompt ingredient the Copilot runner assembled for a subtask:
+		// the resolved full system_prompt, the stage prompt template
+		// that seeded it (DefaultCodePrompt etc.), the injected
+		// SubtaskRunContext values (plan summary, prior summaries,
+		// memory block, output language) and the harness_skill_version
+		// in effect at the time. The UI's Subtask Summary dialog reads
+		// this table to let users answer "exactly what context did the
+		// agent see when it ran this subtask?" without re-simulating.
+		//
+		// Composite PK (subtask_id, round) preserves rework history:
+		// each re-attempt writes a new row rather than overwriting the
+		// previous one, matching the orchestrator's rework-round model.
+		// ON DELETE CASCADE keeps rows aligned with their subtask row.
+		// harness_skill_version_id is ON DELETE SET NULL because the
+		// harness version table is not currently pruned, but preserving
+		// the prompt snapshot even if a version row is GC'd later is
+		// strictly more useful than losing the record.
+		Version: 18,
+		Name:    "subtask_context",
+		SQL: `
+CREATE TABLE subtask_context (
+    subtask_id               TEXT    NOT NULL REFERENCES subtasks(id) ON DELETE CASCADE,
+    round                    INTEGER NOT NULL,
+    harness_skill_version_id TEXT    REFERENCES harness_skill_version(id) ON DELETE SET NULL,
+    system_prompt            TEXT    NOT NULL,  -- Copilot SDK SystemMessage.Content
+    user_prompt              TEXT    NOT NULL,  -- Copilot SDK first MessageOptions.Prompt
+    stage_prompt_template    TEXT    NOT NULL,  -- raw DefaultCodePrompt (pre-addendum)
+    plan_summary             TEXT    NOT NULL DEFAULT '',
+    prior_summaries_json     TEXT    NOT NULL DEFAULT '[]',
+    memory_block             TEXT    NOT NULL DEFAULT '',
+    output_language          TEXT    NOT NULL DEFAULT '',
+    created_at               TEXT    NOT NULL,
+    PRIMARY KEY (subtask_id, round)
+);
+CREATE INDEX subtask_context_subtask ON subtask_context(subtask_id);
+`,
+	},
 }
 
 type migration struct {

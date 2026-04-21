@@ -13,21 +13,10 @@ import '../kanban/providers.dart'
 
 part 'providers.g.dart';
 
-/// Built-in default agent prompts, fetched from the sidecar. Used by
-/// the Settings page to pre-populate each editor with the full default
-/// text so the user can see exactly what the planner / runner /
-/// reviewer will use when no override is saved.
-final defaultAgentPromptsProvider = FutureProvider<pb.AgentSettings>((
-  ref,
-) async {
-  final client = ref.watch(ipcClientProvider);
-  return client.system.getDefaultAgentPrompts(Empty());
-});
-
-/// Agent prompt + output language overrides. Persisted on the sidecar
-/// (SettingsStore) so changes apply to every Copilot session without a
-/// restart. The UI exposes 3 multi-line text fields and 1 single-line
-/// language field.
+/// Output-language preference. Persisted on the sidecar (SettingsStore)
+/// so changes apply to every Copilot session without a restart. Per-stage
+/// prompt customisation lives in the IHR Charter (harness-skill/SKILL.md);
+/// this provider only owns the free-form language directive.
 @Riverpod(keepAlive: true)
 class AgentSettings extends _$AgentSettings {
   @override
@@ -36,20 +25,9 @@ class AgentSettings extends _$AgentSettings {
     return client.system.getAgentSettings(Empty());
   }
 
-  Future<void> save({
-    String? planPrompt,
-    String? codePrompt,
-    String? reviewPrompt,
-    String? outputLanguage,
-  }) async {
+  Future<void> save({required String outputLanguage}) async {
     final client = ref.read(ipcClientProvider);
-    final current = state.value ?? pb.AgentSettings();
-    final next = pb.AgentSettings(
-      planPrompt: planPrompt ?? current.planPrompt,
-      codePrompt: codePrompt ?? current.codePrompt,
-      reviewPrompt: reviewPrompt ?? current.reviewPrompt,
-      outputLanguage: outputLanguage ?? current.outputLanguage,
-    );
+    final next = pb.AgentSettings(outputLanguage: outputLanguage);
     state = const AsyncLoading();
     try {
       final saved = await client.system.setAgentSettings(next);

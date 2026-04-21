@@ -84,9 +84,15 @@ tasks:
       - go install github.com/bufbuild/buf/cmd/buf@latest
       - dart pub global activate protoc_plugin
 
+  check:versions:
+    desc: "Verify ProtocolVersion / AppVersion are in sync between sidecar (branding.go) and UI (version.dart / pubspec.yaml). Bump one side without the other and the UI will either kill the sidecar on every connect or mis-advertise its build in the About dialog."
+    cmds:
+      - cmd: pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-versions.ps1
+        platforms: [windows]
+
   build:sidecar:
     desc: "Build fleetkanban-sidecar.exe (gRPC backend) for Windows x64"
-    deps: [bundle:cli]
+    deps: [bundle:cli, "check:versions"]
     dir: sidecar
     env:
       GOOS: windows
@@ -120,7 +126,7 @@ tasks:
 
   flutter:build:
     desc: "Build Flutter Windows Release artifact (sidecar.exe is copied alongside)"
-    deps: [build:sidecar]
+    deps: [build:sidecar, "check:versions"]
     dir: ui
     cmds:
       - flutter build windows --release

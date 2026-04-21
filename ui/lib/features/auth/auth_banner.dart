@@ -1,7 +1,7 @@
 // AuthBanner: compact panel shown in the NavigationPane header. Two modes:
 //   * not authenticated  → red InfoBar
-//   * authenticated      → account card with login, plan hint, and a note
-//     that premium-request quotas are not exposed via GitHub's public API.
+//   * authenticated      → account card with login, GitHub plan, and Copilot
+//     premium-request quota (sourced from the SDK's account.getQuota RPC).
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,36 +51,47 @@ class _AccountCard extends ConsumerWidget {
         color: resources.subtleFillColorSecondary,
         borderRadius: BorderRadius.circular(4),
       ),
+      clipBehavior: Clip.hardEdge,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              _Avatar(url: info?.avatarUrl ?? ''),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      displayName,
-                      style: theme.typography.bodyStrong,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      '@${info?.login ?? authUser}',
-                      style: theme.typography.caption?.copyWith(
-                        color: resources.textFillColorSecondary,
+          Tooltip(
+            // Long GitHub display names / logins ellipsize at the pane
+            // width (200 px); the tooltip surfaces the full value on
+            // hover so the ellipsis is never an information loss.
+            message: '$displayName\n@${info?.login ?? authUser}',
+            child: Row(
+              children: [
+                _Avatar(url: info?.avatarUrl ?? ''),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        displayName,
+                        style: theme.typography.bodyStrong,
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                      Text(
+                        '@${info?.login ?? authUser}',
+                        style: theme.typography.caption?.copyWith(
+                          color: resources.textFillColorSecondary,
+                        ),
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 6),
-          _PlanLine(info: info),
+          const _QuotaLine(),
         ],
       ),
     );
@@ -110,40 +121,61 @@ class _Avatar extends StatelessWidget {
   }
 }
 
-class _PlanLine extends StatelessWidget {
-  const _PlanLine({required this.info});
-  final pb.GitHubAccountInfo? info;
+/// _QuotaLine renders the Copilot premium-request counter sourced from
+/// the SDK's account.getQuota RPC. We pick the "premium_interactions"
+/// snapshot when present (the number users actually care about) and fall
+/// back to the first available snapshot otherwise so the line still shows
+/// something informative on accounts where that specific key is absent.
+class _QuotaLine extends ConsumerWidget {
+  const _QuotaLine();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = FluentTheme.of(context);
     final resources = theme.resources;
     final caption = theme.typography.caption?.copyWith(
       color: resources.textFillColorSecondary,
     );
-    if (info == null) {
+    final quota = ref.watch(copilotQuotaProvider).value;
+    final snapshot = _pickSnapshot(quota);
+    if (snapshot == null) {
       return Tooltip(
-        message: 'Add a PAT in Settings to fetch plan info',
-        child: Text('Plan: not fetched (no PAT configured)', style: caption),
+        message:
+            'Sign in to Copilot (or wait for the CLI to boot) to see remaining premium requests.',
+        child: Text('Premium: —', style: caption),
       );
     }
-    final plan = info!.planName.isEmpty ? '—' : info!.planName;
+    final rawRemaining =
+        snapshot.entitlementRequests - snapshot.usedRequests;
+    final remaining = rawRemaining < 0 ? 0.0 : rawRemaining;
+    // The SDK's remainingPercentage is already on a 0-100 scale despite its
+    // doc comment claiming "0.0 to 1.0" — verified against the live Copilot
+    // CLI. Do not multiply here, or the banner shows e.g. "5850%" for 58.5%.
+    final pct = snapshot.remainingPercentage.toStringAsFixed(1);
+    final reset = snapshot.resetDate.isEmpty
+        ? ''
+        : ' · resets ${snapshot.resetDate.split("T").first}';
     return Tooltip(
       message:
-          'The official GitHub API does not expose remaining Copilot premium requests. '
-          'Check github.com/settings/copilot for details.',
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('GitHub plan: $plan', style: caption),
-          const SizedBox(width: 6),
-          Icon(
-            FluentIcons.info,
-            size: 11,
-            color: resources.textFillColorTertiary,
-          ),
-        ],
+          'Used ${_fmt(snapshot.usedRequests)} of ${_fmt(snapshot.entitlementRequests)} premium requests'
+          '${snapshot.overage > 0 ? " (+${_fmt(snapshot.overage)} overage)" : ""}'
+          '$reset',
+      child: Text(
+        'Premium: ${_fmt(remaining)} left ($pct%)',
+        style: caption,
       ),
     );
+  }
+
+  static pb.CopilotQuotaSnapshot? _pickSnapshot(pb.CopilotQuotaInfo? info) {
+    if (info == null || info.snapshots.isEmpty) return null;
+    final preferred = info.snapshots['premium_interactions'];
+    if (preferred != null) return preferred;
+    return info.snapshots.values.first;
+  }
+
+  static String _fmt(double v) {
+    if (v >= 100 && v == v.roundToDouble()) return v.toStringAsFixed(0);
+    return v.toStringAsFixed(1);
   }
 }

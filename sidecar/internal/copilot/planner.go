@@ -47,10 +47,11 @@ const MaxPlannerSubtasks = 40
 // The session runs read-only — planning must not mutate code. Writes by a
 // misbehaving planner model would be silent scope creep.
 type Planner struct {
-	client   *copilot.Client
-	model    string
-	timeout  time.Duration
-	settings SettingsLookup
+	client       *copilot.Client
+	model        string
+	timeout      time.Duration
+	settings     SettingsLookup
+	stagePrompts StagePromptLookup
 }
 
 // NewPlanner constructs a Planner bound to rt's SDK client. When model is
@@ -69,8 +70,15 @@ func (r *Runtime) NewPlanner(ctx context.Context, model string) (*Planner, error
 	}
 	r.mu.RLock()
 	settings := r.cfg.Settings
+	stagePrompts := r.cfg.StagePrompts
 	r.mu.RUnlock()
-	return &Planner{client: client, model: model, timeout: plannerTimeout, settings: settings}, nil
+	return &Planner{
+		client:       client,
+		model:        model,
+		timeout:      plannerTimeout,
+		settings:     settings,
+		stagePrompts: stagePrompts,
+	}, nil
 }
 
 // plannerRawSubtask is the shape the model is asked to emit for each node.
@@ -140,8 +148,7 @@ func (p *Planner) Plan(ctx context.Context, t *task.Task, out chan<- *task.Agent
 	}
 
 	settings := agentSettingsOrEmpty(ctx, p.settings)
-	systemContent := effectivePrompt(settings.PlanPrompt, DefaultPlanPrompt) +
-		languageAddendum(settings.OutputLanguage)
+	systemContent := ResolveStagePrompt(p.stagePrompts, "plan", DefaultPlanPrompt) + languageAddendum(settings.OutputLanguage)
 	session, err := p.client.CreateSession(ctx, &copilot.SessionConfig{
 		Model:            model,
 		Streaming:        true,

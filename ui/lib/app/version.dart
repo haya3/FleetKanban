@@ -1,4 +1,4 @@
-// Expected sidecar protocol version. Must equal
+﻿// Expected sidecar protocol version. Must equal
 // sidecar/internal/branding.ProtocolVersion — keep the two in sync when a
 // proto change lands. SidecarSupervisor compares this against
 // SystemService.GetVersion immediately after connect, and kills/respawns
@@ -9,7 +9,7 @@
 // to kill whatever process it finds and spawn the binary at
 // `build/bin/fleetkanban-sidecar.exe`. Make sure that binary is the new
 // build before bumping.
-const int expectedSidecarProtocolVersion = 25;
+const int expectedSidecarProtocolVersion = 33;
 
 /// User-facing release version (semver, no leading "v"). Must match
 /// `pubspec.yaml` `version` and `sidecar/internal/branding.AppVersion`.

@@ -2,6 +2,7 @@ package orchestrator
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -863,6 +864,29 @@ func TestOrchestrator_AIReview_CapsReworkAtMax(t *testing.T) {
 	// iterations must not happen.
 	assert.Equal(t, MaxReworkCount+1, reviewer.callCount(),
 		"reviewer should be called exactly once per ai_review, including the cap-hitting one")
+
+	// The ai_review.decision event stream must contain exactly one entry
+	// with rework_cap_reached=true — the terminal verdict that tripped
+	// the cap. Earlier decisions (regular rework loops) must keep the
+	// flag at false so the UI can render the escalation distinctively.
+	var capReachedCount, totalDecisions int
+	for _, ev := range es.forTask("t1") {
+		if ev.Kind != task.EventAIReviewDecision {
+			continue
+		}
+		totalDecisions++
+		var payload struct {
+			ReworkCapReached bool `json:"rework_cap_reached"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(ev.Payload), &payload))
+		if payload.ReworkCapReached {
+			capReachedCount++
+		}
+	}
+	assert.Equal(t, 1, capReachedCount,
+		"exactly one ai_review.decision must carry rework_cap_reached=true")
+	assert.GreaterOrEqual(t, totalDecisions, MaxReworkCount,
+		"every reviewer call must emit an ai_review.decision event")
 }
 
 func TestOrchestrator_SubtaskLoop_RunsInOrder(t *testing.T) {

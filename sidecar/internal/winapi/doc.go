@@ -12,4 +12,6 @@
 //   - Toast notifications (toast.go)
 //   - DPAPI protect/unprotect for secrets at rest (dpapi.go)
 //   - Jump List Recent Documents (jumplist.go)
+//   - Jump List Tasks category via ICustomDestinationList COM (jumplist_tasks.go)
+//   - Windows Terminal Fragment profile registration (terminal_fragment.go)
 package winapi

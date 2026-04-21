@@ -2,18 +2,18 @@
 
 package copilot
 
-// Built-in system messages for the three pipeline stages. Exposed so:
-//   * planner / runner / reviewer use them as fallback when the user
-//     hasn't customised the Settings field for that stage, AND
-//   * the sidecar can hand them to the UI via GetDefaultAgentPrompts
-//     so the Settings page can pre-populate each TextBox with the
-//     built-in baseline — the user sees the full prompt, decides
-//     whether to keep, tweak, or rewrite.
-//
-// When Settings has a non-empty value for a stage, that value fully
-// replaces the built-in system message for that stage (language
-// directive still appended). When empty, the built-in below is used
-// verbatim.
+// Built-in system messages for the three pipeline stages. Planner /
+// runner / reviewer resolve the active prompt through StagePromptLookup
+// (wired in main.go to the IHR Charter in harness-skill/SKILL.md);
+// these Default*Prompt constants are the fallback used when:
+//   * the lookup is nil (tests, bootstrapping paths with no charter),
+//   * the active charter omits a `prompts:` entry for the stage, or
+//   * the charter parse failed and we are running without one.
+// The user-editable prompt surface is the IHR Charter's `prompts`
+// frontmatter section — edit that via the Harness pane (UI) or by
+// editing harness-skill/SKILL.md and restarting. The output-language
+// directive (see languageAddendum in client.go) is appended to the
+// resolved prompt at session creation time regardless of source.
 
 // DefaultPlanPrompt is the built-in system prompt for the Planner
 // stage. Tuned for efficiency — gpt-5.4-mini (and similarly chatty
@@ -114,12 +114,3 @@ REWORK: <1-2 specific sentences of actionable feedback, Markdown OK (bullets / b
 
 Do NOT include APPROVE or REWORK: on any line other than the final line. No ASCII art, no preamble. When genuinely in doubt, choose APPROVE.`
 
-// effectivePrompt returns override when non-empty, else fallback.
-// Centralises the "Settings fully replaces the built-in" rule so
-// callers don't each repeat the ternary.
-func effectivePrompt(override, fallback string) string {
-	if override != "" {
-		return override
-	}
-	return fallback
-}

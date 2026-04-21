@@ -70,3 +70,17 @@ final versionInfoProvider = FutureProvider<pb.VersionInfo>((ref) async {
   final client = ref.watch(ipcClientProvider);
   return client.system.getVersion(Empty());
 });
+
+/// Copilot billing quota snapshot map keyed by quota type
+/// ("premium_interactions", "chat", …). Returns null when the embedded
+/// Copilot CLI predates the account.getQuota RPC or the user is signed
+/// out — the UI renders a "quota unavailable" fallback in that case
+/// instead of propagating the gRPC error.
+final copilotQuotaProvider = FutureProvider<pb.CopilotQuotaInfo?>((ref) async {
+  final client = ref.watch(ipcClientProvider);
+  try {
+    return await client.auth.getCopilotQuota(Empty());
+  } catch (_) {
+    return null;
+  }
+});

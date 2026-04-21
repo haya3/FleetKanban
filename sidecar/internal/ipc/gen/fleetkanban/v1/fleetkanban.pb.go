@@ -285,16 +285,13 @@ func (x *StashUncommittedResponse) GetMessage() string {
 	return ""
 }
 
-// AgentSettings holds per-stage prompt overrides the user wants
-// FleetKanban to inject into every Copilot session, plus a free-form
-// output language directive (e.g. "Japanese", "Spanish", "casual
-// English"). Empty fields are no-ops; the agent runs with the
-// built-in defaults only.
+// AgentSettings carries the free-form output-language directive
+// (e.g. "Japanese", "Spanish", "casual English") the agent uses when
+// choosing the language of its summaries / explanations / feedback.
+// Empty means "no language hint"; the agent falls back to the
+// model's default.
 type AgentSettings struct {
-	state        protoimpl.MessageState `protogen:"open.v1"`
-	PlanPrompt   string                 `protobuf:"bytes,1,opt,name=plan_prompt,json=planPrompt,proto3" json:"plan_prompt,omitempty"`
-	CodePrompt   string                 `protobuf:"bytes,2,opt,name=code_prompt,json=codePrompt,proto3" json:"code_prompt,omitempty"`
-	ReviewPrompt string                 `protobuf:"bytes,3,opt,name=review_prompt,json=reviewPrompt,proto3" json:"review_prompt,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// Free-form natural-language identifier the agent uses to choose
 	// the language of its summaries / explanations / feedback. The
 	// sidecar passes this verbatim — the AI is expected to recognise
@@ -332,27 +329,6 @@ func (x *AgentSettings) ProtoReflect() protoreflect.Message {
 // Deprecated: Use AgentSettings.ProtoReflect.Descriptor instead.
 func (*AgentSettings) Descriptor() ([]byte, []int) {
 	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *AgentSettings) GetPlanPrompt() string {
-	if x != nil {
-		return x.PlanPrompt
-	}
-	return ""
-}
-
-func (x *AgentSettings) GetCodePrompt() string {
-	if x != nil {
-		return x.CodePrompt
-	}
-	return ""
-}
-
-func (x *AgentSettings) GetReviewPrompt() string {
-	if x != nil {
-		return x.ReviewPrompt
-	}
-	return ""
 }
 
 func (x *AgentSettings) GetOutputLanguage() string {
@@ -843,10 +819,14 @@ type Task struct {
 	// `model` above). Empty when the stage has not run yet. Surfaced in the
 	// UI as per-stage badges so the user can tell which model produced each
 	// artifact without inspecting the event stream.
-	PlanModel     string `protobuf:"bytes,19,opt,name=plan_model,json=planModel,proto3" json:"plan_model,omitempty"`
-	ReviewModel   string `protobuf:"bytes,20,opt,name=review_model,json=reviewModel,proto3" json:"review_model,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	PlanModel   string `protobuf:"bytes,19,opt,name=plan_model,json=planModel,proto3" json:"plan_model,omitempty"`
+	ReviewModel string `protobuf:"bytes,20,opt,name=review_model,json=reviewModel,proto3" json:"review_model,omitempty"`
+	// harness_version is the HarnessSkill version active when this task was
+	// last run. 0 means the task predates NLAH Phase A or no harness was
+	// loaded. Populated by the orchestrator at run-time; read-only from the UI.
+	HarnessVersion int32 `protobuf:"varint,21,opt,name=harness_version,json=harnessVersion,proto3" json:"harness_version,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Task) Reset() {
@@ -1017,6 +997,13 @@ func (x *Task) GetReviewModel() string {
 		return x.ReviewModel
 	}
 	return ""
+}
+
+func (x *Task) GetHarnessVersion() int32 {
+	if x != nil {
+		return x.HarnessVersion
+	}
+	return 0
 }
 
 // Subtask mirrors internal/task.Subtask. Status is a 4-value string
@@ -2130,6 +2117,223 @@ func (x *ListSubtasksResponse) GetSubtasks() []*Subtask {
 	return nil
 }
 
+// GetSubtaskContextRequest identifies one (subtask_id, round) row in
+// subtask_context.
+//
+// Semantics of the round field:
+//   - round >  0 — exact lookup, equivalent to
+//     `SELECT * FROM subtask_context WHERE subtask_id=? AND round=?`.
+//     Missing rows return not_recorded=true, not an error.
+//   - round <= 0 — "latest": resolves to MAX(round) for this subtask via
+//     `ORDER BY round DESC LIMIT 1`. Zero and negative values
+//     behave identically; the UI passes 0 on the first open
+//     and the specific round when the user steps back through
+//     rework history.
+//
+// Rounds are monotonic per subtask (see v11 migration); a new round is
+// created each time the orchestrator re-executes after an AI Review
+// rework. There is no "round=0" row on disk — 0 is purely a wire shorthand.
+type GetSubtaskContextRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SubtaskId     string                 `protobuf:"bytes,1,opt,name=subtask_id,json=subtaskId,proto3" json:"subtask_id,omitempty"`
+	Round         int32                  `protobuf:"varint,2,opt,name=round,proto3" json:"round,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetSubtaskContextRequest) Reset() {
+	*x = GetSubtaskContextRequest{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetSubtaskContextRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetSubtaskContextRequest) ProtoMessage() {}
+
+func (x *GetSubtaskContextRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetSubtaskContextRequest.ProtoReflect.Descriptor instead.
+func (*GetSubtaskContextRequest) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *GetSubtaskContextRequest) GetSubtaskId() string {
+	if x != nil {
+		return x.SubtaskId
+	}
+	return ""
+}
+
+func (x *GetSubtaskContextRequest) GetRound() int32 {
+	if x != nil {
+		return x.Round
+	}
+	return 0
+}
+
+// CopilotSubtaskContext mirrors store.SubtaskContext plus the harness
+// SKILL.md content resolved via harness_skill_version_id so the UI
+// only needs one RPC round-trip to render every tab of the Subtask
+// Summary dialog.
+type CopilotSubtaskContext struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	SubtaskId string                 `protobuf:"bytes,1,opt,name=subtask_id,json=subtaskId,proto3" json:"subtask_id,omitempty"`
+	Round     int32                  `protobuf:"varint,2,opt,name=round,proto3" json:"round,omitempty"`
+	// Full SDK SystemMessage content (DefaultCodePrompt + output-language
+	// addendum).
+	SystemPrompt string `protobuf:"bytes,3,opt,name=system_prompt,json=systemPrompt,proto3" json:"system_prompt,omitempty"`
+	// Full SDK user MessageOptions.Prompt (memory block + BuildSubtask
+	// PromptWithContext composition).
+	UserPrompt string `protobuf:"bytes,4,opt,name=user_prompt,json=userPrompt,proto3" json:"user_prompt,omitempty"`
+	// Raw stage template (DefaultCodePrompt) before language addendum.
+	StagePromptTemplate string `protobuf:"bytes,5,opt,name=stage_prompt_template,json=stagePromptTemplate,proto3" json:"stage_prompt_template,omitempty"`
+	PlanSummary         string `protobuf:"bytes,6,opt,name=plan_summary,json=planSummary,proto3" json:"plan_summary,omitempty"`
+	// Already formatted display lines, one per prior subtask, in DAG order.
+	PriorSummaries []string `protobuf:"bytes,7,rep,name=prior_summaries,json=priorSummaries,proto3" json:"prior_summaries,omitempty"`
+	MemoryBlock    string   `protobuf:"bytes,8,opt,name=memory_block,json=memoryBlock,proto3" json:"memory_block,omitempty"`
+	OutputLanguage string   `protobuf:"bytes,9,opt,name=output_language,json=outputLanguage,proto3" json:"output_language,omitempty"`
+	// Active harness version at run time. id is empty when the embedded
+	// fallback was used (no user-authored SKILL.md yet).
+	HarnessSkillVersionId string `protobuf:"bytes,10,opt,name=harness_skill_version_id,json=harnessSkillVersionId,proto3" json:"harness_skill_version_id,omitempty"`
+	// SKILL.md content as of run time. Empty when harness_skill_version_id
+	// is empty or the row has since been purged.
+	HarnessSkillMd string `protobuf:"bytes,11,opt,name=harness_skill_md,json=harnessSkillMd,proto3" json:"harness_skill_md,omitempty"`
+	// True when no subtask_context row exists (legacy subtasks executed
+	// before the v18 schema, or not yet executed). All other fields are
+	// zero values in that case.
+	NotRecorded   bool `protobuf:"varint,12,opt,name=not_recorded,json=notRecorded,proto3" json:"not_recorded,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CopilotSubtaskContext) Reset() {
+	*x = CopilotSubtaskContext{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CopilotSubtaskContext) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CopilotSubtaskContext) ProtoMessage() {}
+
+func (x *CopilotSubtaskContext) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CopilotSubtaskContext.ProtoReflect.Descriptor instead.
+func (*CopilotSubtaskContext) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *CopilotSubtaskContext) GetSubtaskId() string {
+	if x != nil {
+		return x.SubtaskId
+	}
+	return ""
+}
+
+func (x *CopilotSubtaskContext) GetRound() int32 {
+	if x != nil {
+		return x.Round
+	}
+	return 0
+}
+
+func (x *CopilotSubtaskContext) GetSystemPrompt() string {
+	if x != nil {
+		return x.SystemPrompt
+	}
+	return ""
+}
+
+func (x *CopilotSubtaskContext) GetUserPrompt() string {
+	if x != nil {
+		return x.UserPrompt
+	}
+	return ""
+}
+
+func (x *CopilotSubtaskContext) GetStagePromptTemplate() string {
+	if x != nil {
+		return x.StagePromptTemplate
+	}
+	return ""
+}
+
+func (x *CopilotSubtaskContext) GetPlanSummary() string {
+	if x != nil {
+		return x.PlanSummary
+	}
+	return ""
+}
+
+func (x *CopilotSubtaskContext) GetPriorSummaries() []string {
+	if x != nil {
+		return x.PriorSummaries
+	}
+	return nil
+}
+
+func (x *CopilotSubtaskContext) GetMemoryBlock() string {
+	if x != nil {
+		return x.MemoryBlock
+	}
+	return ""
+}
+
+func (x *CopilotSubtaskContext) GetOutputLanguage() string {
+	if x != nil {
+		return x.OutputLanguage
+	}
+	return ""
+}
+
+func (x *CopilotSubtaskContext) GetHarnessSkillVersionId() string {
+	if x != nil {
+		return x.HarnessSkillVersionId
+	}
+	return ""
+}
+
+func (x *CopilotSubtaskContext) GetHarnessSkillMd() string {
+	if x != nil {
+		return x.HarnessSkillMd
+	}
+	return ""
+}
+
+func (x *CopilotSubtaskContext) GetNotRecorded() bool {
+	if x != nil {
+		return x.NotRecorded
+	}
+	return false
+}
+
 type CreateSubtaskRequest struct {
 	state  protoimpl.MessageState `protogen:"open.v1"`
 	TaskId string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
@@ -2148,7 +2352,7 @@ type CreateSubtaskRequest struct {
 
 func (x *CreateSubtaskRequest) Reset() {
 	*x = CreateSubtaskRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[28]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2160,7 +2364,7 @@ func (x *CreateSubtaskRequest) String() string {
 func (*CreateSubtaskRequest) ProtoMessage() {}
 
 func (x *CreateSubtaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[28]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2173,7 +2377,7 @@ func (x *CreateSubtaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateSubtaskRequest.ProtoReflect.Descriptor instead.
 func (*CreateSubtaskRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{28}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *CreateSubtaskRequest) GetTaskId() string {
@@ -2232,7 +2436,7 @@ type UpdateSubtaskRequest struct {
 
 func (x *UpdateSubtaskRequest) Reset() {
 	*x = UpdateSubtaskRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[29]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2244,7 +2448,7 @@ func (x *UpdateSubtaskRequest) String() string {
 func (*UpdateSubtaskRequest) ProtoMessage() {}
 
 func (x *UpdateSubtaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[29]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2257,7 +2461,7 @@ func (x *UpdateSubtaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateSubtaskRequest.ProtoReflect.Descriptor instead.
 func (*UpdateSubtaskRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{29}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *UpdateSubtaskRequest) GetId() string {
@@ -2294,7 +2498,7 @@ type ReorderSubtasksRequest struct {
 
 func (x *ReorderSubtasksRequest) Reset() {
 	*x = ReorderSubtasksRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[30]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2306,7 +2510,7 @@ func (x *ReorderSubtasksRequest) String() string {
 func (*ReorderSubtasksRequest) ProtoMessage() {}
 
 func (x *ReorderSubtasksRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[30]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2319,7 +2523,7 @@ func (x *ReorderSubtasksRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReorderSubtasksRequest.ProtoReflect.Descriptor instead.
 func (*ReorderSubtasksRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{30}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *ReorderSubtasksRequest) GetTaskId() string {
@@ -2351,7 +2555,7 @@ type RegisterRepositoryRequest struct {
 
 func (x *RegisterRepositoryRequest) Reset() {
 	*x = RegisterRepositoryRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[31]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2363,7 +2567,7 @@ func (x *RegisterRepositoryRequest) String() string {
 func (*RegisterRepositoryRequest) ProtoMessage() {}
 
 func (x *RegisterRepositoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[31]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2376,7 +2580,7 @@ func (x *RegisterRepositoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterRepositoryRequest.ProtoReflect.Descriptor instead.
 func (*RegisterRepositoryRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{31}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *RegisterRepositoryRequest) GetPath() string {
@@ -2409,7 +2613,7 @@ type ListRepositoriesResponse struct {
 
 func (x *ListRepositoriesResponse) Reset() {
 	*x = ListRepositoriesResponse{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[32]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2421,7 +2625,7 @@ func (x *ListRepositoriesResponse) String() string {
 func (*ListRepositoriesResponse) ProtoMessage() {}
 
 func (x *ListRepositoriesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[32]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2434,7 +2638,7 @@ func (x *ListRepositoriesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRepositoriesResponse.ProtoReflect.Descriptor instead.
 func (*ListRepositoriesResponse) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{32}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *ListRepositoriesResponse) GetRepositories() []*Repository {
@@ -2457,7 +2661,7 @@ type ScanGitRepositoriesRequest struct {
 
 func (x *ScanGitRepositoriesRequest) Reset() {
 	*x = ScanGitRepositoriesRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[33]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2469,7 +2673,7 @@ func (x *ScanGitRepositoriesRequest) String() string {
 func (*ScanGitRepositoriesRequest) ProtoMessage() {}
 
 func (x *ScanGitRepositoriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[33]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2482,7 +2686,7 @@ func (x *ScanGitRepositoriesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanGitRepositoriesRequest.ProtoReflect.Descriptor instead.
 func (*ScanGitRepositoriesRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{33}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *ScanGitRepositoriesRequest) GetPath() string {
@@ -2513,7 +2717,7 @@ type FoundRepository struct {
 
 func (x *FoundRepository) Reset() {
 	*x = FoundRepository{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[34]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2525,7 +2729,7 @@ func (x *FoundRepository) String() string {
 func (*FoundRepository) ProtoMessage() {}
 
 func (x *FoundRepository) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[34]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2538,7 +2742,7 @@ func (x *FoundRepository) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FoundRepository.ProtoReflect.Descriptor instead.
 func (*FoundRepository) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{34}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *FoundRepository) GetPath() string {
@@ -2574,7 +2778,7 @@ type ScanGitRepositoriesResponse struct {
 
 func (x *ScanGitRepositoriesResponse) Reset() {
 	*x = ScanGitRepositoriesResponse{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[35]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2586,7 +2790,7 @@ func (x *ScanGitRepositoriesResponse) String() string {
 func (*ScanGitRepositoriesResponse) ProtoMessage() {}
 
 func (x *ScanGitRepositoriesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[35]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2599,7 +2803,7 @@ func (x *ScanGitRepositoriesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanGitRepositoriesResponse.ProtoReflect.Descriptor instead.
 func (*ScanGitRepositoriesResponse) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{35}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *ScanGitRepositoriesResponse) GetRepositories() []*FoundRepository {
@@ -2629,7 +2833,7 @@ type UpdateDefaultBaseBranchRequest struct {
 
 func (x *UpdateDefaultBaseBranchRequest) Reset() {
 	*x = UpdateDefaultBaseBranchRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[36]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2641,7 +2845,7 @@ func (x *UpdateDefaultBaseBranchRequest) String() string {
 func (*UpdateDefaultBaseBranchRequest) ProtoMessage() {}
 
 func (x *UpdateDefaultBaseBranchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[36]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2654,7 +2858,7 @@ func (x *UpdateDefaultBaseBranchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateDefaultBaseBranchRequest.ProtoReflect.Descriptor instead.
 func (*UpdateDefaultBaseBranchRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{36}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *UpdateDefaultBaseBranchRequest) GetRepositoryId() string {
@@ -2680,7 +2884,7 @@ type ListBranchesRequest struct {
 
 func (x *ListBranchesRequest) Reset() {
 	*x = ListBranchesRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[37]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2692,7 +2896,7 @@ func (x *ListBranchesRequest) String() string {
 func (*ListBranchesRequest) ProtoMessage() {}
 
 func (x *ListBranchesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[37]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2705,7 +2909,7 @@ func (x *ListBranchesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListBranchesRequest.ProtoReflect.Descriptor instead.
 func (*ListBranchesRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{37}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *ListBranchesRequest) GetRepositoryId() string {
@@ -2736,7 +2940,7 @@ type ListBranchesResponse struct {
 
 func (x *ListBranchesResponse) Reset() {
 	*x = ListBranchesResponse{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[38]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2748,7 +2952,7 @@ func (x *ListBranchesResponse) String() string {
 func (*ListBranchesResponse) ProtoMessage() {}
 
 func (x *ListBranchesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[38]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2761,7 +2965,7 @@ func (x *ListBranchesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListBranchesResponse.ProtoReflect.Descriptor instead.
 func (*ListBranchesResponse) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{38}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *ListBranchesResponse) GetBranches() []string {
@@ -2795,7 +2999,7 @@ type SetGitHubTokenRequest struct {
 
 func (x *SetGitHubTokenRequest) Reset() {
 	*x = SetGitHubTokenRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[39]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2807,7 +3011,7 @@ func (x *SetGitHubTokenRequest) String() string {
 func (*SetGitHubTokenRequest) ProtoMessage() {}
 
 func (x *SetGitHubTokenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[39]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2820,7 +3024,7 @@ func (x *SetGitHubTokenRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetGitHubTokenRequest.ProtoReflect.Descriptor instead.
 func (*SetGitHubTokenRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{39}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *SetGitHubTokenRequest) GetToken() string {
@@ -2852,7 +3056,7 @@ type CopilotLoginChallenge struct {
 
 func (x *CopilotLoginChallenge) Reset() {
 	*x = CopilotLoginChallenge{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[40]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2864,7 +3068,7 @@ func (x *CopilotLoginChallenge) String() string {
 func (*CopilotLoginChallenge) ProtoMessage() {}
 
 func (x *CopilotLoginChallenge) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[40]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2877,7 +3081,7 @@ func (x *CopilotLoginChallenge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CopilotLoginChallenge.ProtoReflect.Descriptor instead.
 func (*CopilotLoginChallenge) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{40}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *CopilotLoginChallenge) GetUserCode() string {
@@ -2912,7 +3116,7 @@ type CopilotLoginSessionInfo struct {
 
 func (x *CopilotLoginSessionInfo) Reset() {
 	*x = CopilotLoginSessionInfo{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[41]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2924,7 +3128,7 @@ func (x *CopilotLoginSessionInfo) String() string {
 func (*CopilotLoginSessionInfo) ProtoMessage() {}
 
 func (x *CopilotLoginSessionInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[41]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2937,7 +3141,7 @@ func (x *CopilotLoginSessionInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CopilotLoginSessionInfo.ProtoReflect.Descriptor instead.
 func (*CopilotLoginSessionInfo) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{41}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *CopilotLoginSessionInfo) GetState() CopilotLoginSessionState {
@@ -2966,7 +3170,7 @@ type GitHubTokenEntry struct {
 
 func (x *GitHubTokenEntry) Reset() {
 	*x = GitHubTokenEntry{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[42]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2978,7 +3182,7 @@ func (x *GitHubTokenEntry) String() string {
 func (*GitHubTokenEntry) ProtoMessage() {}
 
 func (x *GitHubTokenEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[42]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2991,7 +3195,7 @@ func (x *GitHubTokenEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitHubTokenEntry.ProtoReflect.Descriptor instead.
 func (*GitHubTokenEntry) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{42}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *GitHubTokenEntry) GetLabel() string {
@@ -3020,7 +3224,7 @@ type ListGitHubTokensResponse struct {
 
 func (x *ListGitHubTokensResponse) Reset() {
 	*x = ListGitHubTokensResponse{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[43]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3032,7 +3236,7 @@ func (x *ListGitHubTokensResponse) String() string {
 func (*ListGitHubTokensResponse) ProtoMessage() {}
 
 func (x *ListGitHubTokensResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[43]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3045,7 +3249,7 @@ func (x *ListGitHubTokensResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGitHubTokensResponse.ProtoReflect.Descriptor instead.
 func (*ListGitHubTokensResponse) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{43}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *ListGitHubTokensResponse) GetTokens() []*GitHubTokenEntry {
@@ -3073,7 +3277,7 @@ type AddGitHubTokenRequest struct {
 
 func (x *AddGitHubTokenRequest) Reset() {
 	*x = AddGitHubTokenRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[44]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3085,7 +3289,7 @@ func (x *AddGitHubTokenRequest) String() string {
 func (*AddGitHubTokenRequest) ProtoMessage() {}
 
 func (x *AddGitHubTokenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[44]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3098,7 +3302,7 @@ func (x *AddGitHubTokenRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddGitHubTokenRequest.ProtoReflect.Descriptor instead.
 func (*AddGitHubTokenRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{44}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *AddGitHubTokenRequest) GetLabel() string {
@@ -3131,7 +3335,7 @@ type GitHubTokenLabelRequest struct {
 
 func (x *GitHubTokenLabelRequest) Reset() {
 	*x = GitHubTokenLabelRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[45]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3143,7 +3347,7 @@ func (x *GitHubTokenLabelRequest) String() string {
 func (*GitHubTokenLabelRequest) ProtoMessage() {}
 
 func (x *GitHubTokenLabelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[45]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3156,12 +3360,162 @@ func (x *GitHubTokenLabelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitHubTokenLabelRequest.ProtoReflect.Descriptor instead.
 func (*GitHubTokenLabelRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{45}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *GitHubTokenLabelRequest) GetLabel() string {
 	if x != nil {
 		return x.Label
+	}
+	return ""
+}
+
+// CopilotQuotaInfo carries every quota snapshot the SDK's account.getQuota
+// RPC returns, keyed by quota type ("premium_interactions", "chat",
+// "completions", …). The UI surfaces whichever key it finds interesting —
+// "premium_interactions" is the headline number for the account-card panel.
+type CopilotQuotaInfo struct {
+	state         protoimpl.MessageState           `protogen:"open.v1"`
+	Snapshots     map[string]*CopilotQuotaSnapshot `protobuf:"bytes,1,rep,name=snapshots,proto3" json:"snapshots,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CopilotQuotaInfo) Reset() {
+	*x = CopilotQuotaInfo{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[48]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CopilotQuotaInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CopilotQuotaInfo) ProtoMessage() {}
+
+func (x *CopilotQuotaInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[48]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CopilotQuotaInfo.ProtoReflect.Descriptor instead.
+func (*CopilotQuotaInfo) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{48}
+}
+
+func (x *CopilotQuotaInfo) GetSnapshots() map[string]*CopilotQuotaSnapshot {
+	if x != nil {
+		return x.Snapshots
+	}
+	return nil
+}
+
+// CopilotQuotaSnapshot mirrors SDK rpc.QuotaSnapshot. All counts are
+// "number of requests" (not tokens); billing multiplier is applied upstream
+// in the Copilot CLI before snapshots are exposed, so one used_requests
+// unit equals one premium-request charge on the user's plan.
+type CopilotQuotaSnapshot struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Number of premium requests included in the user's plan for the current
+	// billing period.
+	EntitlementRequests float64 `protobuf:"fixed64,1,opt,name=entitlement_requests,json=entitlementRequests,proto3" json:"entitlement_requests,omitempty"`
+	// Number of premium requests already consumed this billing period.
+	UsedRequests float64 `protobuf:"fixed64,2,opt,name=used_requests,json=usedRequests,proto3" json:"used_requests,omitempty"`
+	// Percentage of entitlement remaining, on a 0-100 scale. The SDK
+	// supplies this directly; clients should prefer it over dividing
+	// used/entitlement to match the server's rounding rules. Note: the
+	// upstream SDK doc comment claims "0.0 to 1.0" but empirically the
+	// Copilot CLI returns 0-100 (verified against CLI 1.0.21 / SDK v0.2.2).
+	RemainingPercentage float64 `protobuf:"fixed64,3,opt,name=remaining_percentage,json=remainingPercentage,proto3" json:"remaining_percentage,omitempty"`
+	// Requests charged against pay-per-request overage after the entitlement
+	// was exhausted. Zero for users who haven't exceeded their plan.
+	Overage float64 `protobuf:"fixed64,4,opt,name=overage,proto3" json:"overage,omitempty"`
+	// When true, the account is configured to keep serving requests beyond
+	// the entitlement (billing the user for each) instead of hard-stopping.
+	OverageAllowedWithExhaustedQuota bool `protobuf:"varint,5,opt,name=overage_allowed_with_exhausted_quota,json=overageAllowedWithExhaustedQuota,proto3" json:"overage_allowed_with_exhausted_quota,omitempty"`
+	// ISO-8601 timestamp of the next quota reset, or empty when the SDK did
+	// not provide one (e.g. unmetered plans).
+	ResetDate     string `protobuf:"bytes,6,opt,name=reset_date,json=resetDate,proto3" json:"reset_date,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CopilotQuotaSnapshot) Reset() {
+	*x = CopilotQuotaSnapshot{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[49]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CopilotQuotaSnapshot) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CopilotQuotaSnapshot) ProtoMessage() {}
+
+func (x *CopilotQuotaSnapshot) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[49]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CopilotQuotaSnapshot.ProtoReflect.Descriptor instead.
+func (*CopilotQuotaSnapshot) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{49}
+}
+
+func (x *CopilotQuotaSnapshot) GetEntitlementRequests() float64 {
+	if x != nil {
+		return x.EntitlementRequests
+	}
+	return 0
+}
+
+func (x *CopilotQuotaSnapshot) GetUsedRequests() float64 {
+	if x != nil {
+		return x.UsedRequests
+	}
+	return 0
+}
+
+func (x *CopilotQuotaSnapshot) GetRemainingPercentage() float64 {
+	if x != nil {
+		return x.RemainingPercentage
+	}
+	return 0
+}
+
+func (x *CopilotQuotaSnapshot) GetOverage() float64 {
+	if x != nil {
+		return x.Overage
+	}
+	return 0
+}
+
+func (x *CopilotQuotaSnapshot) GetOverageAllowedWithExhaustedQuota() bool {
+	if x != nil {
+		return x.OverageAllowedWithExhaustedQuota
+	}
+	return false
+}
+
+func (x *CopilotQuotaSnapshot) GetResetDate() string {
+	if x != nil {
+		return x.ResetDate
 	}
 	return ""
 }
@@ -3193,7 +3547,7 @@ type GitHubAccountInfo struct {
 
 func (x *GitHubAccountInfo) Reset() {
 	*x = GitHubAccountInfo{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[46]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3205,7 +3559,7 @@ func (x *GitHubAccountInfo) String() string {
 func (*GitHubAccountInfo) ProtoMessage() {}
 
 func (x *GitHubAccountInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[46]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3218,7 +3572,7 @@ func (x *GitHubAccountInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitHubAccountInfo.ProtoReflect.Descriptor instead.
 func (*GitHubAccountInfo) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{46}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *GitHubAccountInfo) GetLogin() string {
@@ -3308,7 +3662,7 @@ type ModelInfo struct {
 
 func (x *ModelInfo) Reset() {
 	*x = ModelInfo{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[47]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3320,7 +3674,7 @@ func (x *ModelInfo) String() string {
 func (*ModelInfo) ProtoMessage() {}
 
 func (x *ModelInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[47]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3333,7 +3687,7 @@ func (x *ModelInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ModelInfo.ProtoReflect.Descriptor instead.
 func (*ModelInfo) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{47}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *ModelInfo) GetId() string {
@@ -3369,7 +3723,7 @@ type ListModelsResponse struct {
 
 func (x *ListModelsResponse) Reset() {
 	*x = ListModelsResponse{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[48]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3381,7 +3735,7 @@ func (x *ListModelsResponse) String() string {
 func (*ListModelsResponse) ProtoMessage() {}
 
 func (x *ListModelsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[48]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3394,7 +3748,7 @@ func (x *ListModelsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListModelsResponse.ProtoReflect.Descriptor instead.
 func (*ListModelsResponse) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{48}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *ListModelsResponse) GetModels() []*ModelInfo {
@@ -3427,7 +3781,7 @@ type WorktreeEntry struct {
 
 func (x *WorktreeEntry) Reset() {
 	*x = WorktreeEntry{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[49]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3439,7 +3793,7 @@ func (x *WorktreeEntry) String() string {
 func (*WorktreeEntry) ProtoMessage() {}
 
 func (x *WorktreeEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[49]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3452,7 +3806,7 @@ func (x *WorktreeEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorktreeEntry.ProtoReflect.Descriptor instead.
 func (*WorktreeEntry) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{49}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *WorktreeEntry) GetRepositoryId() string {
@@ -3527,7 +3881,7 @@ type ListWorktreesResponse struct {
 
 func (x *ListWorktreesResponse) Reset() {
 	*x = ListWorktreesResponse{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[50]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3539,7 +3893,7 @@ func (x *ListWorktreesResponse) String() string {
 func (*ListWorktreesResponse) ProtoMessage() {}
 
 func (x *ListWorktreesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[50]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3552,7 +3906,7 @@ func (x *ListWorktreesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListWorktreesResponse.ProtoReflect.Descriptor instead.
 func (*ListWorktreesResponse) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{50}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *ListWorktreesResponse) GetWorktrees() []*WorktreeEntry {
@@ -3575,7 +3929,7 @@ type RemoveWorktreeRequest struct {
 
 func (x *RemoveWorktreeRequest) Reset() {
 	*x = RemoveWorktreeRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[51]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3587,7 +3941,7 @@ func (x *RemoveWorktreeRequest) String() string {
 func (*RemoveWorktreeRequest) ProtoMessage() {}
 
 func (x *RemoveWorktreeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[51]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3600,7 +3954,7 @@ func (x *RemoveWorktreeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveWorktreeRequest.ProtoReflect.Descriptor instead.
 func (*RemoveWorktreeRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{51}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *RemoveWorktreeRequest) GetRepositoryId() string {
@@ -3652,7 +4006,7 @@ type ContextNode struct {
 
 func (x *ContextNode) Reset() {
 	*x = ContextNode{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[52]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3664,7 +4018,7 @@ func (x *ContextNode) String() string {
 func (*ContextNode) ProtoMessage() {}
 
 func (x *ContextNode) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[52]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3677,7 +4031,7 @@ func (x *ContextNode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContextNode.ProtoReflect.Descriptor instead.
 func (*ContextNode) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{52}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *ContextNode) GetId() string {
@@ -3787,7 +4141,7 @@ type ContextEdge struct {
 
 func (x *ContextEdge) Reset() {
 	*x = ContextEdge{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[53]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3799,7 +4153,7 @@ func (x *ContextEdge) String() string {
 func (*ContextEdge) ProtoMessage() {}
 
 func (x *ContextEdge) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[53]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3812,7 +4166,7 @@ func (x *ContextEdge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContextEdge.ProtoReflect.Descriptor instead.
 func (*ContextEdge) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{53}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *ContextEdge) GetId() string {
@@ -3886,7 +4240,7 @@ type ContextFact struct {
 
 func (x *ContextFact) Reset() {
 	*x = ContextFact{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[54]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3898,7 +4252,7 @@ func (x *ContextFact) String() string {
 func (*ContextFact) ProtoMessage() {}
 
 func (x *ContextFact) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[54]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3911,7 +4265,7 @@ func (x *ContextFact) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContextFact.ProtoReflect.Descriptor instead.
 func (*ContextFact) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{54}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *ContextFact) GetId() string {
@@ -3998,7 +4352,7 @@ type ContextNodeDetail struct {
 
 func (x *ContextNodeDetail) Reset() {
 	*x = ContextNodeDetail{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[55]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4010,7 +4364,7 @@ func (x *ContextNodeDetail) String() string {
 func (*ContextNodeDetail) ProtoMessage() {}
 
 func (x *ContextNodeDetail) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[55]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4023,7 +4377,7 @@ func (x *ContextNodeDetail) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContextNodeDetail.ProtoReflect.Descriptor instead.
 func (*ContextNodeDetail) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{55}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *ContextNodeDetail) GetNode() *ContextNode {
@@ -4106,7 +4460,7 @@ type ContextOverview struct {
 
 func (x *ContextOverview) Reset() {
 	*x = ContextOverview{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[56]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4118,7 +4472,7 @@ func (x *ContextOverview) String() string {
 func (*ContextOverview) ProtoMessage() {}
 
 func (x *ContextOverview) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[56]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4131,7 +4485,7 @@ func (x *ContextOverview) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContextOverview.ProtoReflect.Descriptor instead.
 func (*ContextOverview) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{56}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *ContextOverview) GetRepoId() string {
@@ -4234,7 +4588,7 @@ type RepoIdRequest struct {
 
 func (x *RepoIdRequest) Reset() {
 	*x = RepoIdRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[57]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4246,7 +4600,7 @@ func (x *RepoIdRequest) String() string {
 func (*RepoIdRequest) ProtoMessage() {}
 
 func (x *RepoIdRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[57]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4259,7 +4613,7 @@ func (x *RepoIdRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RepoIdRequest.ProtoReflect.Descriptor instead.
 func (*RepoIdRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{57}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *RepoIdRequest) GetRepoId() string {
@@ -4278,7 +4632,7 @@ type NodeIdRequest struct {
 
 func (x *NodeIdRequest) Reset() {
 	*x = NodeIdRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[58]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4290,7 +4644,7 @@ func (x *NodeIdRequest) String() string {
 func (*NodeIdRequest) ProtoMessage() {}
 
 func (x *NodeIdRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[58]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4303,7 +4657,7 @@ func (x *NodeIdRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeIdRequest.ProtoReflect.Descriptor instead.
 func (*NodeIdRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{58}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *NodeIdRequest) GetNodeId() string {
@@ -4322,7 +4676,7 @@ type EdgeIdRequest struct {
 
 func (x *EdgeIdRequest) Reset() {
 	*x = EdgeIdRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[59]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4334,7 +4688,7 @@ func (x *EdgeIdRequest) String() string {
 func (*EdgeIdRequest) ProtoMessage() {}
 
 func (x *EdgeIdRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[59]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4347,7 +4701,7 @@ func (x *EdgeIdRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EdgeIdRequest.ProtoReflect.Descriptor instead.
 func (*EdgeIdRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{59}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *EdgeIdRequest) GetEdgeId() string {
@@ -4366,7 +4720,7 @@ type EntryIdRequest struct {
 
 func (x *EntryIdRequest) Reset() {
 	*x = EntryIdRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[60]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4378,7 +4732,7 @@ func (x *EntryIdRequest) String() string {
 func (*EntryIdRequest) ProtoMessage() {}
 
 func (x *EntryIdRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[60]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4391,7 +4745,7 @@ func (x *EntryIdRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EntryIdRequest.ProtoReflect.Descriptor instead.
 func (*EntryIdRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{60}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *EntryIdRequest) GetEntryId() string {
@@ -4424,7 +4778,7 @@ type SearchContextRequest struct {
 
 func (x *SearchContextRequest) Reset() {
 	*x = SearchContextRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[61]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4436,7 +4790,7 @@ func (x *SearchContextRequest) String() string {
 func (*SearchContextRequest) ProtoMessage() {}
 
 func (x *SearchContextRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[61]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4449,7 +4803,7 @@ func (x *SearchContextRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchContextRequest.ProtoReflect.Descriptor instead.
 func (*SearchContextRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{61}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *SearchContextRequest) GetRepoId() string {
@@ -4514,7 +4868,7 @@ type SearchHit struct {
 
 func (x *SearchHit) Reset() {
 	*x = SearchHit{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[62]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4526,7 +4880,7 @@ func (x *SearchHit) String() string {
 func (*SearchHit) ProtoMessage() {}
 
 func (x *SearchHit) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[62]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4539,7 +4893,7 @@ func (x *SearchHit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchHit.ProtoReflect.Descriptor instead.
 func (*SearchHit) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{62}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *SearchHit) GetNode() *ContextNode {
@@ -4591,7 +4945,7 @@ type SearchContextResponse struct {
 
 func (x *SearchContextResponse) Reset() {
 	*x = SearchContextResponse{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[63]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4603,7 +4957,7 @@ func (x *SearchContextResponse) String() string {
 func (*SearchContextResponse) ProtoMessage() {}
 
 func (x *SearchContextResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[63]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4616,7 +4970,7 @@ func (x *SearchContextResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchContextResponse.ProtoReflect.Descriptor instead.
 func (*SearchContextResponse) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{63}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *SearchContextResponse) GetChannels() map[string]*SearchHitList {
@@ -4642,7 +4996,7 @@ type SearchHitList struct {
 
 func (x *SearchHitList) Reset() {
 	*x = SearchHitList{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[64]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4654,7 +5008,7 @@ func (x *SearchHitList) String() string {
 func (*SearchHitList) ProtoMessage() {}
 
 func (x *SearchHitList) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[64]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4667,7 +5021,7 @@ func (x *SearchHitList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchHitList.ProtoReflect.Descriptor instead.
 func (*SearchHitList) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{64}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *SearchHitList) GetHits() []*SearchHit {
@@ -4703,7 +5057,7 @@ type ListNodesRequest struct {
 
 func (x *ListNodesRequest) Reset() {
 	*x = ListNodesRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[65]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4715,7 +5069,7 @@ func (x *ListNodesRequest) String() string {
 func (*ListNodesRequest) ProtoMessage() {}
 
 func (x *ListNodesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[65]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4728,7 +5082,7 @@ func (x *ListNodesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListNodesRequest.ProtoReflect.Descriptor instead.
 func (*ListNodesRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{65}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *ListNodesRequest) GetRepoId() string {
@@ -4804,7 +5158,7 @@ type ListNodesResponse struct {
 
 func (x *ListNodesResponse) Reset() {
 	*x = ListNodesResponse{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[66]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4816,7 +5170,7 @@ func (x *ListNodesResponse) String() string {
 func (*ListNodesResponse) ProtoMessage() {}
 
 func (x *ListNodesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[66]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4829,7 +5183,7 @@ func (x *ListNodesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListNodesResponse.ProtoReflect.Descriptor instead.
 func (*ListNodesResponse) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{66}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *ListNodesResponse) GetNodes() []*ContextNode {
@@ -4864,7 +5218,7 @@ type CreateNodeRequest struct {
 
 func (x *CreateNodeRequest) Reset() {
 	*x = CreateNodeRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[67]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4876,7 +5230,7 @@ func (x *CreateNodeRequest) String() string {
 func (*CreateNodeRequest) ProtoMessage() {}
 
 func (x *CreateNodeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[67]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4889,7 +5243,7 @@ func (x *CreateNodeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateNodeRequest.ProtoReflect.Descriptor instead.
 func (*CreateNodeRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{67}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *CreateNodeRequest) GetRepoId() string {
@@ -4961,7 +5315,7 @@ type UpdateNodeRequest struct {
 
 func (x *UpdateNodeRequest) Reset() {
 	*x = UpdateNodeRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[68]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4973,7 +5327,7 @@ func (x *UpdateNodeRequest) String() string {
 func (*UpdateNodeRequest) ProtoMessage() {}
 
 func (x *UpdateNodeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[68]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4986,7 +5340,7 @@ func (x *UpdateNodeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateNodeRequest.ProtoReflect.Descriptor instead.
 func (*UpdateNodeRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{68}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *UpdateNodeRequest) GetNodeId() string {
@@ -5048,7 +5402,7 @@ type PinNodeRequest struct {
 
 func (x *PinNodeRequest) Reset() {
 	*x = PinNodeRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[69]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5060,7 +5414,7 @@ func (x *PinNodeRequest) String() string {
 func (*PinNodeRequest) ProtoMessage() {}
 
 func (x *PinNodeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[69]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5073,7 +5427,7 @@ func (x *PinNodeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PinNodeRequest.ProtoReflect.Descriptor instead.
 func (*PinNodeRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{69}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *PinNodeRequest) GetNodeId() string {
@@ -5105,7 +5459,7 @@ type ListEdgesRequest struct {
 
 func (x *ListEdgesRequest) Reset() {
 	*x = ListEdgesRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[70]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5117,7 +5471,7 @@ func (x *ListEdgesRequest) String() string {
 func (*ListEdgesRequest) ProtoMessage() {}
 
 func (x *ListEdgesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[70]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5130,7 +5484,7 @@ func (x *ListEdgesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListEdgesRequest.ProtoReflect.Descriptor instead.
 func (*ListEdgesRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{70}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *ListEdgesRequest) GetRepoId() string {
@@ -5178,7 +5532,7 @@ type ListEdgesResponse struct {
 
 func (x *ListEdgesResponse) Reset() {
 	*x = ListEdgesResponse{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[71]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5190,7 +5544,7 @@ func (x *ListEdgesResponse) String() string {
 func (*ListEdgesResponse) ProtoMessage() {}
 
 func (x *ListEdgesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[71]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5203,7 +5557,7 @@ func (x *ListEdgesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListEdgesResponse.ProtoReflect.Descriptor instead.
 func (*ListEdgesResponse) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{71}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *ListEdgesResponse) GetEdges() []*ContextEdge {
@@ -5233,7 +5587,7 @@ type CreateEdgeRequest struct {
 
 func (x *CreateEdgeRequest) Reset() {
 	*x = CreateEdgeRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[72]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5245,7 +5599,7 @@ func (x *CreateEdgeRequest) String() string {
 func (*CreateEdgeRequest) ProtoMessage() {}
 
 func (x *CreateEdgeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[72]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5258,7 +5612,7 @@ func (x *CreateEdgeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateEdgeRequest.ProtoReflect.Descriptor instead.
 func (*CreateEdgeRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{72}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *CreateEdgeRequest) GetRepoId() string {
@@ -5312,7 +5666,7 @@ type ListFactsRequest struct {
 
 func (x *ListFactsRequest) Reset() {
 	*x = ListFactsRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[73]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5324,7 +5678,7 @@ func (x *ListFactsRequest) String() string {
 func (*ListFactsRequest) ProtoMessage() {}
 
 func (x *ListFactsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[73]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5337,7 +5691,7 @@ func (x *ListFactsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListFactsRequest.ProtoReflect.Descriptor instead.
 func (*ListFactsRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{73}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *ListFactsRequest) GetRepoId() string {
@@ -5385,7 +5739,7 @@ type ListFactsResponse struct {
 
 func (x *ListFactsResponse) Reset() {
 	*x = ListFactsResponse{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[74]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5397,7 +5751,7 @@ func (x *ListFactsResponse) String() string {
 func (*ListFactsResponse) ProtoMessage() {}
 
 func (x *ListFactsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[74]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5410,7 +5764,7 @@ func (x *ListFactsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListFactsResponse.ProtoReflect.Descriptor instead.
 func (*ListFactsResponse) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{74}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *ListFactsResponse) GetFacts() []*ContextFact {
@@ -5445,7 +5799,7 @@ type InjectionSource struct {
 
 func (x *InjectionSource) Reset() {
 	*x = InjectionSource{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[75]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5457,7 +5811,7 @@ func (x *InjectionSource) String() string {
 func (*InjectionSource) ProtoMessage() {}
 
 func (x *InjectionSource) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[75]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5470,7 +5824,7 @@ func (x *InjectionSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InjectionSource.ProtoReflect.Descriptor instead.
 func (*InjectionSource) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{75}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{79}
 }
 
 func (x *InjectionSource) GetSourceType() string {
@@ -5534,7 +5888,7 @@ type InjectionPreview struct {
 
 func (x *InjectionPreview) Reset() {
 	*x = InjectionPreview{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[76]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5546,7 +5900,7 @@ func (x *InjectionPreview) String() string {
 func (*InjectionPreview) ProtoMessage() {}
 
 func (x *InjectionPreview) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[76]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5559,7 +5913,7 @@ func (x *InjectionPreview) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InjectionPreview.ProtoReflect.Descriptor instead.
 func (*InjectionPreview) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{76}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *InjectionPreview) GetSystemPrompt() string {
@@ -5606,7 +5960,7 @@ type PreviewInjectionRequest struct {
 
 func (x *PreviewInjectionRequest) Reset() {
 	*x = PreviewInjectionRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[77]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5618,7 +5972,7 @@ func (x *PreviewInjectionRequest) String() string {
 func (*PreviewInjectionRequest) ProtoMessage() {}
 
 func (x *PreviewInjectionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[77]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5631,7 +5985,7 @@ func (x *PreviewInjectionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PreviewInjectionRequest.ProtoReflect.Descriptor instead.
 func (*PreviewInjectionRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{77}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *PreviewInjectionRequest) GetRepoId() string {
@@ -5672,7 +6026,7 @@ type RebuildEmbeddingsResponse struct {
 
 func (x *RebuildEmbeddingsResponse) Reset() {
 	*x = RebuildEmbeddingsResponse{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[78]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5684,7 +6038,7 @@ func (x *RebuildEmbeddingsResponse) String() string {
 func (*RebuildEmbeddingsResponse) ProtoMessage() {}
 
 func (x *RebuildEmbeddingsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[78]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5697,7 +6051,7 @@ func (x *RebuildEmbeddingsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RebuildEmbeddingsResponse.ProtoReflect.Descriptor instead.
 func (*RebuildEmbeddingsResponse) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{78}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{82}
 }
 
 func (x *RebuildEmbeddingsResponse) GetRebuilt() int32 {
@@ -5726,7 +6080,7 @@ type RebuildCodeGraphResponse struct {
 
 func (x *RebuildCodeGraphResponse) Reset() {
 	*x = RebuildCodeGraphResponse{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[79]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5738,7 +6092,7 @@ func (x *RebuildCodeGraphResponse) String() string {
 func (*RebuildCodeGraphResponse) ProtoMessage() {}
 
 func (x *RebuildCodeGraphResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[79]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5751,7 +6105,7 @@ func (x *RebuildCodeGraphResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RebuildCodeGraphResponse.ProtoReflect.Descriptor instead.
 func (*RebuildCodeGraphResponse) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{79}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{83}
 }
 
 func (x *RebuildCodeGraphResponse) GetFilesScanned() int32 {
@@ -5798,7 +6152,7 @@ type AnalyzeRepoRequest struct {
 
 func (x *AnalyzeRepoRequest) Reset() {
 	*x = AnalyzeRepoRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[80]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5810,7 +6164,7 @@ func (x *AnalyzeRepoRequest) String() string {
 func (*AnalyzeRepoRequest) ProtoMessage() {}
 
 func (x *AnalyzeRepoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[80]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5823,7 +6177,7 @@ func (x *AnalyzeRepoRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AnalyzeRepoRequest.ProtoReflect.Descriptor instead.
 func (*AnalyzeRepoRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{80}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *AnalyzeRepoRequest) GetRepoId() string {
@@ -5874,7 +6228,7 @@ type MemorySettings struct {
 
 func (x *MemorySettings) Reset() {
 	*x = MemorySettings{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[81]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5886,7 +6240,7 @@ func (x *MemorySettings) String() string {
 func (*MemorySettings) ProtoMessage() {}
 
 func (x *MemorySettings) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[81]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5899,7 +6253,7 @@ func (x *MemorySettings) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MemorySettings.ProtoReflect.Descriptor instead.
 func (*MemorySettings) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{81}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{85}
 }
 
 func (x *MemorySettings) GetRepoId() string {
@@ -5998,7 +6352,7 @@ type UpdateMemorySettingsRequest struct {
 
 func (x *UpdateMemorySettingsRequest) Reset() {
 	*x = UpdateMemorySettingsRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[82]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6010,7 +6364,7 @@ func (x *UpdateMemorySettingsRequest) String() string {
 func (*UpdateMemorySettingsRequest) ProtoMessage() {}
 
 func (x *UpdateMemorySettingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[82]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6023,12 +6377,369 @@ func (x *UpdateMemorySettingsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateMemorySettingsRequest.ProtoReflect.Descriptor instead.
 func (*UpdateMemorySettingsRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{82}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{86}
 }
 
 func (x *UpdateMemorySettingsRequest) GetSettings() *MemorySettings {
 	if x != nil {
 		return x.Settings
+	}
+	return nil
+}
+
+// MemoryHealth is the lightweight snapshot returned by GetMemoryHealth.
+// Purpose-built for polling: no expensive aggregates (counts by kind,
+// scratchpad buckets) — those live on ContextOverview.
+type MemoryHealth struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Enabled           bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	ProviderReachable bool                   `protobuf:"varint,2,opt,name=provider_reachable,json=providerReachable,proto3" json:"provider_reachable,omitempty"`
+	VectorCount       int32                  `protobuf:"varint,3,opt,name=vector_count,json=vectorCount,proto3" json:"vector_count,omitempty"`
+	LastRebuildAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=last_rebuild_at,json=lastRebuildAt,proto3" json:"last_rebuild_at,omitempty"`
+	// Human-readable error from the last provider build or reachability
+	// probe. Empty when healthy. Rendered verbatim in the Settings panel.
+	LastError     string `protobuf:"bytes,5,opt,name=last_error,json=lastError,proto3" json:"last_error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MemoryHealth) Reset() {
+	*x = MemoryHealth{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[87]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MemoryHealth) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MemoryHealth) ProtoMessage() {}
+
+func (x *MemoryHealth) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[87]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MemoryHealth.ProtoReflect.Descriptor instead.
+func (*MemoryHealth) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{87}
+}
+
+func (x *MemoryHealth) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *MemoryHealth) GetProviderReachable() bool {
+	if x != nil {
+		return x.ProviderReachable
+	}
+	return false
+}
+
+func (x *MemoryHealth) GetVectorCount() int32 {
+	if x != nil {
+		return x.VectorCount
+	}
+	return 0
+}
+
+func (x *MemoryHealth) GetLastRebuildAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastRebuildAt
+	}
+	return nil
+}
+
+func (x *MemoryHealth) GetLastError() string {
+	if x != nil {
+		return x.LastError
+	}
+	return ""
+}
+
+type SuggestForNewTaskRequest struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	RepoId    string                 `protobuf:"bytes,1,opt,name=repo_id,json=repoId,proto3" json:"repo_id,omitempty"`
+	DraftGoal string                 `protobuf:"bytes,2,opt,name=draft_goal,json=draftGoal,proto3" json:"draft_goal,omitempty"`
+	// Per-bucket cap. Defaults to 5 when unset. The server pulls 3x this
+	// from the fused channel so each bucket has headroom.
+	Limit         int32 `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SuggestForNewTaskRequest) Reset() {
+	*x = SuggestForNewTaskRequest{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[88]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SuggestForNewTaskRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SuggestForNewTaskRequest) ProtoMessage() {}
+
+func (x *SuggestForNewTaskRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[88]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SuggestForNewTaskRequest.ProtoReflect.Descriptor instead.
+func (*SuggestForNewTaskRequest) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{88}
+}
+
+func (x *SuggestForNewTaskRequest) GetRepoId() string {
+	if x != nil {
+		return x.RepoId
+	}
+	return ""
+}
+
+func (x *SuggestForNewTaskRequest) GetDraftGoal() string {
+	if x != nil {
+		return x.DraftGoal
+	}
+	return ""
+}
+
+func (x *SuggestForNewTaskRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type TaskSuggestion struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	NodeId    string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	Label     string                 `protobuf:"bytes,2,opt,name=label,proto3" json:"label,omitempty"`
+	SummaryMd string                 `protobuf:"bytes,3,opt,name=summary_md,json=summaryMd,proto3" json:"summary_md,omitempty"`
+	Score     float32                `protobuf:"fixed32,4,opt,name=score,proto3" json:"score,omitempty"`
+	// Original task ID — UI uses this to deep-link back to the Kanban row.
+	SourceTaskId  string `protobuf:"bytes,5,opt,name=source_task_id,json=sourceTaskId,proto3" json:"source_task_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TaskSuggestion) Reset() {
+	*x = TaskSuggestion{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[89]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TaskSuggestion) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TaskSuggestion) ProtoMessage() {}
+
+func (x *TaskSuggestion) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[89]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TaskSuggestion.ProtoReflect.Descriptor instead.
+func (*TaskSuggestion) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{89}
+}
+
+func (x *TaskSuggestion) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *TaskSuggestion) GetLabel() string {
+	if x != nil {
+		return x.Label
+	}
+	return ""
+}
+
+func (x *TaskSuggestion) GetSummaryMd() string {
+	if x != nil {
+		return x.SummaryMd
+	}
+	return ""
+}
+
+func (x *TaskSuggestion) GetScore() float32 {
+	if x != nil {
+		return x.Score
+	}
+	return 0
+}
+
+func (x *TaskSuggestion) GetSourceTaskId() string {
+	if x != nil {
+		return x.SourceTaskId
+	}
+	return ""
+}
+
+type ContextNodeSummary struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	NodeId string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	// Decision | Constraint (filtered server-side to those two kinds).
+	Kind          string  `protobuf:"bytes,2,opt,name=kind,proto3" json:"kind,omitempty"`
+	Label         string  `protobuf:"bytes,3,opt,name=label,proto3" json:"label,omitempty"`
+	ContentMd     string  `protobuf:"bytes,4,opt,name=content_md,json=contentMd,proto3" json:"content_md,omitempty"`
+	Score         float32 `protobuf:"fixed32,5,opt,name=score,proto3" json:"score,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ContextNodeSummary) Reset() {
+	*x = ContextNodeSummary{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[90]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ContextNodeSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContextNodeSummary) ProtoMessage() {}
+
+func (x *ContextNodeSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[90]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContextNodeSummary.ProtoReflect.Descriptor instead.
+func (*ContextNodeSummary) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{90}
+}
+
+func (x *ContextNodeSummary) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *ContextNodeSummary) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *ContextNodeSummary) GetLabel() string {
+	if x != nil {
+		return x.Label
+	}
+	return ""
+}
+
+func (x *ContextNodeSummary) GetContentMd() string {
+	if x != nil {
+		return x.ContentMd
+	}
+	return ""
+}
+
+func (x *ContextNodeSummary) GetScore() float32 {
+	if x != nil {
+		return x.Score
+	}
+	return 0
+}
+
+type SuggestForNewTaskResponse struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	SimilarTasks       []*TaskSuggestion      `protobuf:"bytes,1,rep,name=similar_tasks,json=similarTasks,proto3" json:"similar_tasks,omitempty"`
+	RelatedDecisions   []*ContextNodeSummary  `protobuf:"bytes,2,rep,name=related_decisions,json=relatedDecisions,proto3" json:"related_decisions,omitempty"`
+	RelatedConstraints []*ContextNodeSummary  `protobuf:"bytes,3,rep,name=related_constraints,json=relatedConstraints,proto3" json:"related_constraints,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *SuggestForNewTaskResponse) Reset() {
+	*x = SuggestForNewTaskResponse{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[91]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SuggestForNewTaskResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SuggestForNewTaskResponse) ProtoMessage() {}
+
+func (x *SuggestForNewTaskResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[91]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SuggestForNewTaskResponse.ProtoReflect.Descriptor instead.
+func (*SuggestForNewTaskResponse) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{91}
+}
+
+func (x *SuggestForNewTaskResponse) GetSimilarTasks() []*TaskSuggestion {
+	if x != nil {
+		return x.SimilarTasks
+	}
+	return nil
+}
+
+func (x *SuggestForNewTaskResponse) GetRelatedDecisions() []*ContextNodeSummary {
+	if x != nil {
+		return x.RelatedDecisions
+	}
+	return nil
+}
+
+func (x *SuggestForNewTaskResponse) GetRelatedConstraints() []*ContextNodeSummary {
+	if x != nil {
+		return x.RelatedConstraints
 	}
 	return nil
 }
@@ -6046,7 +6757,7 @@ type WatchContextRequest struct {
 
 func (x *WatchContextRequest) Reset() {
 	*x = WatchContextRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[83]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[92]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6058,7 +6769,7 @@ func (x *WatchContextRequest) String() string {
 func (*WatchContextRequest) ProtoMessage() {}
 
 func (x *WatchContextRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[83]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[92]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6071,7 +6782,7 @@ func (x *WatchContextRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchContextRequest.ProtoReflect.Descriptor instead.
 func (*WatchContextRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{83}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{92}
 }
 
 func (x *WatchContextRequest) GetRepoId() string {
@@ -6106,7 +6817,7 @@ type ContextChangeEvent struct {
 
 func (x *ContextChangeEvent) Reset() {
 	*x = ContextChangeEvent{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[84]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[93]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6118,7 +6829,7 @@ func (x *ContextChangeEvent) String() string {
 func (*ContextChangeEvent) ProtoMessage() {}
 
 func (x *ContextChangeEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[84]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[93]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6131,7 +6842,7 @@ func (x *ContextChangeEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContextChangeEvent.ProtoReflect.Descriptor instead.
 func (*ContextChangeEvent) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{84}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *ContextChangeEvent) GetSeq() int64 {
@@ -6211,7 +6922,7 @@ type ScratchpadEntry struct {
 
 func (x *ScratchpadEntry) Reset() {
 	*x = ScratchpadEntry{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[85]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[94]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6223,7 +6934,7 @@ func (x *ScratchpadEntry) String() string {
 func (*ScratchpadEntry) ProtoMessage() {}
 
 func (x *ScratchpadEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[85]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[94]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6236,7 +6947,7 @@ func (x *ScratchpadEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScratchpadEntry.ProtoReflect.Descriptor instead.
 func (*ScratchpadEntry) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{85}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{94}
 }
 
 func (x *ScratchpadEntry) GetId() string {
@@ -6343,7 +7054,7 @@ type ListPendingRequest struct {
 
 func (x *ListPendingRequest) Reset() {
 	*x = ListPendingRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[86]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[95]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6355,7 +7066,7 @@ func (x *ListPendingRequest) String() string {
 func (*ListPendingRequest) ProtoMessage() {}
 
 func (x *ListPendingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[86]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[95]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6368,7 +7079,7 @@ func (x *ListPendingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPendingRequest.ProtoReflect.Descriptor instead.
 func (*ListPendingRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{86}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{95}
 }
 
 func (x *ListPendingRequest) GetRepoId() string {
@@ -6409,7 +7120,7 @@ type ListPendingResponse struct {
 
 func (x *ListPendingResponse) Reset() {
 	*x = ListPendingResponse{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[87]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[96]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6421,7 +7132,7 @@ func (x *ListPendingResponse) String() string {
 func (*ListPendingResponse) ProtoMessage() {}
 
 func (x *ListPendingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[87]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[96]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6434,7 +7145,7 @@ func (x *ListPendingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPendingResponse.ProtoReflect.Descriptor instead.
 func (*ListPendingResponse) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{87}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{96}
 }
 
 func (x *ListPendingResponse) GetEntries() []*ScratchpadEntry {
@@ -6463,7 +7174,7 @@ type RejectEntryRequest struct {
 
 func (x *RejectEntryRequest) Reset() {
 	*x = RejectEntryRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[88]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[97]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6475,7 +7186,7 @@ func (x *RejectEntryRequest) String() string {
 func (*RejectEntryRequest) ProtoMessage() {}
 
 func (x *RejectEntryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[88]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[97]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6488,7 +7199,7 @@ func (x *RejectEntryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RejectEntryRequest.ProtoReflect.Descriptor instead.
 func (*RejectEntryRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{88}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{97}
 }
 
 func (x *RejectEntryRequest) GetEntryId() string {
@@ -6519,7 +7230,7 @@ type EditAndPromoteRequest struct {
 
 func (x *EditAndPromoteRequest) Reset() {
 	*x = EditAndPromoteRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[89]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[98]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6531,7 +7242,7 @@ func (x *EditAndPromoteRequest) String() string {
 func (*EditAndPromoteRequest) ProtoMessage() {}
 
 func (x *EditAndPromoteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[89]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[98]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6544,7 +7255,7 @@ func (x *EditAndPromoteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EditAndPromoteRequest.ProtoReflect.Descriptor instead.
 func (*EditAndPromoteRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{89}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{98}
 }
 
 func (x *EditAndPromoteRequest) GetEntryId() string {
@@ -6593,7 +7304,7 @@ type SnoozeRequest struct {
 
 func (x *SnoozeRequest) Reset() {
 	*x = SnoozeRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[90]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[99]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6605,7 +7316,7 @@ func (x *SnoozeRequest) String() string {
 func (*SnoozeRequest) ProtoMessage() {}
 
 func (x *SnoozeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[90]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[99]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6618,7 +7329,7 @@ func (x *SnoozeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SnoozeRequest.ProtoReflect.Descriptor instead.
 func (*SnoozeRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{90}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{99}
 }
 
 func (x *SnoozeRequest) GetEntryId() string {
@@ -6648,7 +7359,7 @@ type ScratchpadChangeEvent struct {
 
 func (x *ScratchpadChangeEvent) Reset() {
 	*x = ScratchpadChangeEvent{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[91]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[100]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6660,7 +7371,7 @@ func (x *ScratchpadChangeEvent) String() string {
 func (*ScratchpadChangeEvent) ProtoMessage() {}
 
 func (x *ScratchpadChangeEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[91]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[100]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6673,7 +7384,7 @@ func (x *ScratchpadChangeEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScratchpadChangeEvent.ProtoReflect.Descriptor instead.
 func (*ScratchpadChangeEvent) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{91}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{100}
 }
 
 func (x *ScratchpadChangeEvent) GetSeq() int64 {
@@ -6730,7 +7441,7 @@ type OllamaStatus struct {
 
 func (x *OllamaStatus) Reset() {
 	*x = OllamaStatus{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[92]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[101]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6742,7 +7453,7 @@ func (x *OllamaStatus) String() string {
 func (*OllamaStatus) ProtoMessage() {}
 
 func (x *OllamaStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[92]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[101]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6755,7 +7466,7 @@ func (x *OllamaStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OllamaStatus.ProtoReflect.Descriptor instead.
 func (*OllamaStatus) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{92}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{101}
 }
 
 func (x *OllamaStatus) GetInstalled() bool {
@@ -6816,7 +7527,7 @@ type OllamaModel struct {
 
 func (x *OllamaModel) Reset() {
 	*x = OllamaModel{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[93]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[102]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6828,7 +7539,7 @@ func (x *OllamaModel) String() string {
 func (*OllamaModel) ProtoMessage() {}
 
 func (x *OllamaModel) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[93]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[102]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6841,7 +7552,7 @@ func (x *OllamaModel) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OllamaModel.ProtoReflect.Descriptor instead.
 func (*OllamaModel) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{93}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{102}
 }
 
 func (x *OllamaModel) GetName() string {
@@ -6902,7 +7613,7 @@ type OllamaListModelsResponse struct {
 
 func (x *OllamaListModelsResponse) Reset() {
 	*x = OllamaListModelsResponse{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[94]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[103]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6914,7 +7625,7 @@ func (x *OllamaListModelsResponse) String() string {
 func (*OllamaListModelsResponse) ProtoMessage() {}
 
 func (x *OllamaListModelsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[94]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[103]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6927,7 +7638,7 @@ func (x *OllamaListModelsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OllamaListModelsResponse.ProtoReflect.Descriptor instead.
 func (*OllamaListModelsResponse) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{94}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{103}
 }
 
 func (x *OllamaListModelsResponse) GetModels() []*OllamaModel {
@@ -6952,7 +7663,7 @@ type OllamaRecommendedModel struct {
 
 func (x *OllamaRecommendedModel) Reset() {
 	*x = OllamaRecommendedModel{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[95]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[104]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6964,7 +7675,7 @@ func (x *OllamaRecommendedModel) String() string {
 func (*OllamaRecommendedModel) ProtoMessage() {}
 
 func (x *OllamaRecommendedModel) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[95]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[104]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6977,7 +7688,7 @@ func (x *OllamaRecommendedModel) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OllamaRecommendedModel.ProtoReflect.Descriptor instead.
 func (*OllamaRecommendedModel) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{95}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{104}
 }
 
 func (x *OllamaRecommendedModel) GetName() string {
@@ -7031,7 +7742,7 @@ type OllamaListRecommendedResponse struct {
 
 func (x *OllamaListRecommendedResponse) Reset() {
 	*x = OllamaListRecommendedResponse{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[96]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[105]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7043,7 +7754,7 @@ func (x *OllamaListRecommendedResponse) String() string {
 func (*OllamaListRecommendedResponse) ProtoMessage() {}
 
 func (x *OllamaListRecommendedResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[96]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[105]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7056,7 +7767,7 @@ func (x *OllamaListRecommendedResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OllamaListRecommendedResponse.ProtoReflect.Descriptor instead.
 func (*OllamaListRecommendedResponse) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{96}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{105}
 }
 
 func (x *OllamaListRecommendedResponse) GetModels() []*OllamaRecommendedModel {
@@ -7075,7 +7786,7 @@ type PullModelRequest struct {
 
 func (x *PullModelRequest) Reset() {
 	*x = PullModelRequest{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[97]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[106]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7087,7 +7798,7 @@ func (x *PullModelRequest) String() string {
 func (*PullModelRequest) ProtoMessage() {}
 
 func (x *PullModelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[97]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[106]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7100,7 +7811,7 @@ func (x *PullModelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PullModelRequest.ProtoReflect.Descriptor instead.
 func (*PullModelRequest) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{97}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{106}
 }
 
 func (x *PullModelRequest) GetName() string {
@@ -7127,7 +7838,7 @@ type OllamaPullProgressEvent struct {
 
 func (x *OllamaPullProgressEvent) Reset() {
 	*x = OllamaPullProgressEvent{}
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[98]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[107]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7139,7 +7850,7 @@ func (x *OllamaPullProgressEvent) String() string {
 func (*OllamaPullProgressEvent) ProtoMessage() {}
 
 func (x *OllamaPullProgressEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[98]
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[107]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7152,7 +7863,7 @@ func (x *OllamaPullProgressEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OllamaPullProgressEvent.ProtoReflect.Descriptor instead.
 func (*OllamaPullProgressEvent) Descriptor() ([]byte, []int) {
-	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{98}
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{107}
 }
 
 func (x *OllamaPullProgressEvent) GetStatus() string {
@@ -7197,6 +7908,1050 @@ func (x *OllamaPullProgressEvent) GetDone() bool {
 	return false
 }
 
+// Artifact mirrors internal/store.Artifact. attrs_json is a free-form
+// JSON object for kind-specific metadata (e.g. subtask_id for code
+// artifacts, harness version for harness artifacts).
+type Artifact struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Id        string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	TaskId    string                 `protobuf:"bytes,2,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	SubtaskId string                 `protobuf:"bytes,3,opt,name=subtask_id,json=subtaskId,proto3" json:"subtask_id,omitempty"`
+	// stage: plan | code | review | harness | attempt
+	Stage         string                 `protobuf:"bytes,4,opt,name=stage,proto3" json:"stage,omitempty"`
+	Path          string                 `protobuf:"bytes,5,opt,name=path,proto3" json:"path,omitempty"`
+	Kind          string                 `protobuf:"bytes,6,opt,name=kind,proto3" json:"kind,omitempty"`
+	ContentHash   string                 `protobuf:"bytes,7,opt,name=content_hash,json=contentHash,proto3" json:"content_hash,omitempty"`
+	SizeBytes     int64                  `protobuf:"varint,8,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	AttrsJson     string                 `protobuf:"bytes,9,opt,name=attrs_json,json=attrsJson,proto3" json:"attrs_json,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Artifact) Reset() {
+	*x = Artifact{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[108]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Artifact) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Artifact) ProtoMessage() {}
+
+func (x *Artifact) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[108]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Artifact.ProtoReflect.Descriptor instead.
+func (*Artifact) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{108}
+}
+
+func (x *Artifact) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Artifact) GetTaskId() string {
+	if x != nil {
+		return x.TaskId
+	}
+	return ""
+}
+
+func (x *Artifact) GetSubtaskId() string {
+	if x != nil {
+		return x.SubtaskId
+	}
+	return ""
+}
+
+func (x *Artifact) GetStage() string {
+	if x != nil {
+		return x.Stage
+	}
+	return ""
+}
+
+func (x *Artifact) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *Artifact) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *Artifact) GetContentHash() string {
+	if x != nil {
+		return x.ContentHash
+	}
+	return ""
+}
+
+func (x *Artifact) GetSizeBytes() int64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *Artifact) GetAttrsJson() string {
+	if x != nil {
+		return x.AttrsJson
+	}
+	return ""
+}
+
+func (x *Artifact) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+type ListArtifactsRequest struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	TaskId string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	// Optional filter on stage string. Empty = all stages.
+	Stage string `protobuf:"bytes,2,opt,name=stage,proto3" json:"stage,omitempty"`
+	// Legacy hard cap (kept for wire compatibility with pre-pagination
+	// clients). New callers should use page_size instead. When both are
+	// set page_size wins.
+	Limit int32 `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	// Maximum number of rows to return in this page. 0 delegates to the
+	// server default (currently 500). The server may return fewer rows
+	// than requested at the end of the result set.
+	PageSize int32 `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Opaque cursor returned by a previous ListArtifacts call. Empty on
+	// the first page. Callers MUST pass the exact bytes the server
+	// returned — format is an implementation detail and may change.
+	PageToken     string `protobuf:"bytes,5,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListArtifactsRequest) Reset() {
+	*x = ListArtifactsRequest{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[109]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListArtifactsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListArtifactsRequest) ProtoMessage() {}
+
+func (x *ListArtifactsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[109]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListArtifactsRequest.ProtoReflect.Descriptor instead.
+func (*ListArtifactsRequest) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{109}
+}
+
+func (x *ListArtifactsRequest) GetTaskId() string {
+	if x != nil {
+		return x.TaskId
+	}
+	return ""
+}
+
+func (x *ListArtifactsRequest) GetStage() string {
+	if x != nil {
+		return x.Stage
+	}
+	return ""
+}
+
+func (x *ListArtifactsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListArtifactsRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListArtifactsRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
+type ListArtifactsResponse struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Artifacts []*Artifact            `protobuf:"bytes,1,rep,name=artifacts,proto3" json:"artifacts,omitempty"`
+	// Non-empty when more rows are available. Pass to the next
+	// ListArtifacts call's page_token to continue. Empty on the final page.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListArtifactsResponse) Reset() {
+	*x = ListArtifactsResponse{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[110]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListArtifactsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListArtifactsResponse) ProtoMessage() {}
+
+func (x *ListArtifactsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[110]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListArtifactsResponse.ProtoReflect.Descriptor instead.
+func (*ListArtifactsResponse) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{110}
+}
+
+func (x *ListArtifactsResponse) GetArtifacts() []*Artifact {
+	if x != nil {
+		return x.Artifacts
+	}
+	return nil
+}
+
+func (x *ListArtifactsResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
+}
+
+type GetArtifactRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetArtifactRequest) Reset() {
+	*x = GetArtifactRequest{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[111]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetArtifactRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetArtifactRequest) ProtoMessage() {}
+
+func (x *GetArtifactRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[111]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetArtifactRequest.ProtoReflect.Descriptor instead.
+func (*GetArtifactRequest) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{111}
+}
+
+func (x *GetArtifactRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type GetArtifactContentRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetArtifactContentRequest) Reset() {
+	*x = GetArtifactContentRequest{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[112]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetArtifactContentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetArtifactContentRequest) ProtoMessage() {}
+
+func (x *GetArtifactContentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[112]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetArtifactContentRequest.ProtoReflect.Descriptor instead.
+func (*GetArtifactContentRequest) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{112}
+}
+
+func (x *GetArtifactContentRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+// ArtifactChunk is one streaming chunk from GetContent. eof is set on
+// the final message; data may be empty when eof is true (flush sentinel).
+type ArtifactChunk struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Data          []byte                 `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	Eof           bool                   `protobuf:"varint,2,opt,name=eof,proto3" json:"eof,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ArtifactChunk) Reset() {
+	*x = ArtifactChunk{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[113]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ArtifactChunk) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ArtifactChunk) ProtoMessage() {}
+
+func (x *ArtifactChunk) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[113]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ArtifactChunk.ProtoReflect.Descriptor instead.
+func (*ArtifactChunk) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{113}
+}
+
+func (x *ArtifactChunk) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+func (x *ArtifactChunk) GetEof() bool {
+	if x != nil {
+		return x.Eof
+	}
+	return false
+}
+
+// HarnessSkill is one immutable snapshot of the NL skill file. Each
+// UpdateSkill call mints a new version; the active version is the one
+// with the highest version number. artifact_id links back to the
+// Artifact row that backs this version on disk.
+type HarnessSkill struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ArtifactId    string                 `protobuf:"bytes,1,opt,name=artifact_id,json=artifactId,proto3" json:"artifact_id,omitempty"`
+	Version       int32                  `protobuf:"varint,2,opt,name=version,proto3" json:"version,omitempty"`
+	ContentMd     string                 `protobuf:"bytes,3,opt,name=content_md,json=contentMd,proto3" json:"content_md,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	ContentHash   string                 `protobuf:"bytes,5,opt,name=content_hash,json=contentHash,proto3" json:"content_hash,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HarnessSkill) Reset() {
+	*x = HarnessSkill{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[114]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HarnessSkill) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HarnessSkill) ProtoMessage() {}
+
+func (x *HarnessSkill) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[114]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HarnessSkill.ProtoReflect.Descriptor instead.
+func (*HarnessSkill) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{114}
+}
+
+func (x *HarnessSkill) GetArtifactId() string {
+	if x != nil {
+		return x.ArtifactId
+	}
+	return ""
+}
+
+func (x *HarnessSkill) GetVersion() int32 {
+	if x != nil {
+		return x.Version
+	}
+	return 0
+}
+
+func (x *HarnessSkill) GetContentMd() string {
+	if x != nil {
+		return x.ContentMd
+	}
+	return ""
+}
+
+func (x *HarnessSkill) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *HarnessSkill) GetContentHash() string {
+	if x != nil {
+		return x.ContentHash
+	}
+	return ""
+}
+
+type ListSkillVersionsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Versions      []*HarnessSkill        `protobuf:"bytes,1,rep,name=versions,proto3" json:"versions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSkillVersionsResponse) Reset() {
+	*x = ListSkillVersionsResponse{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[115]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSkillVersionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSkillVersionsResponse) ProtoMessage() {}
+
+func (x *ListSkillVersionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[115]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSkillVersionsResponse.ProtoReflect.Descriptor instead.
+func (*ListSkillVersionsResponse) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{115}
+}
+
+func (x *ListSkillVersionsResponse) GetVersions() []*HarnessSkill {
+	if x != nil {
+		return x.Versions
+	}
+	return nil
+}
+
+type ValidateSkillRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ContentMd     string                 `protobuf:"bytes,1,opt,name=content_md,json=contentMd,proto3" json:"content_md,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ValidateSkillRequest) Reset() {
+	*x = ValidateSkillRequest{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[116]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ValidateSkillRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ValidateSkillRequest) ProtoMessage() {}
+
+func (x *ValidateSkillRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[116]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ValidateSkillRequest.ProtoReflect.Descriptor instead.
+func (*ValidateSkillRequest) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{116}
+}
+
+func (x *ValidateSkillRequest) GetContentMd() string {
+	if x != nil {
+		return x.ContentMd
+	}
+	return ""
+}
+
+// ValidateSkillResponse carries lint results for the proposed harness
+// content. ok=true means the content is safe to activate; warnings are
+// non-fatal style notes the UI may surface as inline hints.
+type ValidateSkillResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	Errors        []string               `protobuf:"bytes,2,rep,name=errors,proto3" json:"errors,omitempty"`
+	Warnings      []string               `protobuf:"bytes,3,rep,name=warnings,proto3" json:"warnings,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ValidateSkillResponse) Reset() {
+	*x = ValidateSkillResponse{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[117]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ValidateSkillResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ValidateSkillResponse) ProtoMessage() {}
+
+func (x *ValidateSkillResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[117]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ValidateSkillResponse.ProtoReflect.Descriptor instead.
+func (*ValidateSkillResponse) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{117}
+}
+
+func (x *ValidateSkillResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *ValidateSkillResponse) GetErrors() []string {
+	if x != nil {
+		return x.Errors
+	}
+	return nil
+}
+
+func (x *ValidateSkillResponse) GetWarnings() []string {
+	if x != nil {
+		return x.Warnings
+	}
+	return nil
+}
+
+type UpdateSkillRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ContentMd     string                 `protobuf:"bytes,1,opt,name=content_md,json=contentMd,proto3" json:"content_md,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateSkillRequest) Reset() {
+	*x = UpdateSkillRequest{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[118]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateSkillRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateSkillRequest) ProtoMessage() {}
+
+func (x *UpdateSkillRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[118]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateSkillRequest.ProtoReflect.Descriptor instead.
+func (*UpdateSkillRequest) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{118}
+}
+
+func (x *UpdateSkillRequest) GetContentMd() string {
+	if x != nil {
+		return x.ContentMd
+	}
+	return ""
+}
+
+type RollbackSkillRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// artifact_id of the HarnessSkill version to restore as the new active
+	// version. A new version row is created (rather than mutating history)
+	// so the audit trail is preserved.
+	ArtifactId    string `protobuf:"bytes,1,opt,name=artifact_id,json=artifactId,proto3" json:"artifact_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RollbackSkillRequest) Reset() {
+	*x = RollbackSkillRequest{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[119]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RollbackSkillRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RollbackSkillRequest) ProtoMessage() {}
+
+func (x *RollbackSkillRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[119]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RollbackSkillRequest.ProtoReflect.Descriptor instead.
+func (*RollbackSkillRequest) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{119}
+}
+
+func (x *RollbackSkillRequest) GetArtifactId() string {
+	if x != nil {
+		return x.ArtifactId
+	}
+	return ""
+}
+
+// HarnessAttempt mirrors internal/store.HarnessAttempt.
+// decision is one of: pending | approved | rejected | superseded.
+// proposed_patch is intentionally empty in Phase C; LLM patch generation
+// is wired in the subsequent Phase C LLM integration step.
+type HarnessAttempt struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	TaskId        string                 `protobuf:"bytes,2,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	ReworkRound   int32                  `protobuf:"varint,3,opt,name=rework_round,json=reworkRound,proto3" json:"rework_round,omitempty"`
+	FailureClass  string                 `protobuf:"bytes,4,opt,name=failure_class,json=failureClass,proto3" json:"failure_class,omitempty"`
+	ObservationMd string                 `protobuf:"bytes,5,opt,name=observation_md,json=observationMd,proto3" json:"observation_md,omitempty"`
+	ProposedPatch string                 `protobuf:"bytes,6,opt,name=proposed_patch,json=proposedPatch,proto3" json:"proposed_patch,omitempty"`
+	ProposedHash  string                 `protobuf:"bytes,7,opt,name=proposed_hash,json=proposedHash,proto3" json:"proposed_hash,omitempty"`
+	Decision      string                 `protobuf:"bytes,8,opt,name=decision,proto3" json:"decision,omitempty"`
+	DecidedBy     string                 `protobuf:"bytes,9,opt,name=decided_by,json=decidedBy,proto3" json:"decided_by,omitempty"`
+	DecidedAt     *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=decided_at,json=decidedAt,proto3" json:"decided_at,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HarnessAttempt) Reset() {
+	*x = HarnessAttempt{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[120]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HarnessAttempt) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HarnessAttempt) ProtoMessage() {}
+
+func (x *HarnessAttempt) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[120]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HarnessAttempt.ProtoReflect.Descriptor instead.
+func (*HarnessAttempt) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{120}
+}
+
+func (x *HarnessAttempt) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *HarnessAttempt) GetTaskId() string {
+	if x != nil {
+		return x.TaskId
+	}
+	return ""
+}
+
+func (x *HarnessAttempt) GetReworkRound() int32 {
+	if x != nil {
+		return x.ReworkRound
+	}
+	return 0
+}
+
+func (x *HarnessAttempt) GetFailureClass() string {
+	if x != nil {
+		return x.FailureClass
+	}
+	return ""
+}
+
+func (x *HarnessAttempt) GetObservationMd() string {
+	if x != nil {
+		return x.ObservationMd
+	}
+	return ""
+}
+
+func (x *HarnessAttempt) GetProposedPatch() string {
+	if x != nil {
+		return x.ProposedPatch
+	}
+	return ""
+}
+
+func (x *HarnessAttempt) GetProposedHash() string {
+	if x != nil {
+		return x.ProposedHash
+	}
+	return ""
+}
+
+func (x *HarnessAttempt) GetDecision() string {
+	if x != nil {
+		return x.Decision
+	}
+	return ""
+}
+
+func (x *HarnessAttempt) GetDecidedBy() string {
+	if x != nil {
+		return x.DecidedBy
+	}
+	return ""
+}
+
+func (x *HarnessAttempt) GetDecidedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.DecidedAt
+	}
+	return nil
+}
+
+func (x *HarnessAttempt) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+type ListHarnessAttemptsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Attempts      []*HarnessAttempt      `protobuf:"bytes,1,rep,name=attempts,proto3" json:"attempts,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListHarnessAttemptsResponse) Reset() {
+	*x = ListHarnessAttemptsResponse{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[121]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListHarnessAttemptsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListHarnessAttemptsResponse) ProtoMessage() {}
+
+func (x *ListHarnessAttemptsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[121]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListHarnessAttemptsResponse.ProtoReflect.Descriptor instead.
+func (*ListHarnessAttemptsResponse) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{121}
+}
+
+func (x *ListHarnessAttemptsResponse) GetAttempts() []*HarnessAttempt {
+	if x != nil {
+		return x.Attempts
+	}
+	return nil
+}
+
+type ListHarnessAttemptsForTaskRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TaskId        string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListHarnessAttemptsForTaskRequest) Reset() {
+	*x = ListHarnessAttemptsForTaskRequest{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[122]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListHarnessAttemptsForTaskRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListHarnessAttemptsForTaskRequest) ProtoMessage() {}
+
+func (x *ListHarnessAttemptsForTaskRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[122]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListHarnessAttemptsForTaskRequest.ProtoReflect.Descriptor instead.
+func (*ListHarnessAttemptsForTaskRequest) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{122}
+}
+
+func (x *ListHarnessAttemptsForTaskRequest) GetTaskId() string {
+	if x != nil {
+		return x.TaskId
+	}
+	return ""
+}
+
+type ApproveHarnessAttemptRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	DecidedBy     string                 `protobuf:"bytes,2,opt,name=decided_by,json=decidedBy,proto3" json:"decided_by,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ApproveHarnessAttemptRequest) Reset() {
+	*x = ApproveHarnessAttemptRequest{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[123]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ApproveHarnessAttemptRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ApproveHarnessAttemptRequest) ProtoMessage() {}
+
+func (x *ApproveHarnessAttemptRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[123]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ApproveHarnessAttemptRequest.ProtoReflect.Descriptor instead.
+func (*ApproveHarnessAttemptRequest) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{123}
+}
+
+func (x *ApproveHarnessAttemptRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ApproveHarnessAttemptRequest) GetDecidedBy() string {
+	if x != nil {
+		return x.DecidedBy
+	}
+	return ""
+}
+
+type RejectHarnessAttemptRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	DecidedBy     string                 `protobuf:"bytes,2,opt,name=decided_by,json=decidedBy,proto3" json:"decided_by,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RejectHarnessAttemptRequest) Reset() {
+	*x = RejectHarnessAttemptRequest{}
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[124]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RejectHarnessAttemptRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RejectHarnessAttemptRequest) ProtoMessage() {}
+
+func (x *RejectHarnessAttemptRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_fleetkanban_v1_fleetkanban_proto_msgTypes[124]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RejectHarnessAttemptRequest.ProtoReflect.Descriptor instead.
+func (*RejectHarnessAttemptRequest) Descriptor() ([]byte, []int) {
+	return file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP(), []int{124}
+}
+
+func (x *RejectHarnessAttemptRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *RejectHarnessAttemptRequest) GetDecidedBy() string {
+	if x != nil {
+		return x.DecidedBy
+	}
+	return ""
+}
+
 var File_fleetkanban_v1_fleetkanban_proto protoreflect.FileDescriptor
 
 const file_fleetkanban_v1_fleetkanban_proto_rawDesc = "" +
@@ -7204,14 +8959,9 @@ const file_fleetkanban_v1_fleetkanban_proto_rawDesc = "" +
 	" fleetkanban/v1/fleetkanban.proto\x12\x0efleetkanban.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"N\n" +
 	"\x18StashUncommittedResponse\x12\x18\n" +
 	"\astashed\x18\x01 \x01(\bR\astashed\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"\x9f\x01\n" +
-	"\rAgentSettings\x12\x1f\n" +
-	"\vplan_prompt\x18\x01 \x01(\tR\n" +
-	"planPrompt\x12\x1f\n" +
-	"\vcode_prompt\x18\x02 \x01(\tR\n" +
-	"codePrompt\x12#\n" +
-	"\rreview_prompt\x18\x03 \x01(\tR\freviewPrompt\x12'\n" +
-	"\x0foutput_language\x18\x04 \x01(\tR\x0eoutputLanguage\"\x1b\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"s\n" +
+	"\rAgentSettings\x12'\n" +
+	"\x0foutput_language\x18\x04 \x01(\tR\x0eoutputLanguageJ\x04\b\x01\x10\x02J\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\vplan_promptR\vcode_promptR\rreview_prompt\"\x1b\n" +
 	"\tIdRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"!\n" +
 	"\tBoolValue\x12\x14\n" +
@@ -7238,7 +8988,7 @@ const file_fleetkanban_v1_fleetkanban_proto_rawDesc = "" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\"u\n" +
 	"\x1bInstallPreconditionResponse\x12@\n" +
 	"\fprecondition\x18\x01 \x01(\v2\x1c.fleetkanban.v1.PreconditionR\fprecondition\x12\x14\n" +
-	"\x05error\x18\x02 \x01(\tR\x05error\"\xdf\x05\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"\x88\x06\n" +
 	"\x04Task\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12#\n" +
 	"\rrepository_id\x18\x02 \x01(\tR\frepositoryId\x12\x12\n" +
@@ -7268,7 +9018,8 @@ const file_fleetkanban_v1_fleetkanban_proto_rawDesc = "" +
 	"\frework_count\x18\x12 \x01(\x05R\vreworkCount\x12\x1d\n" +
 	"\n" +
 	"plan_model\x18\x13 \x01(\tR\tplanModel\x12!\n" +
-	"\freview_model\x18\x14 \x01(\tR\vreviewModel\"\xfe\x02\n" +
+	"\freview_model\x18\x14 \x01(\tR\vreviewModel\x12'\n" +
+	"\x0fharness_version\x18\x15 \x01(\x05R\x0eharnessVersion\"\xfe\x02\n" +
 	"\aSubtask\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\atask_id\x18\x02 \x01(\tR\x06taskId\x12\x14\n" +
@@ -7362,7 +9113,27 @@ const file_fleetkanban_v1_fleetkanban_proto_rawDesc = "" +
 	"\x13ListSubtasksRequest\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\"K\n" +
 	"\x14ListSubtasksResponse\x123\n" +
-	"\bsubtasks\x18\x01 \x03(\v2\x17.fleetkanban.v1.SubtaskR\bsubtasks\"\xb8\x01\n" +
+	"\bsubtasks\x18\x01 \x03(\v2\x17.fleetkanban.v1.SubtaskR\bsubtasks\"O\n" +
+	"\x18GetSubtaskContextRequest\x12\x1d\n" +
+	"\n" +
+	"subtask_id\x18\x01 \x01(\tR\tsubtaskId\x12\x14\n" +
+	"\x05round\x18\x02 \x01(\x05R\x05round\"\xe4\x03\n" +
+	"\x15CopilotSubtaskContext\x12\x1d\n" +
+	"\n" +
+	"subtask_id\x18\x01 \x01(\tR\tsubtaskId\x12\x14\n" +
+	"\x05round\x18\x02 \x01(\x05R\x05round\x12#\n" +
+	"\rsystem_prompt\x18\x03 \x01(\tR\fsystemPrompt\x12\x1f\n" +
+	"\vuser_prompt\x18\x04 \x01(\tR\n" +
+	"userPrompt\x122\n" +
+	"\x15stage_prompt_template\x18\x05 \x01(\tR\x13stagePromptTemplate\x12!\n" +
+	"\fplan_summary\x18\x06 \x01(\tR\vplanSummary\x12'\n" +
+	"\x0fprior_summaries\x18\a \x03(\tR\x0epriorSummaries\x12!\n" +
+	"\fmemory_block\x18\b \x01(\tR\vmemoryBlock\x12'\n" +
+	"\x0foutput_language\x18\t \x01(\tR\x0eoutputLanguage\x127\n" +
+	"\x18harness_skill_version_id\x18\n" +
+	" \x01(\tR\x15harnessSkillVersionId\x12(\n" +
+	"\x10harness_skill_md\x18\v \x01(\tR\x0eharnessSkillMd\x12!\n" +
+	"\fnot_recorded\x18\f \x01(\bR\vnotRecorded\"\xb8\x01\n" +
 	"\x14CreateSubtaskRequest\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x16\n" +
@@ -7427,7 +9198,20 @@ const file_fleetkanban_v1_fleetkanban_proto_rawDesc = "" +
 	"\n" +
 	"set_active\x18\x03 \x01(\bR\tsetActive\"/\n" +
 	"\x17GitHubTokenLabelRequest\x12\x14\n" +
-	"\x05label\x18\x01 \x01(\tR\x05label\"\xbf\x02\n" +
+	"\x05label\x18\x01 \x01(\tR\x05label\"\xc5\x01\n" +
+	"\x10CopilotQuotaInfo\x12M\n" +
+	"\tsnapshots\x18\x01 \x03(\v2/.fleetkanban.v1.CopilotQuotaInfo.SnapshotsEntryR\tsnapshots\x1ab\n" +
+	"\x0eSnapshotsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12:\n" +
+	"\x05value\x18\x02 \x01(\v2$.fleetkanban.v1.CopilotQuotaSnapshotR\x05value:\x028\x01\"\xaa\x02\n" +
+	"\x14CopilotQuotaSnapshot\x121\n" +
+	"\x14entitlement_requests\x18\x01 \x01(\x01R\x13entitlementRequests\x12#\n" +
+	"\rused_requests\x18\x02 \x01(\x01R\fusedRequests\x121\n" +
+	"\x14remaining_percentage\x18\x03 \x01(\x01R\x13remainingPercentage\x12\x18\n" +
+	"\aoverage\x18\x04 \x01(\x01R\aoverage\x12N\n" +
+	"$overage_allowed_with_exhausted_quota\x18\x05 \x01(\bR overageAllowedWithExhaustedQuota\x12\x1d\n" +
+	"\n" +
+	"reset_date\x18\x06 \x01(\tR\tresetDate\"\xbf\x02\n" +
 	"\x11GitHubAccountInfo\x12\x14\n" +
 	"\x05login\x18\x01 \x01(\tR\x05login\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1d\n" +
@@ -7703,7 +9487,37 @@ const file_fleetkanban_v1_fleetkanban_proto_rawDesc = "" +
 	"\n" +
 	"updated_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"Y\n" +
 	"\x1bUpdateMemorySettingsRequest\x12:\n" +
-	"\bsettings\x18\x01 \x01(\v2\x1e.fleetkanban.v1.MemorySettingsR\bsettings\"\xd5\x01\n" +
+	"\bsettings\x18\x01 \x01(\v2\x1e.fleetkanban.v1.MemorySettingsR\bsettings\"\xdd\x01\n" +
+	"\fMemoryHealth\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12-\n" +
+	"\x12provider_reachable\x18\x02 \x01(\bR\x11providerReachable\x12!\n" +
+	"\fvector_count\x18\x03 \x01(\x05R\vvectorCount\x12B\n" +
+	"\x0flast_rebuild_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\rlastRebuildAt\x12\x1d\n" +
+	"\n" +
+	"last_error\x18\x05 \x01(\tR\tlastError\"h\n" +
+	"\x18SuggestForNewTaskRequest\x12\x17\n" +
+	"\arepo_id\x18\x01 \x01(\tR\x06repoId\x12\x1d\n" +
+	"\n" +
+	"draft_goal\x18\x02 \x01(\tR\tdraftGoal\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\"\x9a\x01\n" +
+	"\x0eTaskSuggestion\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x14\n" +
+	"\x05label\x18\x02 \x01(\tR\x05label\x12\x1d\n" +
+	"\n" +
+	"summary_md\x18\x03 \x01(\tR\tsummaryMd\x12\x14\n" +
+	"\x05score\x18\x04 \x01(\x02R\x05score\x12$\n" +
+	"\x0esource_task_id\x18\x05 \x01(\tR\fsourceTaskId\"\x8c\x01\n" +
+	"\x12ContextNodeSummary\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x12\n" +
+	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x14\n" +
+	"\x05label\x18\x03 \x01(\tR\x05label\x12\x1d\n" +
+	"\n" +
+	"content_md\x18\x04 \x01(\tR\tcontentMd\x12\x14\n" +
+	"\x05score\x18\x05 \x01(\x02R\x05score\"\x86\x02\n" +
+	"\x19SuggestForNewTaskResponse\x12C\n" +
+	"\rsimilar_tasks\x18\x01 \x03(\v2\x1e.fleetkanban.v1.TaskSuggestionR\fsimilarTasks\x12O\n" +
+	"\x11related_decisions\x18\x02 \x03(\v2\".fleetkanban.v1.ContextNodeSummaryR\x10relatedDecisions\x12S\n" +
+	"\x13related_constraints\x18\x03 \x03(\v2\".fleetkanban.v1.ContextNodeSummaryR\x12relatedConstraints\"\xd5\x01\n" +
 	"\x13WatchContextRequest\x12\x17\n" +
 	"\arepo_id\x18\x01 \x01(\tR\x06repoId\x12b\n" +
 	"\x11since_seq_by_kind\x18\x02 \x03(\v27.fleetkanban.v1.WatchContextRequest.SinceSeqByKindEntryR\x0esinceSeqByKind\x1aA\n" +
@@ -7809,7 +9623,92 @@ const file_fleetkanban_v1_fleetkanban_proto_rawDesc = "" +
 	"\x05total\x18\x03 \x01(\x03R\x05total\x12\x16\n" +
 	"\x06digest\x18\x04 \x01(\tR\x06digest\x12\x14\n" +
 	"\x05error\x18\x05 \x01(\tR\x05error\x12\x12\n" +
-	"\x04done\x18\x06 \x01(\bR\x04done*\x83\x01\n" +
+	"\x04done\x18\x06 \x01(\bR\x04done\"\xac\x02\n" +
+	"\bArtifact\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
+	"\atask_id\x18\x02 \x01(\tR\x06taskId\x12\x1d\n" +
+	"\n" +
+	"subtask_id\x18\x03 \x01(\tR\tsubtaskId\x12\x14\n" +
+	"\x05stage\x18\x04 \x01(\tR\x05stage\x12\x12\n" +
+	"\x04path\x18\x05 \x01(\tR\x04path\x12\x12\n" +
+	"\x04kind\x18\x06 \x01(\tR\x04kind\x12!\n" +
+	"\fcontent_hash\x18\a \x01(\tR\vcontentHash\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\b \x01(\x03R\tsizeBytes\x12\x1d\n" +
+	"\n" +
+	"attrs_json\x18\t \x01(\tR\tattrsJson\x129\n" +
+	"\n" +
+	"created_at\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\x97\x01\n" +
+	"\x14ListArtifactsRequest\x12\x17\n" +
+	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x14\n" +
+	"\x05stage\x18\x02 \x01(\tR\x05stage\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x1b\n" +
+	"\tpage_size\x18\x04 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x05 \x01(\tR\tpageToken\"w\n" +
+	"\x15ListArtifactsResponse\x126\n" +
+	"\tartifacts\x18\x01 \x03(\v2\x18.fleetkanban.v1.ArtifactR\tartifacts\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"$\n" +
+	"\x12GetArtifactRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"+\n" +
+	"\x19GetArtifactContentRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"5\n" +
+	"\rArtifactChunk\x12\x12\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data\x12\x10\n" +
+	"\x03eof\x18\x02 \x01(\bR\x03eof\"\xc6\x01\n" +
+	"\fHarnessSkill\x12\x1f\n" +
+	"\vartifact_id\x18\x01 \x01(\tR\n" +
+	"artifactId\x12\x18\n" +
+	"\aversion\x18\x02 \x01(\x05R\aversion\x12\x1d\n" +
+	"\n" +
+	"content_md\x18\x03 \x01(\tR\tcontentMd\x129\n" +
+	"\n" +
+	"created_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12!\n" +
+	"\fcontent_hash\x18\x05 \x01(\tR\vcontentHash\"U\n" +
+	"\x19ListSkillVersionsResponse\x128\n" +
+	"\bversions\x18\x01 \x03(\v2\x1c.fleetkanban.v1.HarnessSkillR\bversions\"5\n" +
+	"\x14ValidateSkillRequest\x12\x1d\n" +
+	"\n" +
+	"content_md\x18\x01 \x01(\tR\tcontentMd\"[\n" +
+	"\x15ValidateSkillResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x16\n" +
+	"\x06errors\x18\x02 \x03(\tR\x06errors\x12\x1a\n" +
+	"\bwarnings\x18\x03 \x03(\tR\bwarnings\"3\n" +
+	"\x12UpdateSkillRequest\x12\x1d\n" +
+	"\n" +
+	"content_md\x18\x01 \x01(\tR\tcontentMd\"7\n" +
+	"\x14RollbackSkillRequest\x12\x1f\n" +
+	"\vartifact_id\x18\x01 \x01(\tR\n" +
+	"artifactId\"\xa5\x03\n" +
+	"\x0eHarnessAttempt\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
+	"\atask_id\x18\x02 \x01(\tR\x06taskId\x12!\n" +
+	"\frework_round\x18\x03 \x01(\x05R\vreworkRound\x12#\n" +
+	"\rfailure_class\x18\x04 \x01(\tR\ffailureClass\x12%\n" +
+	"\x0eobservation_md\x18\x05 \x01(\tR\robservationMd\x12%\n" +
+	"\x0eproposed_patch\x18\x06 \x01(\tR\rproposedPatch\x12#\n" +
+	"\rproposed_hash\x18\a \x01(\tR\fproposedHash\x12\x1a\n" +
+	"\bdecision\x18\b \x01(\tR\bdecision\x12\x1d\n" +
+	"\n" +
+	"decided_by\x18\t \x01(\tR\tdecidedBy\x129\n" +
+	"\n" +
+	"decided_at\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\tdecidedAt\x129\n" +
+	"\n" +
+	"created_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"Y\n" +
+	"\x1bListHarnessAttemptsResponse\x12:\n" +
+	"\battempts\x18\x01 \x03(\v2\x1e.fleetkanban.v1.HarnessAttemptR\battempts\"<\n" +
+	"!ListHarnessAttemptsForTaskRequest\x12\x17\n" +
+	"\atask_id\x18\x01 \x01(\tR\x06taskId\"M\n" +
+	"\x1cApproveHarnessAttemptRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
+	"\n" +
+	"decided_by\x18\x02 \x01(\tR\tdecidedBy\"L\n" +
+	"\x1bRejectHarnessAttemptRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
+	"\n" +
+	"decided_by\x18\x02 \x01(\tR\tdecidedBy*\x83\x01\n" +
 	"\x0eFinalizeAction\x12\x1f\n" +
 	"\x1bFINALIZE_ACTION_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14FINALIZE_ACTION_KEEP\x10\x01\x12\x19\n" +
@@ -7842,13 +9741,14 @@ const file_fleetkanban_v1_fleetkanban_proto_rawDesc = "" +
 	"\fSubmitReview\x12#.fleetkanban.v1.SubmitReviewRequest\x1a\x16.google.protobuf.Empty\x12S\n" +
 	"\n" +
 	"TaskEvents\x12!.fleetkanban.v1.TaskEventsRequest\x1a\".fleetkanban.v1.TaskEventsResponse\x12O\n" +
-	"\vWatchEvents\x12\".fleetkanban.v1.WatchEventsRequest\x1a\x1a.fleetkanban.v1.AgentEvent0\x012\xa2\x03\n" +
+	"\vWatchEvents\x12\".fleetkanban.v1.WatchEventsRequest\x1a\x1a.fleetkanban.v1.AgentEvent0\x012\x88\x04\n" +
 	"\x0eSubtaskService\x12Y\n" +
 	"\fListSubtasks\x12#.fleetkanban.v1.ListSubtasksRequest\x1a$.fleetkanban.v1.ListSubtasksResponse\x12N\n" +
 	"\rCreateSubtask\x12$.fleetkanban.v1.CreateSubtaskRequest\x1a\x17.fleetkanban.v1.Subtask\x12N\n" +
 	"\rUpdateSubtask\x12$.fleetkanban.v1.UpdateSubtaskRequest\x1a\x17.fleetkanban.v1.Subtask\x12B\n" +
 	"\rDeleteSubtask\x12\x19.fleetkanban.v1.IdRequest\x1a\x16.google.protobuf.Empty\x12Q\n" +
-	"\x0fReorderSubtasks\x12&.fleetkanban.v1.ReorderSubtasksRequest\x1a\x16.google.protobuf.Empty2\xea\x05\n" +
+	"\x0fReorderSubtasks\x12&.fleetkanban.v1.ReorderSubtasksRequest\x1a\x16.google.protobuf.Empty\x12d\n" +
+	"\x11GetSubtaskContext\x12(.fleetkanban.v1.GetSubtaskContextRequest\x1a%.fleetkanban.v1.CopilotSubtaskContext2\xea\x05\n" +
 	"\x11RepositoryService\x12[\n" +
 	"\x12RegisterRepository\x12).fleetkanban.v1.RegisterRepositoryRequest\x1a\x1a.fleetkanban.v1.Repository\x12T\n" +
 	"\x10ListRepositories\x12\x16.google.protobuf.Empty\x1a(.fleetkanban.v1.ListRepositoriesResponse\x12I\n" +
@@ -7860,7 +9760,7 @@ const file_fleetkanban_v1_fleetkanban_proto_rawDesc = "" +
 	"\x10StashUncommitted\x12\x19.fleetkanban.v1.IdRequest\x1a(.fleetkanban.v1.StashUncommittedResponse2X\n" +
 	"\fModelService\x12H\n" +
 	"\n" +
-	"ListModels\x12\x16.google.protobuf.Empty\x1a\".fleetkanban.v1.ListModelsResponse2\x98\b\n" +
+	"ListModels\x12\x16.google.protobuf.Empty\x1a\".fleetkanban.v1.ListModelsResponse2\xe5\b\n" +
 	"\vAuthService\x12F\n" +
 	"\x10CheckCopilotAuth\x12\x16.google.protobuf.Empty\x1a\x1a.fleetkanban.v1.AuthStatus\x12R\n" +
 	"\x11BeginCopilotLogin\x12\x16.google.protobuf.Empty\x1a%.fleetkanban.v1.CopilotLoginChallenge\x12D\n" +
@@ -7874,7 +9774,8 @@ const file_fleetkanban_v1_fleetkanban_proto_rawDesc = "" +
 	"\x0eAddGitHubToken\x12%.fleetkanban.v1.AddGitHubTokenRequest\x1a\x16.google.protobuf.Empty\x12T\n" +
 	"\x11RemoveGitHubToken\x12'.fleetkanban.v1.GitHubTokenLabelRequest\x1a\x16.google.protobuf.Empty\x12W\n" +
 	"\x14SetActiveGitHubToken\x12'.fleetkanban.v1.GitHubTokenLabelRequest\x1a\x16.google.protobuf.Empty\x12Q\n" +
-	"\x14GetGitHubAccountInfo\x12\x16.google.protobuf.Empty\x1a!.fleetkanban.v1.GitHubAccountInfo2\xc9\x05\n" +
+	"\x14GetGitHubAccountInfo\x12\x16.google.protobuf.Empty\x1a!.fleetkanban.v1.GitHubAccountInfo\x12K\n" +
+	"\x0fGetCopilotQuota\x12\x16.google.protobuf.Empty\x1a .fleetkanban.v1.CopilotQuotaInfo2\xf8\x04\n" +
 	"\rSystemService\x12B\n" +
 	"\x0eGetConcurrency\x12\x16.google.protobuf.Empty\x1a\x18.fleetkanban.v1.IntValue\x12D\n" +
 	"\x0eSetConcurrency\x12\x18.fleetkanban.v1.IntValue\x1a\x18.fleetkanban.v1.IntValue\x12:\n" +
@@ -7884,11 +9785,10 @@ const file_fleetkanban_v1_fleetkanban_proto_rawDesc = "" +
 	"\x10GetPreconditions\x12\x16.google.protobuf.Empty\x1a%.fleetkanban.v1.PreconditionsResponse\x12n\n" +
 	"\x13InstallPrecondition\x12*.fleetkanban.v1.InstallPreconditionRequest\x1a+.fleetkanban.v1.InstallPreconditionResponse\x12I\n" +
 	"\x10GetAgentSettings\x12\x16.google.protobuf.Empty\x1a\x1d.fleetkanban.v1.AgentSettings\x12P\n" +
-	"\x10SetAgentSettings\x12\x1d.fleetkanban.v1.AgentSettings\x1a\x1d.fleetkanban.v1.AgentSettings\x12O\n" +
-	"\x16GetDefaultAgentPrompts\x12\x16.google.protobuf.Empty\x1a\x1d.fleetkanban.v1.AgentSettings2\xb2\x01\n" +
+	"\x10SetAgentSettings\x12\x1d.fleetkanban.v1.AgentSettings\x1a\x1d.fleetkanban.v1.AgentSettings2\xb2\x01\n" +
 	"\x0fWorktreeService\x12N\n" +
 	"\rListWorktrees\x12\x16.google.protobuf.Empty\x1a%.fleetkanban.v1.ListWorktreesResponse\x12O\n" +
-	"\x0eRemoveWorktree\x12%.fleetkanban.v1.RemoveWorktreeRequest\x1a\x16.google.protobuf.Empty2\x87\r\n" +
+	"\x0eRemoveWorktree\x12%.fleetkanban.v1.RemoveWorktreeRequest\x1a\x16.google.protobuf.Empty2\xc1\x0e\n" +
 	"\x0eContextService\x12M\n" +
 	"\vGetOverview\x12\x1d.fleetkanban.v1.RepoIdRequest\x1a\x1f.fleetkanban.v1.ContextOverview\x12\\\n" +
 	"\rSearchContext\x12$.fleetkanban.v1.SearchContextRequest\x1a%.fleetkanban.v1.SearchContextResponse\x12P\n" +
@@ -7913,7 +9813,9 @@ const file_fleetkanban_v1_fleetkanban_proto_rawDesc = "" +
 	"\x0eRebuildClosure\x12\x1d.fleetkanban.v1.RepoIdRequest\x1a\x16.google.protobuf.Empty\x12[\n" +
 	"\x10RebuildCodeGraph\x12\x1d.fleetkanban.v1.RepoIdRequest\x1a(.fleetkanban.v1.RebuildCodeGraphResponse\x12R\n" +
 	"\x11GetMemorySettings\x12\x1d.fleetkanban.v1.RepoIdRequest\x1a\x1e.fleetkanban.v1.MemorySettings\x12c\n" +
-	"\x14UpdateMemorySettings\x12+.fleetkanban.v1.UpdateMemorySettingsRequest\x1a\x1e.fleetkanban.v1.MemorySettings\x12`\n" +
+	"\x14UpdateMemorySettings\x12+.fleetkanban.v1.UpdateMemorySettingsRequest\x1a\x1e.fleetkanban.v1.MemorySettings\x12N\n" +
+	"\x0fGetMemoryHealth\x12\x1d.fleetkanban.v1.RepoIdRequest\x1a\x1c.fleetkanban.v1.MemoryHealth\x12h\n" +
+	"\x11SuggestForNewTask\x12(.fleetkanban.v1.SuggestForNewTaskRequest\x1a).fleetkanban.v1.SuggestForNewTaskResponse\x12`\n" +
 	"\x13WatchContextChanges\x12#.fleetkanban.v1.WatchContextRequest\x1a\".fleetkanban.v1.ContextChangeEvent0\x012\xc4\x04\n" +
 	"\x11ScratchpadService\x12V\n" +
 	"\vListPending\x12\".fleetkanban.v1.ListPendingRequest\x1a#.fleetkanban.v1.ListPendingResponse\x12K\n" +
@@ -7927,7 +9829,23 @@ const file_fleetkanban_v1_fleetkanban_proto_rawDesc = "" +
 	"\x0fGetOllamaStatus\x12\x16.google.protobuf.Empty\x1a\x1c.fleetkanban.v1.OllamaStatus\x12W\n" +
 	"\x13ListInstalledModels\x12\x16.google.protobuf.Empty\x1a(.fleetkanban.v1.OllamaListModelsResponse\x12]\n" +
 	"\x14GetRecommendedModels\x12\x16.google.protobuf.Empty\x1a-.fleetkanban.v1.OllamaListRecommendedResponse\x12^\n" +
-	"\x0fPullOllamaModel\x12 .fleetkanban.v1.PullModelRequest\x1a'.fleetkanban.v1.OllamaPullProgressEvent0\x01B\xd1\x01\n" +
+	"\x0fPullOllamaModel\x12 .fleetkanban.v1.PullModelRequest\x1a'.fleetkanban.v1.OllamaPullProgressEvent0\x012\x85\x02\n" +
+	"\x0fArtifactService\x12S\n" +
+	"\x04List\x12$.fleetkanban.v1.ListArtifactsRequest\x1a%.fleetkanban.v1.ListArtifactsResponse\x12C\n" +
+	"\x03Get\x12\".fleetkanban.v1.GetArtifactRequest\x1a\x18.fleetkanban.v1.Artifact\x12X\n" +
+	"\n" +
+	"GetContent\x12).fleetkanban.v1.GetArtifactContentRequest\x1a\x1d.fleetkanban.v1.ArtifactChunk0\x012\xb4\x03\n" +
+	"\x0eHarnessService\x12F\n" +
+	"\x0eGetActiveSkill\x12\x16.google.protobuf.Empty\x1a\x1c.fleetkanban.v1.HarnessSkill\x12V\n" +
+	"\x11ListSkillVersions\x12\x16.google.protobuf.Empty\x1a).fleetkanban.v1.ListSkillVersionsResponse\x12\\\n" +
+	"\rValidateSkill\x12$.fleetkanban.v1.ValidateSkillRequest\x1a%.fleetkanban.v1.ValidateSkillResponse\x12O\n" +
+	"\vUpdateSkill\x12\".fleetkanban.v1.UpdateSkillRequest\x1a\x1c.fleetkanban.v1.HarnessSkill\x12S\n" +
+	"\rRollbackSkill\x12$.fleetkanban.v1.RollbackSkillRequest\x1a\x1c.fleetkanban.v1.HarnessSkill2\x8a\x03\n" +
+	"\x15HarnessAttemptService\x12R\n" +
+	"\vListPending\x12\x16.google.protobuf.Empty\x1a+.fleetkanban.v1.ListHarnessAttemptsResponse\x12m\n" +
+	"\vListForTask\x121.fleetkanban.v1.ListHarnessAttemptsForTaskRequest\x1a+.fleetkanban.v1.ListHarnessAttemptsResponse\x12W\n" +
+	"\aApprove\x12,.fleetkanban.v1.ApproveHarnessAttemptRequest\x1a\x1e.fleetkanban.v1.HarnessAttempt\x12U\n" +
+	"\x06Reject\x12+.fleetkanban.v1.RejectHarnessAttemptRequest\x1a\x1e.fleetkanban.v1.HarnessAttemptB\xd1\x01\n" +
 	"\x12com.fleetkanban.v1B\x10FleetkanbanProtoP\x01ZPgithub.com/FleetKanban/fleetkanban/internal/ipc/gen/fleetkanban/v1;fleetkanbanv1\xa2\x02\x03FXX\xaa\x02\x0eFleetkanban.V1\xca\x02\x0eFleetkanban\\V1\xe2\x02\x1aFleetkanban\\V1\\GPBMetadata\xea\x02\x0fFleetkanban::V1b\x06proto3"
 
 var (
@@ -7943,354 +9861,424 @@ func file_fleetkanban_v1_fleetkanban_proto_rawDescGZIP() []byte {
 }
 
 var file_fleetkanban_v1_fleetkanban_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_fleetkanban_v1_fleetkanban_proto_msgTypes = make([]protoimpl.MessageInfo, 110)
+var file_fleetkanban_v1_fleetkanban_proto_msgTypes = make([]protoimpl.MessageInfo, 137)
 var file_fleetkanban_v1_fleetkanban_proto_goTypes = []any{
-	(FinalizeAction)(0),                    // 0: fleetkanban.v1.FinalizeAction
-	(ReviewAction)(0),                      // 1: fleetkanban.v1.ReviewAction
-	(CopilotLoginSessionState)(0),          // 2: fleetkanban.v1.CopilotLoginSessionState
-	(*StashUncommittedResponse)(nil),       // 3: fleetkanban.v1.StashUncommittedResponse
-	(*AgentSettings)(nil),                  // 4: fleetkanban.v1.AgentSettings
-	(*IdRequest)(nil),                      // 5: fleetkanban.v1.IdRequest
-	(*BoolValue)(nil),                      // 6: fleetkanban.v1.BoolValue
-	(*IntValue)(nil),                       // 7: fleetkanban.v1.IntValue
-	(*VersionInfo)(nil),                    // 8: fleetkanban.v1.VersionInfo
-	(*Precondition)(nil),                   // 9: fleetkanban.v1.Precondition
-	(*PreconditionsResponse)(nil),          // 10: fleetkanban.v1.PreconditionsResponse
-	(*InstallPreconditionRequest)(nil),     // 11: fleetkanban.v1.InstallPreconditionRequest
-	(*InstallPreconditionResponse)(nil),    // 12: fleetkanban.v1.InstallPreconditionResponse
-	(*Task)(nil),                           // 13: fleetkanban.v1.Task
-	(*Subtask)(nil),                        // 14: fleetkanban.v1.Subtask
-	(*Repository)(nil),                     // 15: fleetkanban.v1.Repository
-	(*AgentEvent)(nil),                     // 16: fleetkanban.v1.AgentEvent
-	(*AuthStatus)(nil),                     // 17: fleetkanban.v1.AuthStatus
-	(*GitConfigStatus)(nil),                // 18: fleetkanban.v1.GitConfigStatus
-	(*CreateTaskRequest)(nil),              // 19: fleetkanban.v1.CreateTaskRequest
-	(*ListTasksRequest)(nil),               // 20: fleetkanban.v1.ListTasksRequest
-	(*ListTasksResponse)(nil),              // 21: fleetkanban.v1.ListTasksResponse
-	(*DiffResponse)(nil),                   // 22: fleetkanban.v1.DiffResponse
-	(*FinalizeTaskRequest)(nil),            // 23: fleetkanban.v1.FinalizeTaskRequest
-	(*DeleteTaskRequest)(nil),              // 24: fleetkanban.v1.DeleteTaskRequest
-	(*SubmitReviewRequest)(nil),            // 25: fleetkanban.v1.SubmitReviewRequest
-	(*TaskEventsRequest)(nil),              // 26: fleetkanban.v1.TaskEventsRequest
-	(*TaskEventsResponse)(nil),             // 27: fleetkanban.v1.TaskEventsResponse
-	(*WatchEventsRequest)(nil),             // 28: fleetkanban.v1.WatchEventsRequest
-	(*ListSubtasksRequest)(nil),            // 29: fleetkanban.v1.ListSubtasksRequest
-	(*ListSubtasksResponse)(nil),           // 30: fleetkanban.v1.ListSubtasksResponse
-	(*CreateSubtaskRequest)(nil),           // 31: fleetkanban.v1.CreateSubtaskRequest
-	(*UpdateSubtaskRequest)(nil),           // 32: fleetkanban.v1.UpdateSubtaskRequest
-	(*ReorderSubtasksRequest)(nil),         // 33: fleetkanban.v1.ReorderSubtasksRequest
-	(*RegisterRepositoryRequest)(nil),      // 34: fleetkanban.v1.RegisterRepositoryRequest
-	(*ListRepositoriesResponse)(nil),       // 35: fleetkanban.v1.ListRepositoriesResponse
-	(*ScanGitRepositoriesRequest)(nil),     // 36: fleetkanban.v1.ScanGitRepositoriesRequest
-	(*FoundRepository)(nil),                // 37: fleetkanban.v1.FoundRepository
-	(*ScanGitRepositoriesResponse)(nil),    // 38: fleetkanban.v1.ScanGitRepositoriesResponse
-	(*UpdateDefaultBaseBranchRequest)(nil), // 39: fleetkanban.v1.UpdateDefaultBaseBranchRequest
-	(*ListBranchesRequest)(nil),            // 40: fleetkanban.v1.ListBranchesRequest
-	(*ListBranchesResponse)(nil),           // 41: fleetkanban.v1.ListBranchesResponse
-	(*SetGitHubTokenRequest)(nil),          // 42: fleetkanban.v1.SetGitHubTokenRequest
-	(*CopilotLoginChallenge)(nil),          // 43: fleetkanban.v1.CopilotLoginChallenge
-	(*CopilotLoginSessionInfo)(nil),        // 44: fleetkanban.v1.CopilotLoginSessionInfo
-	(*GitHubTokenEntry)(nil),               // 45: fleetkanban.v1.GitHubTokenEntry
-	(*ListGitHubTokensResponse)(nil),       // 46: fleetkanban.v1.ListGitHubTokensResponse
-	(*AddGitHubTokenRequest)(nil),          // 47: fleetkanban.v1.AddGitHubTokenRequest
-	(*GitHubTokenLabelRequest)(nil),        // 48: fleetkanban.v1.GitHubTokenLabelRequest
-	(*GitHubAccountInfo)(nil),              // 49: fleetkanban.v1.GitHubAccountInfo
-	(*ModelInfo)(nil),                      // 50: fleetkanban.v1.ModelInfo
-	(*ListModelsResponse)(nil),             // 51: fleetkanban.v1.ListModelsResponse
-	(*WorktreeEntry)(nil),                  // 52: fleetkanban.v1.WorktreeEntry
-	(*ListWorktreesResponse)(nil),          // 53: fleetkanban.v1.ListWorktreesResponse
-	(*RemoveWorktreeRequest)(nil),          // 54: fleetkanban.v1.RemoveWorktreeRequest
-	(*ContextNode)(nil),                    // 55: fleetkanban.v1.ContextNode
-	(*ContextEdge)(nil),                    // 56: fleetkanban.v1.ContextEdge
-	(*ContextFact)(nil),                    // 57: fleetkanban.v1.ContextFact
-	(*ContextNodeDetail)(nil),              // 58: fleetkanban.v1.ContextNodeDetail
-	(*ContextOverview)(nil),                // 59: fleetkanban.v1.ContextOverview
-	(*RepoIdRequest)(nil),                  // 60: fleetkanban.v1.RepoIdRequest
-	(*NodeIdRequest)(nil),                  // 61: fleetkanban.v1.NodeIdRequest
-	(*EdgeIdRequest)(nil),                  // 62: fleetkanban.v1.EdgeIdRequest
-	(*EntryIdRequest)(nil),                 // 63: fleetkanban.v1.EntryIdRequest
-	(*SearchContextRequest)(nil),           // 64: fleetkanban.v1.SearchContextRequest
-	(*SearchHit)(nil),                      // 65: fleetkanban.v1.SearchHit
-	(*SearchContextResponse)(nil),          // 66: fleetkanban.v1.SearchContextResponse
-	(*SearchHitList)(nil),                  // 67: fleetkanban.v1.SearchHitList
-	(*ListNodesRequest)(nil),               // 68: fleetkanban.v1.ListNodesRequest
-	(*ListNodesResponse)(nil),              // 69: fleetkanban.v1.ListNodesResponse
-	(*CreateNodeRequest)(nil),              // 70: fleetkanban.v1.CreateNodeRequest
-	(*UpdateNodeRequest)(nil),              // 71: fleetkanban.v1.UpdateNodeRequest
-	(*PinNodeRequest)(nil),                 // 72: fleetkanban.v1.PinNodeRequest
-	(*ListEdgesRequest)(nil),               // 73: fleetkanban.v1.ListEdgesRequest
-	(*ListEdgesResponse)(nil),              // 74: fleetkanban.v1.ListEdgesResponse
-	(*CreateEdgeRequest)(nil),              // 75: fleetkanban.v1.CreateEdgeRequest
-	(*ListFactsRequest)(nil),               // 76: fleetkanban.v1.ListFactsRequest
-	(*ListFactsResponse)(nil),              // 77: fleetkanban.v1.ListFactsResponse
-	(*InjectionSource)(nil),                // 78: fleetkanban.v1.InjectionSource
-	(*InjectionPreview)(nil),               // 79: fleetkanban.v1.InjectionPreview
-	(*PreviewInjectionRequest)(nil),        // 80: fleetkanban.v1.PreviewInjectionRequest
-	(*RebuildEmbeddingsResponse)(nil),      // 81: fleetkanban.v1.RebuildEmbeddingsResponse
-	(*RebuildCodeGraphResponse)(nil),       // 82: fleetkanban.v1.RebuildCodeGraphResponse
-	(*AnalyzeRepoRequest)(nil),             // 83: fleetkanban.v1.AnalyzeRepoRequest
-	(*MemorySettings)(nil),                 // 84: fleetkanban.v1.MemorySettings
-	(*UpdateMemorySettingsRequest)(nil),    // 85: fleetkanban.v1.UpdateMemorySettingsRequest
-	(*WatchContextRequest)(nil),            // 86: fleetkanban.v1.WatchContextRequest
-	(*ContextChangeEvent)(nil),             // 87: fleetkanban.v1.ContextChangeEvent
-	(*ScratchpadEntry)(nil),                // 88: fleetkanban.v1.ScratchpadEntry
-	(*ListPendingRequest)(nil),             // 89: fleetkanban.v1.ListPendingRequest
-	(*ListPendingResponse)(nil),            // 90: fleetkanban.v1.ListPendingResponse
-	(*RejectEntryRequest)(nil),             // 91: fleetkanban.v1.RejectEntryRequest
-	(*EditAndPromoteRequest)(nil),          // 92: fleetkanban.v1.EditAndPromoteRequest
-	(*SnoozeRequest)(nil),                  // 93: fleetkanban.v1.SnoozeRequest
-	(*ScratchpadChangeEvent)(nil),          // 94: fleetkanban.v1.ScratchpadChangeEvent
-	(*OllamaStatus)(nil),                   // 95: fleetkanban.v1.OllamaStatus
-	(*OllamaModel)(nil),                    // 96: fleetkanban.v1.OllamaModel
-	(*OllamaListModelsResponse)(nil),       // 97: fleetkanban.v1.OllamaListModelsResponse
-	(*OllamaRecommendedModel)(nil),         // 98: fleetkanban.v1.OllamaRecommendedModel
-	(*OllamaListRecommendedResponse)(nil),  // 99: fleetkanban.v1.OllamaListRecommendedResponse
-	(*PullModelRequest)(nil),               // 100: fleetkanban.v1.PullModelRequest
-	(*OllamaPullProgressEvent)(nil),        // 101: fleetkanban.v1.OllamaPullProgressEvent
-	nil,                                    // 102: fleetkanban.v1.WatchEventsRequest.SinceSeqByTaskEntry
-	nil,                                    // 103: fleetkanban.v1.ContextNode.AttrsEntry
-	nil,                                    // 104: fleetkanban.v1.ContextEdge.AttrsEntry
-	nil,                                    // 105: fleetkanban.v1.ContextOverview.NodeCountsByKindEntry
-	nil,                                    // 106: fleetkanban.v1.ContextOverview.EdgeCountsByRelEntry
-	nil,                                    // 107: fleetkanban.v1.SearchContextResponse.ChannelsEntry
-	nil,                                    // 108: fleetkanban.v1.CreateNodeRequest.AttrsEntry
-	nil,                                    // 109: fleetkanban.v1.UpdateNodeRequest.AttrsEntry
-	nil,                                    // 110: fleetkanban.v1.CreateEdgeRequest.AttrsEntry
-	nil,                                    // 111: fleetkanban.v1.WatchContextRequest.SinceSeqByKindEntry
-	nil,                                    // 112: fleetkanban.v1.EditAndPromoteRequest.EditedAttrsEntry
-	(*timestamppb.Timestamp)(nil),          // 113: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                  // 114: google.protobuf.Empty
+	(FinalizeAction)(0),                       // 0: fleetkanban.v1.FinalizeAction
+	(ReviewAction)(0),                         // 1: fleetkanban.v1.ReviewAction
+	(CopilotLoginSessionState)(0),             // 2: fleetkanban.v1.CopilotLoginSessionState
+	(*StashUncommittedResponse)(nil),          // 3: fleetkanban.v1.StashUncommittedResponse
+	(*AgentSettings)(nil),                     // 4: fleetkanban.v1.AgentSettings
+	(*IdRequest)(nil),                         // 5: fleetkanban.v1.IdRequest
+	(*BoolValue)(nil),                         // 6: fleetkanban.v1.BoolValue
+	(*IntValue)(nil),                          // 7: fleetkanban.v1.IntValue
+	(*VersionInfo)(nil),                       // 8: fleetkanban.v1.VersionInfo
+	(*Precondition)(nil),                      // 9: fleetkanban.v1.Precondition
+	(*PreconditionsResponse)(nil),             // 10: fleetkanban.v1.PreconditionsResponse
+	(*InstallPreconditionRequest)(nil),        // 11: fleetkanban.v1.InstallPreconditionRequest
+	(*InstallPreconditionResponse)(nil),       // 12: fleetkanban.v1.InstallPreconditionResponse
+	(*Task)(nil),                              // 13: fleetkanban.v1.Task
+	(*Subtask)(nil),                           // 14: fleetkanban.v1.Subtask
+	(*Repository)(nil),                        // 15: fleetkanban.v1.Repository
+	(*AgentEvent)(nil),                        // 16: fleetkanban.v1.AgentEvent
+	(*AuthStatus)(nil),                        // 17: fleetkanban.v1.AuthStatus
+	(*GitConfigStatus)(nil),                   // 18: fleetkanban.v1.GitConfigStatus
+	(*CreateTaskRequest)(nil),                 // 19: fleetkanban.v1.CreateTaskRequest
+	(*ListTasksRequest)(nil),                  // 20: fleetkanban.v1.ListTasksRequest
+	(*ListTasksResponse)(nil),                 // 21: fleetkanban.v1.ListTasksResponse
+	(*DiffResponse)(nil),                      // 22: fleetkanban.v1.DiffResponse
+	(*FinalizeTaskRequest)(nil),               // 23: fleetkanban.v1.FinalizeTaskRequest
+	(*DeleteTaskRequest)(nil),                 // 24: fleetkanban.v1.DeleteTaskRequest
+	(*SubmitReviewRequest)(nil),               // 25: fleetkanban.v1.SubmitReviewRequest
+	(*TaskEventsRequest)(nil),                 // 26: fleetkanban.v1.TaskEventsRequest
+	(*TaskEventsResponse)(nil),                // 27: fleetkanban.v1.TaskEventsResponse
+	(*WatchEventsRequest)(nil),                // 28: fleetkanban.v1.WatchEventsRequest
+	(*ListSubtasksRequest)(nil),               // 29: fleetkanban.v1.ListSubtasksRequest
+	(*ListSubtasksResponse)(nil),              // 30: fleetkanban.v1.ListSubtasksResponse
+	(*GetSubtaskContextRequest)(nil),          // 31: fleetkanban.v1.GetSubtaskContextRequest
+	(*CopilotSubtaskContext)(nil),             // 32: fleetkanban.v1.CopilotSubtaskContext
+	(*CreateSubtaskRequest)(nil),              // 33: fleetkanban.v1.CreateSubtaskRequest
+	(*UpdateSubtaskRequest)(nil),              // 34: fleetkanban.v1.UpdateSubtaskRequest
+	(*ReorderSubtasksRequest)(nil),            // 35: fleetkanban.v1.ReorderSubtasksRequest
+	(*RegisterRepositoryRequest)(nil),         // 36: fleetkanban.v1.RegisterRepositoryRequest
+	(*ListRepositoriesResponse)(nil),          // 37: fleetkanban.v1.ListRepositoriesResponse
+	(*ScanGitRepositoriesRequest)(nil),        // 38: fleetkanban.v1.ScanGitRepositoriesRequest
+	(*FoundRepository)(nil),                   // 39: fleetkanban.v1.FoundRepository
+	(*ScanGitRepositoriesResponse)(nil),       // 40: fleetkanban.v1.ScanGitRepositoriesResponse
+	(*UpdateDefaultBaseBranchRequest)(nil),    // 41: fleetkanban.v1.UpdateDefaultBaseBranchRequest
+	(*ListBranchesRequest)(nil),               // 42: fleetkanban.v1.ListBranchesRequest
+	(*ListBranchesResponse)(nil),              // 43: fleetkanban.v1.ListBranchesResponse
+	(*SetGitHubTokenRequest)(nil),             // 44: fleetkanban.v1.SetGitHubTokenRequest
+	(*CopilotLoginChallenge)(nil),             // 45: fleetkanban.v1.CopilotLoginChallenge
+	(*CopilotLoginSessionInfo)(nil),           // 46: fleetkanban.v1.CopilotLoginSessionInfo
+	(*GitHubTokenEntry)(nil),                  // 47: fleetkanban.v1.GitHubTokenEntry
+	(*ListGitHubTokensResponse)(nil),          // 48: fleetkanban.v1.ListGitHubTokensResponse
+	(*AddGitHubTokenRequest)(nil),             // 49: fleetkanban.v1.AddGitHubTokenRequest
+	(*GitHubTokenLabelRequest)(nil),           // 50: fleetkanban.v1.GitHubTokenLabelRequest
+	(*CopilotQuotaInfo)(nil),                  // 51: fleetkanban.v1.CopilotQuotaInfo
+	(*CopilotQuotaSnapshot)(nil),              // 52: fleetkanban.v1.CopilotQuotaSnapshot
+	(*GitHubAccountInfo)(nil),                 // 53: fleetkanban.v1.GitHubAccountInfo
+	(*ModelInfo)(nil),                         // 54: fleetkanban.v1.ModelInfo
+	(*ListModelsResponse)(nil),                // 55: fleetkanban.v1.ListModelsResponse
+	(*WorktreeEntry)(nil),                     // 56: fleetkanban.v1.WorktreeEntry
+	(*ListWorktreesResponse)(nil),             // 57: fleetkanban.v1.ListWorktreesResponse
+	(*RemoveWorktreeRequest)(nil),             // 58: fleetkanban.v1.RemoveWorktreeRequest
+	(*ContextNode)(nil),                       // 59: fleetkanban.v1.ContextNode
+	(*ContextEdge)(nil),                       // 60: fleetkanban.v1.ContextEdge
+	(*ContextFact)(nil),                       // 61: fleetkanban.v1.ContextFact
+	(*ContextNodeDetail)(nil),                 // 62: fleetkanban.v1.ContextNodeDetail
+	(*ContextOverview)(nil),                   // 63: fleetkanban.v1.ContextOverview
+	(*RepoIdRequest)(nil),                     // 64: fleetkanban.v1.RepoIdRequest
+	(*NodeIdRequest)(nil),                     // 65: fleetkanban.v1.NodeIdRequest
+	(*EdgeIdRequest)(nil),                     // 66: fleetkanban.v1.EdgeIdRequest
+	(*EntryIdRequest)(nil),                    // 67: fleetkanban.v1.EntryIdRequest
+	(*SearchContextRequest)(nil),              // 68: fleetkanban.v1.SearchContextRequest
+	(*SearchHit)(nil),                         // 69: fleetkanban.v1.SearchHit
+	(*SearchContextResponse)(nil),             // 70: fleetkanban.v1.SearchContextResponse
+	(*SearchHitList)(nil),                     // 71: fleetkanban.v1.SearchHitList
+	(*ListNodesRequest)(nil),                  // 72: fleetkanban.v1.ListNodesRequest
+	(*ListNodesResponse)(nil),                 // 73: fleetkanban.v1.ListNodesResponse
+	(*CreateNodeRequest)(nil),                 // 74: fleetkanban.v1.CreateNodeRequest
+	(*UpdateNodeRequest)(nil),                 // 75: fleetkanban.v1.UpdateNodeRequest
+	(*PinNodeRequest)(nil),                    // 76: fleetkanban.v1.PinNodeRequest
+	(*ListEdgesRequest)(nil),                  // 77: fleetkanban.v1.ListEdgesRequest
+	(*ListEdgesResponse)(nil),                 // 78: fleetkanban.v1.ListEdgesResponse
+	(*CreateEdgeRequest)(nil),                 // 79: fleetkanban.v1.CreateEdgeRequest
+	(*ListFactsRequest)(nil),                  // 80: fleetkanban.v1.ListFactsRequest
+	(*ListFactsResponse)(nil),                 // 81: fleetkanban.v1.ListFactsResponse
+	(*InjectionSource)(nil),                   // 82: fleetkanban.v1.InjectionSource
+	(*InjectionPreview)(nil),                  // 83: fleetkanban.v1.InjectionPreview
+	(*PreviewInjectionRequest)(nil),           // 84: fleetkanban.v1.PreviewInjectionRequest
+	(*RebuildEmbeddingsResponse)(nil),         // 85: fleetkanban.v1.RebuildEmbeddingsResponse
+	(*RebuildCodeGraphResponse)(nil),          // 86: fleetkanban.v1.RebuildCodeGraphResponse
+	(*AnalyzeRepoRequest)(nil),                // 87: fleetkanban.v1.AnalyzeRepoRequest
+	(*MemorySettings)(nil),                    // 88: fleetkanban.v1.MemorySettings
+	(*UpdateMemorySettingsRequest)(nil),       // 89: fleetkanban.v1.UpdateMemorySettingsRequest
+	(*MemoryHealth)(nil),                      // 90: fleetkanban.v1.MemoryHealth
+	(*SuggestForNewTaskRequest)(nil),          // 91: fleetkanban.v1.SuggestForNewTaskRequest
+	(*TaskSuggestion)(nil),                    // 92: fleetkanban.v1.TaskSuggestion
+	(*ContextNodeSummary)(nil),                // 93: fleetkanban.v1.ContextNodeSummary
+	(*SuggestForNewTaskResponse)(nil),         // 94: fleetkanban.v1.SuggestForNewTaskResponse
+	(*WatchContextRequest)(nil),               // 95: fleetkanban.v1.WatchContextRequest
+	(*ContextChangeEvent)(nil),                // 96: fleetkanban.v1.ContextChangeEvent
+	(*ScratchpadEntry)(nil),                   // 97: fleetkanban.v1.ScratchpadEntry
+	(*ListPendingRequest)(nil),                // 98: fleetkanban.v1.ListPendingRequest
+	(*ListPendingResponse)(nil),               // 99: fleetkanban.v1.ListPendingResponse
+	(*RejectEntryRequest)(nil),                // 100: fleetkanban.v1.RejectEntryRequest
+	(*EditAndPromoteRequest)(nil),             // 101: fleetkanban.v1.EditAndPromoteRequest
+	(*SnoozeRequest)(nil),                     // 102: fleetkanban.v1.SnoozeRequest
+	(*ScratchpadChangeEvent)(nil),             // 103: fleetkanban.v1.ScratchpadChangeEvent
+	(*OllamaStatus)(nil),                      // 104: fleetkanban.v1.OllamaStatus
+	(*OllamaModel)(nil),                       // 105: fleetkanban.v1.OllamaModel
+	(*OllamaListModelsResponse)(nil),          // 106: fleetkanban.v1.OllamaListModelsResponse
+	(*OllamaRecommendedModel)(nil),            // 107: fleetkanban.v1.OllamaRecommendedModel
+	(*OllamaListRecommendedResponse)(nil),     // 108: fleetkanban.v1.OllamaListRecommendedResponse
+	(*PullModelRequest)(nil),                  // 109: fleetkanban.v1.PullModelRequest
+	(*OllamaPullProgressEvent)(nil),           // 110: fleetkanban.v1.OllamaPullProgressEvent
+	(*Artifact)(nil),                          // 111: fleetkanban.v1.Artifact
+	(*ListArtifactsRequest)(nil),              // 112: fleetkanban.v1.ListArtifactsRequest
+	(*ListArtifactsResponse)(nil),             // 113: fleetkanban.v1.ListArtifactsResponse
+	(*GetArtifactRequest)(nil),                // 114: fleetkanban.v1.GetArtifactRequest
+	(*GetArtifactContentRequest)(nil),         // 115: fleetkanban.v1.GetArtifactContentRequest
+	(*ArtifactChunk)(nil),                     // 116: fleetkanban.v1.ArtifactChunk
+	(*HarnessSkill)(nil),                      // 117: fleetkanban.v1.HarnessSkill
+	(*ListSkillVersionsResponse)(nil),         // 118: fleetkanban.v1.ListSkillVersionsResponse
+	(*ValidateSkillRequest)(nil),              // 119: fleetkanban.v1.ValidateSkillRequest
+	(*ValidateSkillResponse)(nil),             // 120: fleetkanban.v1.ValidateSkillResponse
+	(*UpdateSkillRequest)(nil),                // 121: fleetkanban.v1.UpdateSkillRequest
+	(*RollbackSkillRequest)(nil),              // 122: fleetkanban.v1.RollbackSkillRequest
+	(*HarnessAttempt)(nil),                    // 123: fleetkanban.v1.HarnessAttempt
+	(*ListHarnessAttemptsResponse)(nil),       // 124: fleetkanban.v1.ListHarnessAttemptsResponse
+	(*ListHarnessAttemptsForTaskRequest)(nil), // 125: fleetkanban.v1.ListHarnessAttemptsForTaskRequest
+	(*ApproveHarnessAttemptRequest)(nil),      // 126: fleetkanban.v1.ApproveHarnessAttemptRequest
+	(*RejectHarnessAttemptRequest)(nil),       // 127: fleetkanban.v1.RejectHarnessAttemptRequest
+	nil,                                       // 128: fleetkanban.v1.WatchEventsRequest.SinceSeqByTaskEntry
+	nil,                                       // 129: fleetkanban.v1.CopilotQuotaInfo.SnapshotsEntry
+	nil,                                       // 130: fleetkanban.v1.ContextNode.AttrsEntry
+	nil,                                       // 131: fleetkanban.v1.ContextEdge.AttrsEntry
+	nil,                                       // 132: fleetkanban.v1.ContextOverview.NodeCountsByKindEntry
+	nil,                                       // 133: fleetkanban.v1.ContextOverview.EdgeCountsByRelEntry
+	nil,                                       // 134: fleetkanban.v1.SearchContextResponse.ChannelsEntry
+	nil,                                       // 135: fleetkanban.v1.CreateNodeRequest.AttrsEntry
+	nil,                                       // 136: fleetkanban.v1.UpdateNodeRequest.AttrsEntry
+	nil,                                       // 137: fleetkanban.v1.CreateEdgeRequest.AttrsEntry
+	nil,                                       // 138: fleetkanban.v1.WatchContextRequest.SinceSeqByKindEntry
+	nil,                                       // 139: fleetkanban.v1.EditAndPromoteRequest.EditedAttrsEntry
+	(*timestamppb.Timestamp)(nil),             // 140: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                     // 141: google.protobuf.Empty
 }
 var file_fleetkanban_v1_fleetkanban_proto_depIdxs = []int32{
 	9,   // 0: fleetkanban.v1.PreconditionsResponse.preconditions:type_name -> fleetkanban.v1.Precondition
 	9,   // 1: fleetkanban.v1.InstallPreconditionResponse.precondition:type_name -> fleetkanban.v1.Precondition
-	113, // 2: fleetkanban.v1.Task.created_at:type_name -> google.protobuf.Timestamp
-	113, // 3: fleetkanban.v1.Task.updated_at:type_name -> google.protobuf.Timestamp
-	113, // 4: fleetkanban.v1.Task.started_at:type_name -> google.protobuf.Timestamp
-	113, // 5: fleetkanban.v1.Task.finished_at:type_name -> google.protobuf.Timestamp
-	113, // 6: fleetkanban.v1.Subtask.created_at:type_name -> google.protobuf.Timestamp
-	113, // 7: fleetkanban.v1.Subtask.updated_at:type_name -> google.protobuf.Timestamp
-	113, // 8: fleetkanban.v1.Repository.created_at:type_name -> google.protobuf.Timestamp
-	113, // 9: fleetkanban.v1.Repository.last_used_at:type_name -> google.protobuf.Timestamp
-	113, // 10: fleetkanban.v1.AgentEvent.occurred_at:type_name -> google.protobuf.Timestamp
-	113, // 11: fleetkanban.v1.AuthStatus.checked_at:type_name -> google.protobuf.Timestamp
+	140, // 2: fleetkanban.v1.Task.created_at:type_name -> google.protobuf.Timestamp
+	140, // 3: fleetkanban.v1.Task.updated_at:type_name -> google.protobuf.Timestamp
+	140, // 4: fleetkanban.v1.Task.started_at:type_name -> google.protobuf.Timestamp
+	140, // 5: fleetkanban.v1.Task.finished_at:type_name -> google.protobuf.Timestamp
+	140, // 6: fleetkanban.v1.Subtask.created_at:type_name -> google.protobuf.Timestamp
+	140, // 7: fleetkanban.v1.Subtask.updated_at:type_name -> google.protobuf.Timestamp
+	140, // 8: fleetkanban.v1.Repository.created_at:type_name -> google.protobuf.Timestamp
+	140, // 9: fleetkanban.v1.Repository.last_used_at:type_name -> google.protobuf.Timestamp
+	140, // 10: fleetkanban.v1.AgentEvent.occurred_at:type_name -> google.protobuf.Timestamp
+	140, // 11: fleetkanban.v1.AuthStatus.checked_at:type_name -> google.protobuf.Timestamp
 	13,  // 12: fleetkanban.v1.ListTasksResponse.tasks:type_name -> fleetkanban.v1.Task
 	0,   // 13: fleetkanban.v1.FinalizeTaskRequest.action:type_name -> fleetkanban.v1.FinalizeAction
 	1,   // 14: fleetkanban.v1.SubmitReviewRequest.action:type_name -> fleetkanban.v1.ReviewAction
 	16,  // 15: fleetkanban.v1.TaskEventsResponse.events:type_name -> fleetkanban.v1.AgentEvent
-	102, // 16: fleetkanban.v1.WatchEventsRequest.since_seq_by_task:type_name -> fleetkanban.v1.WatchEventsRequest.SinceSeqByTaskEntry
+	128, // 16: fleetkanban.v1.WatchEventsRequest.since_seq_by_task:type_name -> fleetkanban.v1.WatchEventsRequest.SinceSeqByTaskEntry
 	14,  // 17: fleetkanban.v1.ListSubtasksResponse.subtasks:type_name -> fleetkanban.v1.Subtask
 	15,  // 18: fleetkanban.v1.ListRepositoriesResponse.repositories:type_name -> fleetkanban.v1.Repository
-	37,  // 19: fleetkanban.v1.ScanGitRepositoriesResponse.repositories:type_name -> fleetkanban.v1.FoundRepository
+	39,  // 19: fleetkanban.v1.ScanGitRepositoriesResponse.repositories:type_name -> fleetkanban.v1.FoundRepository
 	2,   // 20: fleetkanban.v1.CopilotLoginSessionInfo.state:type_name -> fleetkanban.v1.CopilotLoginSessionState
-	45,  // 21: fleetkanban.v1.ListGitHubTokensResponse.tokens:type_name -> fleetkanban.v1.GitHubTokenEntry
-	50,  // 22: fleetkanban.v1.ListModelsResponse.models:type_name -> fleetkanban.v1.ModelInfo
-	52,  // 23: fleetkanban.v1.ListWorktreesResponse.worktrees:type_name -> fleetkanban.v1.WorktreeEntry
-	103, // 24: fleetkanban.v1.ContextNode.attrs:type_name -> fleetkanban.v1.ContextNode.AttrsEntry
-	113, // 25: fleetkanban.v1.ContextNode.created_at:type_name -> google.protobuf.Timestamp
-	113, // 26: fleetkanban.v1.ContextNode.updated_at:type_name -> google.protobuf.Timestamp
-	104, // 27: fleetkanban.v1.ContextEdge.attrs:type_name -> fleetkanban.v1.ContextEdge.AttrsEntry
-	113, // 28: fleetkanban.v1.ContextEdge.created_at:type_name -> google.protobuf.Timestamp
-	113, // 29: fleetkanban.v1.ContextFact.valid_from:type_name -> google.protobuf.Timestamp
-	113, // 30: fleetkanban.v1.ContextFact.valid_to:type_name -> google.protobuf.Timestamp
-	113, // 31: fleetkanban.v1.ContextFact.created_at:type_name -> google.protobuf.Timestamp
-	55,  // 32: fleetkanban.v1.ContextNodeDetail.node:type_name -> fleetkanban.v1.ContextNode
-	56,  // 33: fleetkanban.v1.ContextNodeDetail.out_edges:type_name -> fleetkanban.v1.ContextEdge
-	56,  // 34: fleetkanban.v1.ContextNodeDetail.in_edges:type_name -> fleetkanban.v1.ContextEdge
-	55,  // 35: fleetkanban.v1.ContextNodeDetail.neighbors:type_name -> fleetkanban.v1.ContextNode
-	57,  // 36: fleetkanban.v1.ContextNodeDetail.facts:type_name -> fleetkanban.v1.ContextFact
-	105, // 37: fleetkanban.v1.ContextOverview.node_counts_by_kind:type_name -> fleetkanban.v1.ContextOverview.NodeCountsByKindEntry
-	106, // 38: fleetkanban.v1.ContextOverview.edge_counts_by_rel:type_name -> fleetkanban.v1.ContextOverview.EdgeCountsByRelEntry
-	55,  // 39: fleetkanban.v1.SearchHit.node:type_name -> fleetkanban.v1.ContextNode
-	107, // 40: fleetkanban.v1.SearchContextResponse.channels:type_name -> fleetkanban.v1.SearchContextResponse.ChannelsEntry
-	65,  // 41: fleetkanban.v1.SearchHitList.hits:type_name -> fleetkanban.v1.SearchHit
-	55,  // 42: fleetkanban.v1.ListNodesResponse.nodes:type_name -> fleetkanban.v1.ContextNode
-	108, // 43: fleetkanban.v1.CreateNodeRequest.attrs:type_name -> fleetkanban.v1.CreateNodeRequest.AttrsEntry
-	109, // 44: fleetkanban.v1.UpdateNodeRequest.attrs:type_name -> fleetkanban.v1.UpdateNodeRequest.AttrsEntry
-	56,  // 45: fleetkanban.v1.ListEdgesResponse.edges:type_name -> fleetkanban.v1.ContextEdge
-	110, // 46: fleetkanban.v1.CreateEdgeRequest.attrs:type_name -> fleetkanban.v1.CreateEdgeRequest.AttrsEntry
-	57,  // 47: fleetkanban.v1.ListFactsResponse.facts:type_name -> fleetkanban.v1.ContextFact
-	78,  // 48: fleetkanban.v1.InjectionPreview.sources:type_name -> fleetkanban.v1.InjectionSource
-	113, // 49: fleetkanban.v1.MemorySettings.updated_at:type_name -> google.protobuf.Timestamp
-	84,  // 50: fleetkanban.v1.UpdateMemorySettingsRequest.settings:type_name -> fleetkanban.v1.MemorySettings
-	111, // 51: fleetkanban.v1.WatchContextRequest.since_seq_by_kind:type_name -> fleetkanban.v1.WatchContextRequest.SinceSeqByKindEntry
-	113, // 52: fleetkanban.v1.ContextChangeEvent.occurred_at:type_name -> google.protobuf.Timestamp
-	113, // 53: fleetkanban.v1.ScratchpadEntry.snoozed_until:type_name -> google.protobuf.Timestamp
-	113, // 54: fleetkanban.v1.ScratchpadEntry.created_at:type_name -> google.protobuf.Timestamp
-	113, // 55: fleetkanban.v1.ScratchpadEntry.updated_at:type_name -> google.protobuf.Timestamp
-	88,  // 56: fleetkanban.v1.ListPendingResponse.entries:type_name -> fleetkanban.v1.ScratchpadEntry
-	112, // 57: fleetkanban.v1.EditAndPromoteRequest.edited_attrs:type_name -> fleetkanban.v1.EditAndPromoteRequest.EditedAttrsEntry
-	113, // 58: fleetkanban.v1.ScratchpadChangeEvent.occurred_at:type_name -> google.protobuf.Timestamp
-	96,  // 59: fleetkanban.v1.OllamaListModelsResponse.models:type_name -> fleetkanban.v1.OllamaModel
-	98,  // 60: fleetkanban.v1.OllamaListRecommendedResponse.models:type_name -> fleetkanban.v1.OllamaRecommendedModel
-	67,  // 61: fleetkanban.v1.SearchContextResponse.ChannelsEntry.value:type_name -> fleetkanban.v1.SearchHitList
-	19,  // 62: fleetkanban.v1.TaskService.CreateTask:input_type -> fleetkanban.v1.CreateTaskRequest
-	20,  // 63: fleetkanban.v1.TaskService.ListTasks:input_type -> fleetkanban.v1.ListTasksRequest
-	5,   // 64: fleetkanban.v1.TaskService.GetTask:input_type -> fleetkanban.v1.IdRequest
-	5,   // 65: fleetkanban.v1.TaskService.GetTaskDiff:input_type -> fleetkanban.v1.IdRequest
-	5,   // 66: fleetkanban.v1.TaskService.RunTask:input_type -> fleetkanban.v1.IdRequest
-	5,   // 67: fleetkanban.v1.TaskService.CancelTask:input_type -> fleetkanban.v1.IdRequest
-	23,  // 68: fleetkanban.v1.TaskService.FinalizeTask:input_type -> fleetkanban.v1.FinalizeTaskRequest
-	24,  // 69: fleetkanban.v1.TaskService.DeleteTask:input_type -> fleetkanban.v1.DeleteTaskRequest
-	5,   // 70: fleetkanban.v1.TaskService.DeleteTaskBranch:input_type -> fleetkanban.v1.IdRequest
-	25,  // 71: fleetkanban.v1.TaskService.SubmitReview:input_type -> fleetkanban.v1.SubmitReviewRequest
-	26,  // 72: fleetkanban.v1.TaskService.TaskEvents:input_type -> fleetkanban.v1.TaskEventsRequest
-	28,  // 73: fleetkanban.v1.TaskService.WatchEvents:input_type -> fleetkanban.v1.WatchEventsRequest
-	29,  // 74: fleetkanban.v1.SubtaskService.ListSubtasks:input_type -> fleetkanban.v1.ListSubtasksRequest
-	31,  // 75: fleetkanban.v1.SubtaskService.CreateSubtask:input_type -> fleetkanban.v1.CreateSubtaskRequest
-	32,  // 76: fleetkanban.v1.SubtaskService.UpdateSubtask:input_type -> fleetkanban.v1.UpdateSubtaskRequest
-	5,   // 77: fleetkanban.v1.SubtaskService.DeleteSubtask:input_type -> fleetkanban.v1.IdRequest
-	33,  // 78: fleetkanban.v1.SubtaskService.ReorderSubtasks:input_type -> fleetkanban.v1.ReorderSubtasksRequest
-	34,  // 79: fleetkanban.v1.RepositoryService.RegisterRepository:input_type -> fleetkanban.v1.RegisterRepositoryRequest
-	114, // 80: fleetkanban.v1.RepositoryService.ListRepositories:input_type -> google.protobuf.Empty
-	114, // 81: fleetkanban.v1.RepositoryService.CheckGitConfig:input_type -> google.protobuf.Empty
-	36,  // 82: fleetkanban.v1.RepositoryService.ScanGitRepositories:input_type -> fleetkanban.v1.ScanGitRepositoriesRequest
-	39,  // 83: fleetkanban.v1.RepositoryService.UpdateDefaultBaseBranch:input_type -> fleetkanban.v1.UpdateDefaultBaseBranchRequest
-	40,  // 84: fleetkanban.v1.RepositoryService.ListBranches:input_type -> fleetkanban.v1.ListBranchesRequest
-	5,   // 85: fleetkanban.v1.RepositoryService.CreateInitialCommit:input_type -> fleetkanban.v1.IdRequest
-	5,   // 86: fleetkanban.v1.RepositoryService.StashUncommitted:input_type -> fleetkanban.v1.IdRequest
-	114, // 87: fleetkanban.v1.ModelService.ListModels:input_type -> google.protobuf.Empty
-	114, // 88: fleetkanban.v1.AuthService.CheckCopilotAuth:input_type -> google.protobuf.Empty
-	114, // 89: fleetkanban.v1.AuthService.BeginCopilotLogin:input_type -> google.protobuf.Empty
-	114, // 90: fleetkanban.v1.AuthService.CancelCopilotLogin:input_type -> google.protobuf.Empty
-	114, // 91: fleetkanban.v1.AuthService.GetCopilotLoginSession:input_type -> google.protobuf.Empty
-	114, // 92: fleetkanban.v1.AuthService.StartCopilotLogout:input_type -> google.protobuf.Empty
-	114, // 93: fleetkanban.v1.AuthService.ReloadCopilotAuth:input_type -> google.protobuf.Empty
-	114, // 94: fleetkanban.v1.AuthService.HasGitHubToken:input_type -> google.protobuf.Empty
-	42,  // 95: fleetkanban.v1.AuthService.SetGitHubToken:input_type -> fleetkanban.v1.SetGitHubTokenRequest
-	114, // 96: fleetkanban.v1.AuthService.ListGitHubTokens:input_type -> google.protobuf.Empty
-	47,  // 97: fleetkanban.v1.AuthService.AddGitHubToken:input_type -> fleetkanban.v1.AddGitHubTokenRequest
-	48,  // 98: fleetkanban.v1.AuthService.RemoveGitHubToken:input_type -> fleetkanban.v1.GitHubTokenLabelRequest
-	48,  // 99: fleetkanban.v1.AuthService.SetActiveGitHubToken:input_type -> fleetkanban.v1.GitHubTokenLabelRequest
-	114, // 100: fleetkanban.v1.AuthService.GetGitHubAccountInfo:input_type -> google.protobuf.Empty
-	114, // 101: fleetkanban.v1.SystemService.GetConcurrency:input_type -> google.protobuf.Empty
-	7,   // 102: fleetkanban.v1.SystemService.SetConcurrency:input_type -> fleetkanban.v1.IntValue
-	114, // 103: fleetkanban.v1.SystemService.Shutdown:input_type -> google.protobuf.Empty
-	114, // 104: fleetkanban.v1.SystemService.GetVersion:input_type -> google.protobuf.Empty
-	114, // 105: fleetkanban.v1.SystemService.GetPreconditions:input_type -> google.protobuf.Empty
-	11,  // 106: fleetkanban.v1.SystemService.InstallPrecondition:input_type -> fleetkanban.v1.InstallPreconditionRequest
-	114, // 107: fleetkanban.v1.SystemService.GetAgentSettings:input_type -> google.protobuf.Empty
-	4,   // 108: fleetkanban.v1.SystemService.SetAgentSettings:input_type -> fleetkanban.v1.AgentSettings
-	114, // 109: fleetkanban.v1.SystemService.GetDefaultAgentPrompts:input_type -> google.protobuf.Empty
-	114, // 110: fleetkanban.v1.WorktreeService.ListWorktrees:input_type -> google.protobuf.Empty
-	54,  // 111: fleetkanban.v1.WorktreeService.RemoveWorktree:input_type -> fleetkanban.v1.RemoveWorktreeRequest
-	60,  // 112: fleetkanban.v1.ContextService.GetOverview:input_type -> fleetkanban.v1.RepoIdRequest
-	64,  // 113: fleetkanban.v1.ContextService.SearchContext:input_type -> fleetkanban.v1.SearchContextRequest
-	68,  // 114: fleetkanban.v1.ContextService.ListNodes:input_type -> fleetkanban.v1.ListNodesRequest
-	61,  // 115: fleetkanban.v1.ContextService.GetNode:input_type -> fleetkanban.v1.NodeIdRequest
-	70,  // 116: fleetkanban.v1.ContextService.CreateNode:input_type -> fleetkanban.v1.CreateNodeRequest
-	71,  // 117: fleetkanban.v1.ContextService.UpdateNode:input_type -> fleetkanban.v1.UpdateNodeRequest
-	61,  // 118: fleetkanban.v1.ContextService.DeleteNode:input_type -> fleetkanban.v1.NodeIdRequest
-	72,  // 119: fleetkanban.v1.ContextService.PinNode:input_type -> fleetkanban.v1.PinNodeRequest
-	73,  // 120: fleetkanban.v1.ContextService.ListEdges:input_type -> fleetkanban.v1.ListEdgesRequest
-	75,  // 121: fleetkanban.v1.ContextService.CreateEdge:input_type -> fleetkanban.v1.CreateEdgeRequest
-	62,  // 122: fleetkanban.v1.ContextService.DeleteEdge:input_type -> fleetkanban.v1.EdgeIdRequest
-	76,  // 123: fleetkanban.v1.ContextService.ListFacts:input_type -> fleetkanban.v1.ListFactsRequest
-	80,  // 124: fleetkanban.v1.ContextService.PreviewInjection:input_type -> fleetkanban.v1.PreviewInjectionRequest
-	83,  // 125: fleetkanban.v1.ContextService.AnalyzeRepository:input_type -> fleetkanban.v1.AnalyzeRepoRequest
-	60,  // 126: fleetkanban.v1.ContextService.RebuildEmbeddings:input_type -> fleetkanban.v1.RepoIdRequest
-	60,  // 127: fleetkanban.v1.ContextService.RebuildClosure:input_type -> fleetkanban.v1.RepoIdRequest
-	60,  // 128: fleetkanban.v1.ContextService.RebuildCodeGraph:input_type -> fleetkanban.v1.RepoIdRequest
-	60,  // 129: fleetkanban.v1.ContextService.GetMemorySettings:input_type -> fleetkanban.v1.RepoIdRequest
-	85,  // 130: fleetkanban.v1.ContextService.UpdateMemorySettings:input_type -> fleetkanban.v1.UpdateMemorySettingsRequest
-	86,  // 131: fleetkanban.v1.ContextService.WatchContextChanges:input_type -> fleetkanban.v1.WatchContextRequest
-	89,  // 132: fleetkanban.v1.ScratchpadService.ListPending:input_type -> fleetkanban.v1.ListPendingRequest
-	63,  // 133: fleetkanban.v1.ScratchpadService.GetEntry:input_type -> fleetkanban.v1.EntryIdRequest
-	63,  // 134: fleetkanban.v1.ScratchpadService.PromoteEntry:input_type -> fleetkanban.v1.EntryIdRequest
-	91,  // 135: fleetkanban.v1.ScratchpadService.RejectEntry:input_type -> fleetkanban.v1.RejectEntryRequest
-	92,  // 136: fleetkanban.v1.ScratchpadService.EditAndPromote:input_type -> fleetkanban.v1.EditAndPromoteRequest
-	93,  // 137: fleetkanban.v1.ScratchpadService.SnoozeEntry:input_type -> fleetkanban.v1.SnoozeRequest
-	60,  // 138: fleetkanban.v1.ScratchpadService.WatchPending:input_type -> fleetkanban.v1.RepoIdRequest
-	114, // 139: fleetkanban.v1.OllamaService.GetOllamaStatus:input_type -> google.protobuf.Empty
-	114, // 140: fleetkanban.v1.OllamaService.ListInstalledModels:input_type -> google.protobuf.Empty
-	114, // 141: fleetkanban.v1.OllamaService.GetRecommendedModels:input_type -> google.protobuf.Empty
-	100, // 142: fleetkanban.v1.OllamaService.PullOllamaModel:input_type -> fleetkanban.v1.PullModelRequest
-	13,  // 143: fleetkanban.v1.TaskService.CreateTask:output_type -> fleetkanban.v1.Task
-	21,  // 144: fleetkanban.v1.TaskService.ListTasks:output_type -> fleetkanban.v1.ListTasksResponse
-	13,  // 145: fleetkanban.v1.TaskService.GetTask:output_type -> fleetkanban.v1.Task
-	22,  // 146: fleetkanban.v1.TaskService.GetTaskDiff:output_type -> fleetkanban.v1.DiffResponse
-	114, // 147: fleetkanban.v1.TaskService.RunTask:output_type -> google.protobuf.Empty
-	114, // 148: fleetkanban.v1.TaskService.CancelTask:output_type -> google.protobuf.Empty
-	114, // 149: fleetkanban.v1.TaskService.FinalizeTask:output_type -> google.protobuf.Empty
-	114, // 150: fleetkanban.v1.TaskService.DeleteTask:output_type -> google.protobuf.Empty
-	114, // 151: fleetkanban.v1.TaskService.DeleteTaskBranch:output_type -> google.protobuf.Empty
-	114, // 152: fleetkanban.v1.TaskService.SubmitReview:output_type -> google.protobuf.Empty
-	27,  // 153: fleetkanban.v1.TaskService.TaskEvents:output_type -> fleetkanban.v1.TaskEventsResponse
-	16,  // 154: fleetkanban.v1.TaskService.WatchEvents:output_type -> fleetkanban.v1.AgentEvent
-	30,  // 155: fleetkanban.v1.SubtaskService.ListSubtasks:output_type -> fleetkanban.v1.ListSubtasksResponse
-	14,  // 156: fleetkanban.v1.SubtaskService.CreateSubtask:output_type -> fleetkanban.v1.Subtask
-	14,  // 157: fleetkanban.v1.SubtaskService.UpdateSubtask:output_type -> fleetkanban.v1.Subtask
-	114, // 158: fleetkanban.v1.SubtaskService.DeleteSubtask:output_type -> google.protobuf.Empty
-	114, // 159: fleetkanban.v1.SubtaskService.ReorderSubtasks:output_type -> google.protobuf.Empty
-	15,  // 160: fleetkanban.v1.RepositoryService.RegisterRepository:output_type -> fleetkanban.v1.Repository
-	35,  // 161: fleetkanban.v1.RepositoryService.ListRepositories:output_type -> fleetkanban.v1.ListRepositoriesResponse
-	18,  // 162: fleetkanban.v1.RepositoryService.CheckGitConfig:output_type -> fleetkanban.v1.GitConfigStatus
-	38,  // 163: fleetkanban.v1.RepositoryService.ScanGitRepositories:output_type -> fleetkanban.v1.ScanGitRepositoriesResponse
-	15,  // 164: fleetkanban.v1.RepositoryService.UpdateDefaultBaseBranch:output_type -> fleetkanban.v1.Repository
-	41,  // 165: fleetkanban.v1.RepositoryService.ListBranches:output_type -> fleetkanban.v1.ListBranchesResponse
-	15,  // 166: fleetkanban.v1.RepositoryService.CreateInitialCommit:output_type -> fleetkanban.v1.Repository
-	3,   // 167: fleetkanban.v1.RepositoryService.StashUncommitted:output_type -> fleetkanban.v1.StashUncommittedResponse
-	51,  // 168: fleetkanban.v1.ModelService.ListModels:output_type -> fleetkanban.v1.ListModelsResponse
-	17,  // 169: fleetkanban.v1.AuthService.CheckCopilotAuth:output_type -> fleetkanban.v1.AuthStatus
-	43,  // 170: fleetkanban.v1.AuthService.BeginCopilotLogin:output_type -> fleetkanban.v1.CopilotLoginChallenge
-	114, // 171: fleetkanban.v1.AuthService.CancelCopilotLogin:output_type -> google.protobuf.Empty
-	44,  // 172: fleetkanban.v1.AuthService.GetCopilotLoginSession:output_type -> fleetkanban.v1.CopilotLoginSessionInfo
-	114, // 173: fleetkanban.v1.AuthService.StartCopilotLogout:output_type -> google.protobuf.Empty
-	17,  // 174: fleetkanban.v1.AuthService.ReloadCopilotAuth:output_type -> fleetkanban.v1.AuthStatus
-	6,   // 175: fleetkanban.v1.AuthService.HasGitHubToken:output_type -> fleetkanban.v1.BoolValue
-	114, // 176: fleetkanban.v1.AuthService.SetGitHubToken:output_type -> google.protobuf.Empty
-	46,  // 177: fleetkanban.v1.AuthService.ListGitHubTokens:output_type -> fleetkanban.v1.ListGitHubTokensResponse
-	114, // 178: fleetkanban.v1.AuthService.AddGitHubToken:output_type -> google.protobuf.Empty
-	114, // 179: fleetkanban.v1.AuthService.RemoveGitHubToken:output_type -> google.protobuf.Empty
-	114, // 180: fleetkanban.v1.AuthService.SetActiveGitHubToken:output_type -> google.protobuf.Empty
-	49,  // 181: fleetkanban.v1.AuthService.GetGitHubAccountInfo:output_type -> fleetkanban.v1.GitHubAccountInfo
-	7,   // 182: fleetkanban.v1.SystemService.GetConcurrency:output_type -> fleetkanban.v1.IntValue
-	7,   // 183: fleetkanban.v1.SystemService.SetConcurrency:output_type -> fleetkanban.v1.IntValue
-	114, // 184: fleetkanban.v1.SystemService.Shutdown:output_type -> google.protobuf.Empty
-	8,   // 185: fleetkanban.v1.SystemService.GetVersion:output_type -> fleetkanban.v1.VersionInfo
-	10,  // 186: fleetkanban.v1.SystemService.GetPreconditions:output_type -> fleetkanban.v1.PreconditionsResponse
-	12,  // 187: fleetkanban.v1.SystemService.InstallPrecondition:output_type -> fleetkanban.v1.InstallPreconditionResponse
-	4,   // 188: fleetkanban.v1.SystemService.GetAgentSettings:output_type -> fleetkanban.v1.AgentSettings
-	4,   // 189: fleetkanban.v1.SystemService.SetAgentSettings:output_type -> fleetkanban.v1.AgentSettings
-	4,   // 190: fleetkanban.v1.SystemService.GetDefaultAgentPrompts:output_type -> fleetkanban.v1.AgentSettings
-	53,  // 191: fleetkanban.v1.WorktreeService.ListWorktrees:output_type -> fleetkanban.v1.ListWorktreesResponse
-	114, // 192: fleetkanban.v1.WorktreeService.RemoveWorktree:output_type -> google.protobuf.Empty
-	59,  // 193: fleetkanban.v1.ContextService.GetOverview:output_type -> fleetkanban.v1.ContextOverview
-	66,  // 194: fleetkanban.v1.ContextService.SearchContext:output_type -> fleetkanban.v1.SearchContextResponse
-	69,  // 195: fleetkanban.v1.ContextService.ListNodes:output_type -> fleetkanban.v1.ListNodesResponse
-	58,  // 196: fleetkanban.v1.ContextService.GetNode:output_type -> fleetkanban.v1.ContextNodeDetail
-	55,  // 197: fleetkanban.v1.ContextService.CreateNode:output_type -> fleetkanban.v1.ContextNode
-	55,  // 198: fleetkanban.v1.ContextService.UpdateNode:output_type -> fleetkanban.v1.ContextNode
-	114, // 199: fleetkanban.v1.ContextService.DeleteNode:output_type -> google.protobuf.Empty
-	114, // 200: fleetkanban.v1.ContextService.PinNode:output_type -> google.protobuf.Empty
-	74,  // 201: fleetkanban.v1.ContextService.ListEdges:output_type -> fleetkanban.v1.ListEdgesResponse
-	56,  // 202: fleetkanban.v1.ContextService.CreateEdge:output_type -> fleetkanban.v1.ContextEdge
-	114, // 203: fleetkanban.v1.ContextService.DeleteEdge:output_type -> google.protobuf.Empty
-	77,  // 204: fleetkanban.v1.ContextService.ListFacts:output_type -> fleetkanban.v1.ListFactsResponse
-	79,  // 205: fleetkanban.v1.ContextService.PreviewInjection:output_type -> fleetkanban.v1.InjectionPreview
-	114, // 206: fleetkanban.v1.ContextService.AnalyzeRepository:output_type -> google.protobuf.Empty
-	81,  // 207: fleetkanban.v1.ContextService.RebuildEmbeddings:output_type -> fleetkanban.v1.RebuildEmbeddingsResponse
-	114, // 208: fleetkanban.v1.ContextService.RebuildClosure:output_type -> google.protobuf.Empty
-	82,  // 209: fleetkanban.v1.ContextService.RebuildCodeGraph:output_type -> fleetkanban.v1.RebuildCodeGraphResponse
-	84,  // 210: fleetkanban.v1.ContextService.GetMemorySettings:output_type -> fleetkanban.v1.MemorySettings
-	84,  // 211: fleetkanban.v1.ContextService.UpdateMemorySettings:output_type -> fleetkanban.v1.MemorySettings
-	87,  // 212: fleetkanban.v1.ContextService.WatchContextChanges:output_type -> fleetkanban.v1.ContextChangeEvent
-	90,  // 213: fleetkanban.v1.ScratchpadService.ListPending:output_type -> fleetkanban.v1.ListPendingResponse
-	88,  // 214: fleetkanban.v1.ScratchpadService.GetEntry:output_type -> fleetkanban.v1.ScratchpadEntry
-	55,  // 215: fleetkanban.v1.ScratchpadService.PromoteEntry:output_type -> fleetkanban.v1.ContextNode
-	114, // 216: fleetkanban.v1.ScratchpadService.RejectEntry:output_type -> google.protobuf.Empty
-	55,  // 217: fleetkanban.v1.ScratchpadService.EditAndPromote:output_type -> fleetkanban.v1.ContextNode
-	114, // 218: fleetkanban.v1.ScratchpadService.SnoozeEntry:output_type -> google.protobuf.Empty
-	94,  // 219: fleetkanban.v1.ScratchpadService.WatchPending:output_type -> fleetkanban.v1.ScratchpadChangeEvent
-	95,  // 220: fleetkanban.v1.OllamaService.GetOllamaStatus:output_type -> fleetkanban.v1.OllamaStatus
-	97,  // 221: fleetkanban.v1.OllamaService.ListInstalledModels:output_type -> fleetkanban.v1.OllamaListModelsResponse
-	99,  // 222: fleetkanban.v1.OllamaService.GetRecommendedModels:output_type -> fleetkanban.v1.OllamaListRecommendedResponse
-	101, // 223: fleetkanban.v1.OllamaService.PullOllamaModel:output_type -> fleetkanban.v1.OllamaPullProgressEvent
-	143, // [143:224] is the sub-list for method output_type
-	62,  // [62:143] is the sub-list for method input_type
-	62,  // [62:62] is the sub-list for extension type_name
-	62,  // [62:62] is the sub-list for extension extendee
-	0,   // [0:62] is the sub-list for field type_name
+	47,  // 21: fleetkanban.v1.ListGitHubTokensResponse.tokens:type_name -> fleetkanban.v1.GitHubTokenEntry
+	129, // 22: fleetkanban.v1.CopilotQuotaInfo.snapshots:type_name -> fleetkanban.v1.CopilotQuotaInfo.SnapshotsEntry
+	54,  // 23: fleetkanban.v1.ListModelsResponse.models:type_name -> fleetkanban.v1.ModelInfo
+	56,  // 24: fleetkanban.v1.ListWorktreesResponse.worktrees:type_name -> fleetkanban.v1.WorktreeEntry
+	130, // 25: fleetkanban.v1.ContextNode.attrs:type_name -> fleetkanban.v1.ContextNode.AttrsEntry
+	140, // 26: fleetkanban.v1.ContextNode.created_at:type_name -> google.protobuf.Timestamp
+	140, // 27: fleetkanban.v1.ContextNode.updated_at:type_name -> google.protobuf.Timestamp
+	131, // 28: fleetkanban.v1.ContextEdge.attrs:type_name -> fleetkanban.v1.ContextEdge.AttrsEntry
+	140, // 29: fleetkanban.v1.ContextEdge.created_at:type_name -> google.protobuf.Timestamp
+	140, // 30: fleetkanban.v1.ContextFact.valid_from:type_name -> google.protobuf.Timestamp
+	140, // 31: fleetkanban.v1.ContextFact.valid_to:type_name -> google.protobuf.Timestamp
+	140, // 32: fleetkanban.v1.ContextFact.created_at:type_name -> google.protobuf.Timestamp
+	59,  // 33: fleetkanban.v1.ContextNodeDetail.node:type_name -> fleetkanban.v1.ContextNode
+	60,  // 34: fleetkanban.v1.ContextNodeDetail.out_edges:type_name -> fleetkanban.v1.ContextEdge
+	60,  // 35: fleetkanban.v1.ContextNodeDetail.in_edges:type_name -> fleetkanban.v1.ContextEdge
+	59,  // 36: fleetkanban.v1.ContextNodeDetail.neighbors:type_name -> fleetkanban.v1.ContextNode
+	61,  // 37: fleetkanban.v1.ContextNodeDetail.facts:type_name -> fleetkanban.v1.ContextFact
+	132, // 38: fleetkanban.v1.ContextOverview.node_counts_by_kind:type_name -> fleetkanban.v1.ContextOverview.NodeCountsByKindEntry
+	133, // 39: fleetkanban.v1.ContextOverview.edge_counts_by_rel:type_name -> fleetkanban.v1.ContextOverview.EdgeCountsByRelEntry
+	59,  // 40: fleetkanban.v1.SearchHit.node:type_name -> fleetkanban.v1.ContextNode
+	134, // 41: fleetkanban.v1.SearchContextResponse.channels:type_name -> fleetkanban.v1.SearchContextResponse.ChannelsEntry
+	69,  // 42: fleetkanban.v1.SearchHitList.hits:type_name -> fleetkanban.v1.SearchHit
+	59,  // 43: fleetkanban.v1.ListNodesResponse.nodes:type_name -> fleetkanban.v1.ContextNode
+	135, // 44: fleetkanban.v1.CreateNodeRequest.attrs:type_name -> fleetkanban.v1.CreateNodeRequest.AttrsEntry
+	136, // 45: fleetkanban.v1.UpdateNodeRequest.attrs:type_name -> fleetkanban.v1.UpdateNodeRequest.AttrsEntry
+	60,  // 46: fleetkanban.v1.ListEdgesResponse.edges:type_name -> fleetkanban.v1.ContextEdge
+	137, // 47: fleetkanban.v1.CreateEdgeRequest.attrs:type_name -> fleetkanban.v1.CreateEdgeRequest.AttrsEntry
+	61,  // 48: fleetkanban.v1.ListFactsResponse.facts:type_name -> fleetkanban.v1.ContextFact
+	82,  // 49: fleetkanban.v1.InjectionPreview.sources:type_name -> fleetkanban.v1.InjectionSource
+	140, // 50: fleetkanban.v1.MemorySettings.updated_at:type_name -> google.protobuf.Timestamp
+	88,  // 51: fleetkanban.v1.UpdateMemorySettingsRequest.settings:type_name -> fleetkanban.v1.MemorySettings
+	140, // 52: fleetkanban.v1.MemoryHealth.last_rebuild_at:type_name -> google.protobuf.Timestamp
+	92,  // 53: fleetkanban.v1.SuggestForNewTaskResponse.similar_tasks:type_name -> fleetkanban.v1.TaskSuggestion
+	93,  // 54: fleetkanban.v1.SuggestForNewTaskResponse.related_decisions:type_name -> fleetkanban.v1.ContextNodeSummary
+	93,  // 55: fleetkanban.v1.SuggestForNewTaskResponse.related_constraints:type_name -> fleetkanban.v1.ContextNodeSummary
+	138, // 56: fleetkanban.v1.WatchContextRequest.since_seq_by_kind:type_name -> fleetkanban.v1.WatchContextRequest.SinceSeqByKindEntry
+	140, // 57: fleetkanban.v1.ContextChangeEvent.occurred_at:type_name -> google.protobuf.Timestamp
+	140, // 58: fleetkanban.v1.ScratchpadEntry.snoozed_until:type_name -> google.protobuf.Timestamp
+	140, // 59: fleetkanban.v1.ScratchpadEntry.created_at:type_name -> google.protobuf.Timestamp
+	140, // 60: fleetkanban.v1.ScratchpadEntry.updated_at:type_name -> google.protobuf.Timestamp
+	97,  // 61: fleetkanban.v1.ListPendingResponse.entries:type_name -> fleetkanban.v1.ScratchpadEntry
+	139, // 62: fleetkanban.v1.EditAndPromoteRequest.edited_attrs:type_name -> fleetkanban.v1.EditAndPromoteRequest.EditedAttrsEntry
+	140, // 63: fleetkanban.v1.ScratchpadChangeEvent.occurred_at:type_name -> google.protobuf.Timestamp
+	105, // 64: fleetkanban.v1.OllamaListModelsResponse.models:type_name -> fleetkanban.v1.OllamaModel
+	107, // 65: fleetkanban.v1.OllamaListRecommendedResponse.models:type_name -> fleetkanban.v1.OllamaRecommendedModel
+	140, // 66: fleetkanban.v1.Artifact.created_at:type_name -> google.protobuf.Timestamp
+	111, // 67: fleetkanban.v1.ListArtifactsResponse.artifacts:type_name -> fleetkanban.v1.Artifact
+	140, // 68: fleetkanban.v1.HarnessSkill.created_at:type_name -> google.protobuf.Timestamp
+	117, // 69: fleetkanban.v1.ListSkillVersionsResponse.versions:type_name -> fleetkanban.v1.HarnessSkill
+	140, // 70: fleetkanban.v1.HarnessAttempt.decided_at:type_name -> google.protobuf.Timestamp
+	140, // 71: fleetkanban.v1.HarnessAttempt.created_at:type_name -> google.protobuf.Timestamp
+	123, // 72: fleetkanban.v1.ListHarnessAttemptsResponse.attempts:type_name -> fleetkanban.v1.HarnessAttempt
+	52,  // 73: fleetkanban.v1.CopilotQuotaInfo.SnapshotsEntry.value:type_name -> fleetkanban.v1.CopilotQuotaSnapshot
+	71,  // 74: fleetkanban.v1.SearchContextResponse.ChannelsEntry.value:type_name -> fleetkanban.v1.SearchHitList
+	19,  // 75: fleetkanban.v1.TaskService.CreateTask:input_type -> fleetkanban.v1.CreateTaskRequest
+	20,  // 76: fleetkanban.v1.TaskService.ListTasks:input_type -> fleetkanban.v1.ListTasksRequest
+	5,   // 77: fleetkanban.v1.TaskService.GetTask:input_type -> fleetkanban.v1.IdRequest
+	5,   // 78: fleetkanban.v1.TaskService.GetTaskDiff:input_type -> fleetkanban.v1.IdRequest
+	5,   // 79: fleetkanban.v1.TaskService.RunTask:input_type -> fleetkanban.v1.IdRequest
+	5,   // 80: fleetkanban.v1.TaskService.CancelTask:input_type -> fleetkanban.v1.IdRequest
+	23,  // 81: fleetkanban.v1.TaskService.FinalizeTask:input_type -> fleetkanban.v1.FinalizeTaskRequest
+	24,  // 82: fleetkanban.v1.TaskService.DeleteTask:input_type -> fleetkanban.v1.DeleteTaskRequest
+	5,   // 83: fleetkanban.v1.TaskService.DeleteTaskBranch:input_type -> fleetkanban.v1.IdRequest
+	25,  // 84: fleetkanban.v1.TaskService.SubmitReview:input_type -> fleetkanban.v1.SubmitReviewRequest
+	26,  // 85: fleetkanban.v1.TaskService.TaskEvents:input_type -> fleetkanban.v1.TaskEventsRequest
+	28,  // 86: fleetkanban.v1.TaskService.WatchEvents:input_type -> fleetkanban.v1.WatchEventsRequest
+	29,  // 87: fleetkanban.v1.SubtaskService.ListSubtasks:input_type -> fleetkanban.v1.ListSubtasksRequest
+	33,  // 88: fleetkanban.v1.SubtaskService.CreateSubtask:input_type -> fleetkanban.v1.CreateSubtaskRequest
+	34,  // 89: fleetkanban.v1.SubtaskService.UpdateSubtask:input_type -> fleetkanban.v1.UpdateSubtaskRequest
+	5,   // 90: fleetkanban.v1.SubtaskService.DeleteSubtask:input_type -> fleetkanban.v1.IdRequest
+	35,  // 91: fleetkanban.v1.SubtaskService.ReorderSubtasks:input_type -> fleetkanban.v1.ReorderSubtasksRequest
+	31,  // 92: fleetkanban.v1.SubtaskService.GetSubtaskContext:input_type -> fleetkanban.v1.GetSubtaskContextRequest
+	36,  // 93: fleetkanban.v1.RepositoryService.RegisterRepository:input_type -> fleetkanban.v1.RegisterRepositoryRequest
+	141, // 94: fleetkanban.v1.RepositoryService.ListRepositories:input_type -> google.protobuf.Empty
+	141, // 95: fleetkanban.v1.RepositoryService.CheckGitConfig:input_type -> google.protobuf.Empty
+	38,  // 96: fleetkanban.v1.RepositoryService.ScanGitRepositories:input_type -> fleetkanban.v1.ScanGitRepositoriesRequest
+	41,  // 97: fleetkanban.v1.RepositoryService.UpdateDefaultBaseBranch:input_type -> fleetkanban.v1.UpdateDefaultBaseBranchRequest
+	42,  // 98: fleetkanban.v1.RepositoryService.ListBranches:input_type -> fleetkanban.v1.ListBranchesRequest
+	5,   // 99: fleetkanban.v1.RepositoryService.CreateInitialCommit:input_type -> fleetkanban.v1.IdRequest
+	5,   // 100: fleetkanban.v1.RepositoryService.StashUncommitted:input_type -> fleetkanban.v1.IdRequest
+	141, // 101: fleetkanban.v1.ModelService.ListModels:input_type -> google.protobuf.Empty
+	141, // 102: fleetkanban.v1.AuthService.CheckCopilotAuth:input_type -> google.protobuf.Empty
+	141, // 103: fleetkanban.v1.AuthService.BeginCopilotLogin:input_type -> google.protobuf.Empty
+	141, // 104: fleetkanban.v1.AuthService.CancelCopilotLogin:input_type -> google.protobuf.Empty
+	141, // 105: fleetkanban.v1.AuthService.GetCopilotLoginSession:input_type -> google.protobuf.Empty
+	141, // 106: fleetkanban.v1.AuthService.StartCopilotLogout:input_type -> google.protobuf.Empty
+	141, // 107: fleetkanban.v1.AuthService.ReloadCopilotAuth:input_type -> google.protobuf.Empty
+	141, // 108: fleetkanban.v1.AuthService.HasGitHubToken:input_type -> google.protobuf.Empty
+	44,  // 109: fleetkanban.v1.AuthService.SetGitHubToken:input_type -> fleetkanban.v1.SetGitHubTokenRequest
+	141, // 110: fleetkanban.v1.AuthService.ListGitHubTokens:input_type -> google.protobuf.Empty
+	49,  // 111: fleetkanban.v1.AuthService.AddGitHubToken:input_type -> fleetkanban.v1.AddGitHubTokenRequest
+	50,  // 112: fleetkanban.v1.AuthService.RemoveGitHubToken:input_type -> fleetkanban.v1.GitHubTokenLabelRequest
+	50,  // 113: fleetkanban.v1.AuthService.SetActiveGitHubToken:input_type -> fleetkanban.v1.GitHubTokenLabelRequest
+	141, // 114: fleetkanban.v1.AuthService.GetGitHubAccountInfo:input_type -> google.protobuf.Empty
+	141, // 115: fleetkanban.v1.AuthService.GetCopilotQuota:input_type -> google.protobuf.Empty
+	141, // 116: fleetkanban.v1.SystemService.GetConcurrency:input_type -> google.protobuf.Empty
+	7,   // 117: fleetkanban.v1.SystemService.SetConcurrency:input_type -> fleetkanban.v1.IntValue
+	141, // 118: fleetkanban.v1.SystemService.Shutdown:input_type -> google.protobuf.Empty
+	141, // 119: fleetkanban.v1.SystemService.GetVersion:input_type -> google.protobuf.Empty
+	141, // 120: fleetkanban.v1.SystemService.GetPreconditions:input_type -> google.protobuf.Empty
+	11,  // 121: fleetkanban.v1.SystemService.InstallPrecondition:input_type -> fleetkanban.v1.InstallPreconditionRequest
+	141, // 122: fleetkanban.v1.SystemService.GetAgentSettings:input_type -> google.protobuf.Empty
+	4,   // 123: fleetkanban.v1.SystemService.SetAgentSettings:input_type -> fleetkanban.v1.AgentSettings
+	141, // 124: fleetkanban.v1.WorktreeService.ListWorktrees:input_type -> google.protobuf.Empty
+	58,  // 125: fleetkanban.v1.WorktreeService.RemoveWorktree:input_type -> fleetkanban.v1.RemoveWorktreeRequest
+	64,  // 126: fleetkanban.v1.ContextService.GetOverview:input_type -> fleetkanban.v1.RepoIdRequest
+	68,  // 127: fleetkanban.v1.ContextService.SearchContext:input_type -> fleetkanban.v1.SearchContextRequest
+	72,  // 128: fleetkanban.v1.ContextService.ListNodes:input_type -> fleetkanban.v1.ListNodesRequest
+	65,  // 129: fleetkanban.v1.ContextService.GetNode:input_type -> fleetkanban.v1.NodeIdRequest
+	74,  // 130: fleetkanban.v1.ContextService.CreateNode:input_type -> fleetkanban.v1.CreateNodeRequest
+	75,  // 131: fleetkanban.v1.ContextService.UpdateNode:input_type -> fleetkanban.v1.UpdateNodeRequest
+	65,  // 132: fleetkanban.v1.ContextService.DeleteNode:input_type -> fleetkanban.v1.NodeIdRequest
+	76,  // 133: fleetkanban.v1.ContextService.PinNode:input_type -> fleetkanban.v1.PinNodeRequest
+	77,  // 134: fleetkanban.v1.ContextService.ListEdges:input_type -> fleetkanban.v1.ListEdgesRequest
+	79,  // 135: fleetkanban.v1.ContextService.CreateEdge:input_type -> fleetkanban.v1.CreateEdgeRequest
+	66,  // 136: fleetkanban.v1.ContextService.DeleteEdge:input_type -> fleetkanban.v1.EdgeIdRequest
+	80,  // 137: fleetkanban.v1.ContextService.ListFacts:input_type -> fleetkanban.v1.ListFactsRequest
+	84,  // 138: fleetkanban.v1.ContextService.PreviewInjection:input_type -> fleetkanban.v1.PreviewInjectionRequest
+	87,  // 139: fleetkanban.v1.ContextService.AnalyzeRepository:input_type -> fleetkanban.v1.AnalyzeRepoRequest
+	64,  // 140: fleetkanban.v1.ContextService.RebuildEmbeddings:input_type -> fleetkanban.v1.RepoIdRequest
+	64,  // 141: fleetkanban.v1.ContextService.RebuildClosure:input_type -> fleetkanban.v1.RepoIdRequest
+	64,  // 142: fleetkanban.v1.ContextService.RebuildCodeGraph:input_type -> fleetkanban.v1.RepoIdRequest
+	64,  // 143: fleetkanban.v1.ContextService.GetMemorySettings:input_type -> fleetkanban.v1.RepoIdRequest
+	89,  // 144: fleetkanban.v1.ContextService.UpdateMemorySettings:input_type -> fleetkanban.v1.UpdateMemorySettingsRequest
+	64,  // 145: fleetkanban.v1.ContextService.GetMemoryHealth:input_type -> fleetkanban.v1.RepoIdRequest
+	91,  // 146: fleetkanban.v1.ContextService.SuggestForNewTask:input_type -> fleetkanban.v1.SuggestForNewTaskRequest
+	95,  // 147: fleetkanban.v1.ContextService.WatchContextChanges:input_type -> fleetkanban.v1.WatchContextRequest
+	98,  // 148: fleetkanban.v1.ScratchpadService.ListPending:input_type -> fleetkanban.v1.ListPendingRequest
+	67,  // 149: fleetkanban.v1.ScratchpadService.GetEntry:input_type -> fleetkanban.v1.EntryIdRequest
+	67,  // 150: fleetkanban.v1.ScratchpadService.PromoteEntry:input_type -> fleetkanban.v1.EntryIdRequest
+	100, // 151: fleetkanban.v1.ScratchpadService.RejectEntry:input_type -> fleetkanban.v1.RejectEntryRequest
+	101, // 152: fleetkanban.v1.ScratchpadService.EditAndPromote:input_type -> fleetkanban.v1.EditAndPromoteRequest
+	102, // 153: fleetkanban.v1.ScratchpadService.SnoozeEntry:input_type -> fleetkanban.v1.SnoozeRequest
+	64,  // 154: fleetkanban.v1.ScratchpadService.WatchPending:input_type -> fleetkanban.v1.RepoIdRequest
+	141, // 155: fleetkanban.v1.OllamaService.GetOllamaStatus:input_type -> google.protobuf.Empty
+	141, // 156: fleetkanban.v1.OllamaService.ListInstalledModels:input_type -> google.protobuf.Empty
+	141, // 157: fleetkanban.v1.OllamaService.GetRecommendedModels:input_type -> google.protobuf.Empty
+	109, // 158: fleetkanban.v1.OllamaService.PullOllamaModel:input_type -> fleetkanban.v1.PullModelRequest
+	112, // 159: fleetkanban.v1.ArtifactService.List:input_type -> fleetkanban.v1.ListArtifactsRequest
+	114, // 160: fleetkanban.v1.ArtifactService.Get:input_type -> fleetkanban.v1.GetArtifactRequest
+	115, // 161: fleetkanban.v1.ArtifactService.GetContent:input_type -> fleetkanban.v1.GetArtifactContentRequest
+	141, // 162: fleetkanban.v1.HarnessService.GetActiveSkill:input_type -> google.protobuf.Empty
+	141, // 163: fleetkanban.v1.HarnessService.ListSkillVersions:input_type -> google.protobuf.Empty
+	119, // 164: fleetkanban.v1.HarnessService.ValidateSkill:input_type -> fleetkanban.v1.ValidateSkillRequest
+	121, // 165: fleetkanban.v1.HarnessService.UpdateSkill:input_type -> fleetkanban.v1.UpdateSkillRequest
+	122, // 166: fleetkanban.v1.HarnessService.RollbackSkill:input_type -> fleetkanban.v1.RollbackSkillRequest
+	141, // 167: fleetkanban.v1.HarnessAttemptService.ListPending:input_type -> google.protobuf.Empty
+	125, // 168: fleetkanban.v1.HarnessAttemptService.ListForTask:input_type -> fleetkanban.v1.ListHarnessAttemptsForTaskRequest
+	126, // 169: fleetkanban.v1.HarnessAttemptService.Approve:input_type -> fleetkanban.v1.ApproveHarnessAttemptRequest
+	127, // 170: fleetkanban.v1.HarnessAttemptService.Reject:input_type -> fleetkanban.v1.RejectHarnessAttemptRequest
+	13,  // 171: fleetkanban.v1.TaskService.CreateTask:output_type -> fleetkanban.v1.Task
+	21,  // 172: fleetkanban.v1.TaskService.ListTasks:output_type -> fleetkanban.v1.ListTasksResponse
+	13,  // 173: fleetkanban.v1.TaskService.GetTask:output_type -> fleetkanban.v1.Task
+	22,  // 174: fleetkanban.v1.TaskService.GetTaskDiff:output_type -> fleetkanban.v1.DiffResponse
+	141, // 175: fleetkanban.v1.TaskService.RunTask:output_type -> google.protobuf.Empty
+	141, // 176: fleetkanban.v1.TaskService.CancelTask:output_type -> google.protobuf.Empty
+	141, // 177: fleetkanban.v1.TaskService.FinalizeTask:output_type -> google.protobuf.Empty
+	141, // 178: fleetkanban.v1.TaskService.DeleteTask:output_type -> google.protobuf.Empty
+	141, // 179: fleetkanban.v1.TaskService.DeleteTaskBranch:output_type -> google.protobuf.Empty
+	141, // 180: fleetkanban.v1.TaskService.SubmitReview:output_type -> google.protobuf.Empty
+	27,  // 181: fleetkanban.v1.TaskService.TaskEvents:output_type -> fleetkanban.v1.TaskEventsResponse
+	16,  // 182: fleetkanban.v1.TaskService.WatchEvents:output_type -> fleetkanban.v1.AgentEvent
+	30,  // 183: fleetkanban.v1.SubtaskService.ListSubtasks:output_type -> fleetkanban.v1.ListSubtasksResponse
+	14,  // 184: fleetkanban.v1.SubtaskService.CreateSubtask:output_type -> fleetkanban.v1.Subtask
+	14,  // 185: fleetkanban.v1.SubtaskService.UpdateSubtask:output_type -> fleetkanban.v1.Subtask
+	141, // 186: fleetkanban.v1.SubtaskService.DeleteSubtask:output_type -> google.protobuf.Empty
+	141, // 187: fleetkanban.v1.SubtaskService.ReorderSubtasks:output_type -> google.protobuf.Empty
+	32,  // 188: fleetkanban.v1.SubtaskService.GetSubtaskContext:output_type -> fleetkanban.v1.CopilotSubtaskContext
+	15,  // 189: fleetkanban.v1.RepositoryService.RegisterRepository:output_type -> fleetkanban.v1.Repository
+	37,  // 190: fleetkanban.v1.RepositoryService.ListRepositories:output_type -> fleetkanban.v1.ListRepositoriesResponse
+	18,  // 191: fleetkanban.v1.RepositoryService.CheckGitConfig:output_type -> fleetkanban.v1.GitConfigStatus
+	40,  // 192: fleetkanban.v1.RepositoryService.ScanGitRepositories:output_type -> fleetkanban.v1.ScanGitRepositoriesResponse
+	15,  // 193: fleetkanban.v1.RepositoryService.UpdateDefaultBaseBranch:output_type -> fleetkanban.v1.Repository
+	43,  // 194: fleetkanban.v1.RepositoryService.ListBranches:output_type -> fleetkanban.v1.ListBranchesResponse
+	15,  // 195: fleetkanban.v1.RepositoryService.CreateInitialCommit:output_type -> fleetkanban.v1.Repository
+	3,   // 196: fleetkanban.v1.RepositoryService.StashUncommitted:output_type -> fleetkanban.v1.StashUncommittedResponse
+	55,  // 197: fleetkanban.v1.ModelService.ListModels:output_type -> fleetkanban.v1.ListModelsResponse
+	17,  // 198: fleetkanban.v1.AuthService.CheckCopilotAuth:output_type -> fleetkanban.v1.AuthStatus
+	45,  // 199: fleetkanban.v1.AuthService.BeginCopilotLogin:output_type -> fleetkanban.v1.CopilotLoginChallenge
+	141, // 200: fleetkanban.v1.AuthService.CancelCopilotLogin:output_type -> google.protobuf.Empty
+	46,  // 201: fleetkanban.v1.AuthService.GetCopilotLoginSession:output_type -> fleetkanban.v1.CopilotLoginSessionInfo
+	141, // 202: fleetkanban.v1.AuthService.StartCopilotLogout:output_type -> google.protobuf.Empty
+	17,  // 203: fleetkanban.v1.AuthService.ReloadCopilotAuth:output_type -> fleetkanban.v1.AuthStatus
+	6,   // 204: fleetkanban.v1.AuthService.HasGitHubToken:output_type -> fleetkanban.v1.BoolValue
+	141, // 205: fleetkanban.v1.AuthService.SetGitHubToken:output_type -> google.protobuf.Empty
+	48,  // 206: fleetkanban.v1.AuthService.ListGitHubTokens:output_type -> fleetkanban.v1.ListGitHubTokensResponse
+	141, // 207: fleetkanban.v1.AuthService.AddGitHubToken:output_type -> google.protobuf.Empty
+	141, // 208: fleetkanban.v1.AuthService.RemoveGitHubToken:output_type -> google.protobuf.Empty
+	141, // 209: fleetkanban.v1.AuthService.SetActiveGitHubToken:output_type -> google.protobuf.Empty
+	53,  // 210: fleetkanban.v1.AuthService.GetGitHubAccountInfo:output_type -> fleetkanban.v1.GitHubAccountInfo
+	51,  // 211: fleetkanban.v1.AuthService.GetCopilotQuota:output_type -> fleetkanban.v1.CopilotQuotaInfo
+	7,   // 212: fleetkanban.v1.SystemService.GetConcurrency:output_type -> fleetkanban.v1.IntValue
+	7,   // 213: fleetkanban.v1.SystemService.SetConcurrency:output_type -> fleetkanban.v1.IntValue
+	141, // 214: fleetkanban.v1.SystemService.Shutdown:output_type -> google.protobuf.Empty
+	8,   // 215: fleetkanban.v1.SystemService.GetVersion:output_type -> fleetkanban.v1.VersionInfo
+	10,  // 216: fleetkanban.v1.SystemService.GetPreconditions:output_type -> fleetkanban.v1.PreconditionsResponse
+	12,  // 217: fleetkanban.v1.SystemService.InstallPrecondition:output_type -> fleetkanban.v1.InstallPreconditionResponse
+	4,   // 218: fleetkanban.v1.SystemService.GetAgentSettings:output_type -> fleetkanban.v1.AgentSettings
+	4,   // 219: fleetkanban.v1.SystemService.SetAgentSettings:output_type -> fleetkanban.v1.AgentSettings
+	57,  // 220: fleetkanban.v1.WorktreeService.ListWorktrees:output_type -> fleetkanban.v1.ListWorktreesResponse
+	141, // 221: fleetkanban.v1.WorktreeService.RemoveWorktree:output_type -> google.protobuf.Empty
+	63,  // 222: fleetkanban.v1.ContextService.GetOverview:output_type -> fleetkanban.v1.ContextOverview
+	70,  // 223: fleetkanban.v1.ContextService.SearchContext:output_type -> fleetkanban.v1.SearchContextResponse
+	73,  // 224: fleetkanban.v1.ContextService.ListNodes:output_type -> fleetkanban.v1.ListNodesResponse
+	62,  // 225: fleetkanban.v1.ContextService.GetNode:output_type -> fleetkanban.v1.ContextNodeDetail
+	59,  // 226: fleetkanban.v1.ContextService.CreateNode:output_type -> fleetkanban.v1.ContextNode
+	59,  // 227: fleetkanban.v1.ContextService.UpdateNode:output_type -> fleetkanban.v1.ContextNode
+	141, // 228: fleetkanban.v1.ContextService.DeleteNode:output_type -> google.protobuf.Empty
+	141, // 229: fleetkanban.v1.ContextService.PinNode:output_type -> google.protobuf.Empty
+	78,  // 230: fleetkanban.v1.ContextService.ListEdges:output_type -> fleetkanban.v1.ListEdgesResponse
+	60,  // 231: fleetkanban.v1.ContextService.CreateEdge:output_type -> fleetkanban.v1.ContextEdge
+	141, // 232: fleetkanban.v1.ContextService.DeleteEdge:output_type -> google.protobuf.Empty
+	81,  // 233: fleetkanban.v1.ContextService.ListFacts:output_type -> fleetkanban.v1.ListFactsResponse
+	83,  // 234: fleetkanban.v1.ContextService.PreviewInjection:output_type -> fleetkanban.v1.InjectionPreview
+	141, // 235: fleetkanban.v1.ContextService.AnalyzeRepository:output_type -> google.protobuf.Empty
+	85,  // 236: fleetkanban.v1.ContextService.RebuildEmbeddings:output_type -> fleetkanban.v1.RebuildEmbeddingsResponse
+	141, // 237: fleetkanban.v1.ContextService.RebuildClosure:output_type -> google.protobuf.Empty
+	86,  // 238: fleetkanban.v1.ContextService.RebuildCodeGraph:output_type -> fleetkanban.v1.RebuildCodeGraphResponse
+	88,  // 239: fleetkanban.v1.ContextService.GetMemorySettings:output_type -> fleetkanban.v1.MemorySettings
+	88,  // 240: fleetkanban.v1.ContextService.UpdateMemorySettings:output_type -> fleetkanban.v1.MemorySettings
+	90,  // 241: fleetkanban.v1.ContextService.GetMemoryHealth:output_type -> fleetkanban.v1.MemoryHealth
+	94,  // 242: fleetkanban.v1.ContextService.SuggestForNewTask:output_type -> fleetkanban.v1.SuggestForNewTaskResponse
+	96,  // 243: fleetkanban.v1.ContextService.WatchContextChanges:output_type -> fleetkanban.v1.ContextChangeEvent
+	99,  // 244: fleetkanban.v1.ScratchpadService.ListPending:output_type -> fleetkanban.v1.ListPendingResponse
+	97,  // 245: fleetkanban.v1.ScratchpadService.GetEntry:output_type -> fleetkanban.v1.ScratchpadEntry
+	59,  // 246: fleetkanban.v1.ScratchpadService.PromoteEntry:output_type -> fleetkanban.v1.ContextNode
+	141, // 247: fleetkanban.v1.ScratchpadService.RejectEntry:output_type -> google.protobuf.Empty
+	59,  // 248: fleetkanban.v1.ScratchpadService.EditAndPromote:output_type -> fleetkanban.v1.ContextNode
+	141, // 249: fleetkanban.v1.ScratchpadService.SnoozeEntry:output_type -> google.protobuf.Empty
+	103, // 250: fleetkanban.v1.ScratchpadService.WatchPending:output_type -> fleetkanban.v1.ScratchpadChangeEvent
+	104, // 251: fleetkanban.v1.OllamaService.GetOllamaStatus:output_type -> fleetkanban.v1.OllamaStatus
+	106, // 252: fleetkanban.v1.OllamaService.ListInstalledModels:output_type -> fleetkanban.v1.OllamaListModelsResponse
+	108, // 253: fleetkanban.v1.OllamaService.GetRecommendedModels:output_type -> fleetkanban.v1.OllamaListRecommendedResponse
+	110, // 254: fleetkanban.v1.OllamaService.PullOllamaModel:output_type -> fleetkanban.v1.OllamaPullProgressEvent
+	113, // 255: fleetkanban.v1.ArtifactService.List:output_type -> fleetkanban.v1.ListArtifactsResponse
+	111, // 256: fleetkanban.v1.ArtifactService.Get:output_type -> fleetkanban.v1.Artifact
+	116, // 257: fleetkanban.v1.ArtifactService.GetContent:output_type -> fleetkanban.v1.ArtifactChunk
+	117, // 258: fleetkanban.v1.HarnessService.GetActiveSkill:output_type -> fleetkanban.v1.HarnessSkill
+	118, // 259: fleetkanban.v1.HarnessService.ListSkillVersions:output_type -> fleetkanban.v1.ListSkillVersionsResponse
+	120, // 260: fleetkanban.v1.HarnessService.ValidateSkill:output_type -> fleetkanban.v1.ValidateSkillResponse
+	117, // 261: fleetkanban.v1.HarnessService.UpdateSkill:output_type -> fleetkanban.v1.HarnessSkill
+	117, // 262: fleetkanban.v1.HarnessService.RollbackSkill:output_type -> fleetkanban.v1.HarnessSkill
+	124, // 263: fleetkanban.v1.HarnessAttemptService.ListPending:output_type -> fleetkanban.v1.ListHarnessAttemptsResponse
+	124, // 264: fleetkanban.v1.HarnessAttemptService.ListForTask:output_type -> fleetkanban.v1.ListHarnessAttemptsResponse
+	123, // 265: fleetkanban.v1.HarnessAttemptService.Approve:output_type -> fleetkanban.v1.HarnessAttempt
+	123, // 266: fleetkanban.v1.HarnessAttemptService.Reject:output_type -> fleetkanban.v1.HarnessAttempt
+	171, // [171:267] is the sub-list for method output_type
+	75,  // [75:171] is the sub-list for method input_type
+	75,  // [75:75] is the sub-list for extension type_name
+	75,  // [75:75] is the sub-list for extension extendee
+	0,   // [0:75] is the sub-list for field type_name
 }
 
 func init() { file_fleetkanban_v1_fleetkanban_proto_init() }
@@ -8304,9 +10292,9 @@ func file_fleetkanban_v1_fleetkanban_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_fleetkanban_v1_fleetkanban_proto_rawDesc), len(file_fleetkanban_v1_fleetkanban_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   110,
+			NumMessages:   137,
 			NumExtensions: 0,
-			NumServices:   10,
+			NumServices:   13,
 		},
 		GoTypes:           file_fleetkanban_v1_fleetkanban_proto_goTypes,
 		DependencyIndexes: file_fleetkanban_v1_fleetkanban_proto_depIdxs,

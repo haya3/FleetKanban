@@ -11,18 +11,30 @@ For project overview, setup, and architecture, see the repository root's
 
 ```
 sidecar/
-├── cmd/fleetkanban-sidecar/    # Entry point + bundler-generated embedded CLI
+├── cmd/
+│   ├── fleetkanban-sidecar/   # Entry point + bundler-generated embedded CLI
+│   └── dbquery/               # Local SQLite inspection helper
 ├── internal/
 │   ├── app/                   # Domain service (invoked from gRPC)
-│   ├── task/                  # Task / AgentEvent domain types
+│   ├── task/                  # Task / AgentEvent domain types + FSM
 │   ├── store/                 # SQLite persistence (modernc.org/sqlite)
+│   ├── ctxmem/                # Context / Graph Memory (closure tables +
+│   │                          #   float32 BLOB embeddings with in-Go cosine
+│   │                          #   similarity + FTS5 + RRF, three-tier
+│   │                          #   prompt injection)
+│   ├── runstate/              # NLAH file-backed durable state
+│   │                          #   (TASK.md / task_history.jsonl / artifacts)
+│   ├── ihr/                   # Intelligent Harness Runtime
+│   │                          #   (charter-driven deterministic stage engine)
+│   ├── harnessembed/          # go:embed mirror of harness-skill/
 │   ├── orchestrator/          # Parallel execution + lifecycle
 │   ├── copilot/               # GitHub Copilot SDK adapter
 │   ├── worktree/              # git worktree management
 │   ├── ipc/                   # gRPC server + auth + event broker
 │   ├── reaper/                # Orphan child-process reclamation
-│   ├── winapi/                # Windows 11-specific APIs (DPAPI / Toast / AUMID)
-│   └── branding/              # App identifiers
+│   ├── setup/                 # Runtime-dependency checks (pwsh 7+)
+│   ├── winapi/                # Windows 11 APIs (DPAPI / Toast / AUMID / Mica)
+│   └── branding/              # App identifiers (incl. ProtocolVersion)
 ├── go.mod                     # module github.com/FleetKanban/fleetkanban
 └── go.sum
 ```

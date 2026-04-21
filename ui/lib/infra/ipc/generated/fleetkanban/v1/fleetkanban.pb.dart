@@ -95,22 +95,16 @@ class StashUncommittedResponse extends $pb.GeneratedMessage {
   void clearMessage() => $_clearField(2);
 }
 
-/// AgentSettings holds per-stage prompt overrides the user wants
-/// FleetKanban to inject into every Copilot session, plus a free-form
-/// output language directive (e.g. "Japanese", "Spanish", "casual
-/// English"). Empty fields are no-ops; the agent runs with the
-/// built-in defaults only.
+/// AgentSettings carries the free-form output-language directive
+/// (e.g. "Japanese", "Spanish", "casual English") the agent uses when
+/// choosing the language of its summaries / explanations / feedback.
+/// Empty means "no language hint"; the agent falls back to the
+/// model's default.
 class AgentSettings extends $pb.GeneratedMessage {
   factory AgentSettings({
-    $core.String? planPrompt,
-    $core.String? codePrompt,
-    $core.String? reviewPrompt,
     $core.String? outputLanguage,
   }) {
     final result = create();
-    if (planPrompt != null) result.planPrompt = planPrompt;
-    if (codePrompt != null) result.codePrompt = codePrompt;
-    if (reviewPrompt != null) result.reviewPrompt = reviewPrompt;
     if (outputLanguage != null) result.outputLanguage = outputLanguage;
     return result;
   }
@@ -128,9 +122,6 @@ class AgentSettings extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'AgentSettings',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
       createEmptyInstance: create)
-    ..aOS(1, _omitFieldNames ? '' : 'planPrompt')
-    ..aOS(2, _omitFieldNames ? '' : 'codePrompt')
-    ..aOS(3, _omitFieldNames ? '' : 'reviewPrompt')
     ..aOS(4, _omitFieldNames ? '' : 'outputLanguage')
     ..hasRequiredFields = false;
 
@@ -153,43 +144,16 @@ class AgentSettings extends $pb.GeneratedMessage {
       $pb.GeneratedMessage.$_defaultFor<AgentSettings>(create);
   static AgentSettings? _defaultInstance;
 
-  @$pb.TagNumber(1)
-  $core.String get planPrompt => $_getSZ(0);
-  @$pb.TagNumber(1)
-  set planPrompt($core.String value) => $_setString(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasPlanPrompt() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearPlanPrompt() => $_clearField(1);
-
-  @$pb.TagNumber(2)
-  $core.String get codePrompt => $_getSZ(1);
-  @$pb.TagNumber(2)
-  set codePrompt($core.String value) => $_setString(1, value);
-  @$pb.TagNumber(2)
-  $core.bool hasCodePrompt() => $_has(1);
-  @$pb.TagNumber(2)
-  void clearCodePrompt() => $_clearField(2);
-
-  @$pb.TagNumber(3)
-  $core.String get reviewPrompt => $_getSZ(2);
-  @$pb.TagNumber(3)
-  set reviewPrompt($core.String value) => $_setString(2, value);
-  @$pb.TagNumber(3)
-  $core.bool hasReviewPrompt() => $_has(2);
-  @$pb.TagNumber(3)
-  void clearReviewPrompt() => $_clearField(3);
-
   /// Free-form natural-language identifier the agent uses to choose
   /// the language of its summaries / explanations / feedback. The
   /// sidecar passes this verbatim — the AI is expected to recognise
   /// values like "日本語", "Japanese", "Português brasileiro", etc.
   @$pb.TagNumber(4)
-  $core.String get outputLanguage => $_getSZ(3);
+  $core.String get outputLanguage => $_getSZ(0);
   @$pb.TagNumber(4)
-  set outputLanguage($core.String value) => $_setString(3, value);
+  set outputLanguage($core.String value) => $_setString(0, value);
   @$pb.TagNumber(4)
-  $core.bool hasOutputLanguage() => $_has(3);
+  $core.bool hasOutputLanguage() => $_has(0);
   @$pb.TagNumber(4)
   void clearOutputLanguage() => $_clearField(4);
 }
@@ -784,6 +748,7 @@ class Task extends $pb.GeneratedMessage {
     $core.int? reworkCount,
     $core.String? planModel,
     $core.String? reviewModel,
+    $core.int? harnessVersion,
   }) {
     final result = create();
     if (id != null) result.id = id;
@@ -806,6 +771,7 @@ class Task extends $pb.GeneratedMessage {
     if (reworkCount != null) result.reworkCount = reworkCount;
     if (planModel != null) result.planModel = planModel;
     if (reviewModel != null) result.reviewModel = reviewModel;
+    if (harnessVersion != null) result.harnessVersion = harnessVersion;
     return result;
   }
 
@@ -846,6 +812,7 @@ class Task extends $pb.GeneratedMessage {
     ..aI(18, _omitFieldNames ? '' : 'reworkCount')
     ..aOS(19, _omitFieldNames ? '' : 'planModel')
     ..aOS(20, _omitFieldNames ? '' : 'reviewModel')
+    ..aI(21, _omitFieldNames ? '' : 'harnessVersion')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1063,6 +1030,18 @@ class Task extends $pb.GeneratedMessage {
   $core.bool hasReviewModel() => $_has(19);
   @$pb.TagNumber(20)
   void clearReviewModel() => $_clearField(20);
+
+  /// harness_version is the HarnessSkill version active when this task was
+  /// last run. 0 means the task predates NLAH Phase A or no harness was
+  /// loaded. Populated by the orchestrator at run-time; read-only from the UI.
+  @$pb.TagNumber(21)
+  $core.int get harnessVersion => $_getIZ(20);
+  @$pb.TagNumber(21)
+  set harnessVersion($core.int value) => $_setSignedInt32(20, value);
+  @$pb.TagNumber(21)
+  $core.bool hasHarnessVersion() => $_has(20);
+  @$pb.TagNumber(21)
+  void clearHarnessVersion() => $_clearField(21);
 }
 
 /// Subtask mirrors internal/task.Subtask. Status is a 4-value string
@@ -2497,6 +2476,289 @@ class ListSubtasksResponse extends $pb.GeneratedMessage {
   $pb.PbList<Subtask> get subtasks => $_getList(0);
 }
 
+/// GetSubtaskContextRequest identifies one (subtask_id, round) row in
+/// subtask_context.
+///
+/// Semantics of the round field:
+///   * round >  0 — exact lookup, equivalent to
+///                  `SELECT * FROM subtask_context WHERE subtask_id=? AND round=?`.
+///                  Missing rows return not_recorded=true, not an error.
+///   * round <= 0 — "latest": resolves to MAX(round) for this subtask via
+///                  `ORDER BY round DESC LIMIT 1`. Zero and negative values
+///                  behave identically; the UI passes 0 on the first open
+///                  and the specific round when the user steps back through
+///                  rework history.
+///
+/// Rounds are monotonic per subtask (see v11 migration); a new round is
+/// created each time the orchestrator re-executes after an AI Review
+/// rework. There is no "round=0" row on disk — 0 is purely a wire shorthand.
+class GetSubtaskContextRequest extends $pb.GeneratedMessage {
+  factory GetSubtaskContextRequest({
+    $core.String? subtaskId,
+    $core.int? round,
+  }) {
+    final result = create();
+    if (subtaskId != null) result.subtaskId = subtaskId;
+    if (round != null) result.round = round;
+    return result;
+  }
+
+  GetSubtaskContextRequest._();
+
+  factory GetSubtaskContextRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory GetSubtaskContextRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GetSubtaskContextRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'subtaskId')
+    ..aI(2, _omitFieldNames ? '' : 'round')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetSubtaskContextRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetSubtaskContextRequest copyWith(
+          void Function(GetSubtaskContextRequest) updates) =>
+      super.copyWith((message) => updates(message as GetSubtaskContextRequest))
+          as GetSubtaskContextRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static GetSubtaskContextRequest create() => GetSubtaskContextRequest._();
+  @$core.override
+  GetSubtaskContextRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static GetSubtaskContextRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GetSubtaskContextRequest>(create);
+  static GetSubtaskContextRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get subtaskId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set subtaskId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasSubtaskId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSubtaskId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.int get round => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set round($core.int value) => $_setSignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasRound() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearRound() => $_clearField(2);
+}
+
+/// CopilotSubtaskContext mirrors store.SubtaskContext plus the harness
+/// SKILL.md content resolved via harness_skill_version_id so the UI
+/// only needs one RPC round-trip to render every tab of the Subtask
+/// Summary dialog.
+class CopilotSubtaskContext extends $pb.GeneratedMessage {
+  factory CopilotSubtaskContext({
+    $core.String? subtaskId,
+    $core.int? round,
+    $core.String? systemPrompt,
+    $core.String? userPrompt,
+    $core.String? stagePromptTemplate,
+    $core.String? planSummary,
+    $core.Iterable<$core.String>? priorSummaries,
+    $core.String? memoryBlock,
+    $core.String? outputLanguage,
+    $core.String? harnessSkillVersionId,
+    $core.String? harnessSkillMd,
+    $core.bool? notRecorded,
+  }) {
+    final result = create();
+    if (subtaskId != null) result.subtaskId = subtaskId;
+    if (round != null) result.round = round;
+    if (systemPrompt != null) result.systemPrompt = systemPrompt;
+    if (userPrompt != null) result.userPrompt = userPrompt;
+    if (stagePromptTemplate != null)
+      result.stagePromptTemplate = stagePromptTemplate;
+    if (planSummary != null) result.planSummary = planSummary;
+    if (priorSummaries != null) result.priorSummaries.addAll(priorSummaries);
+    if (memoryBlock != null) result.memoryBlock = memoryBlock;
+    if (outputLanguage != null) result.outputLanguage = outputLanguage;
+    if (harnessSkillVersionId != null)
+      result.harnessSkillVersionId = harnessSkillVersionId;
+    if (harnessSkillMd != null) result.harnessSkillMd = harnessSkillMd;
+    if (notRecorded != null) result.notRecorded = notRecorded;
+    return result;
+  }
+
+  CopilotSubtaskContext._();
+
+  factory CopilotSubtaskContext.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory CopilotSubtaskContext.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CopilotSubtaskContext',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'subtaskId')
+    ..aI(2, _omitFieldNames ? '' : 'round')
+    ..aOS(3, _omitFieldNames ? '' : 'systemPrompt')
+    ..aOS(4, _omitFieldNames ? '' : 'userPrompt')
+    ..aOS(5, _omitFieldNames ? '' : 'stagePromptTemplate')
+    ..aOS(6, _omitFieldNames ? '' : 'planSummary')
+    ..pPS(7, _omitFieldNames ? '' : 'priorSummaries')
+    ..aOS(8, _omitFieldNames ? '' : 'memoryBlock')
+    ..aOS(9, _omitFieldNames ? '' : 'outputLanguage')
+    ..aOS(10, _omitFieldNames ? '' : 'harnessSkillVersionId')
+    ..aOS(11, _omitFieldNames ? '' : 'harnessSkillMd')
+    ..aOB(12, _omitFieldNames ? '' : 'notRecorded')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CopilotSubtaskContext clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CopilotSubtaskContext copyWith(
+          void Function(CopilotSubtaskContext) updates) =>
+      super.copyWith((message) => updates(message as CopilotSubtaskContext))
+          as CopilotSubtaskContext;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static CopilotSubtaskContext create() => CopilotSubtaskContext._();
+  @$core.override
+  CopilotSubtaskContext createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static CopilotSubtaskContext getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CopilotSubtaskContext>(create);
+  static CopilotSubtaskContext? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get subtaskId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set subtaskId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasSubtaskId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSubtaskId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.int get round => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set round($core.int value) => $_setSignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasRound() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearRound() => $_clearField(2);
+
+  /// Full SDK SystemMessage content (DefaultCodePrompt + output-language
+  /// addendum).
+  @$pb.TagNumber(3)
+  $core.String get systemPrompt => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set systemPrompt($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasSystemPrompt() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearSystemPrompt() => $_clearField(3);
+
+  /// Full SDK user MessageOptions.Prompt (memory block + BuildSubtask
+  /// PromptWithContext composition).
+  @$pb.TagNumber(4)
+  $core.String get userPrompt => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set userPrompt($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasUserPrompt() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearUserPrompt() => $_clearField(4);
+
+  /// Raw stage template (DefaultCodePrompt) before language addendum.
+  @$pb.TagNumber(5)
+  $core.String get stagePromptTemplate => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set stagePromptTemplate($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasStagePromptTemplate() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearStagePromptTemplate() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get planSummary => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set planSummary($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasPlanSummary() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearPlanSummary() => $_clearField(6);
+
+  /// Already formatted display lines, one per prior subtask, in DAG order.
+  @$pb.TagNumber(7)
+  $pb.PbList<$core.String> get priorSummaries => $_getList(6);
+
+  @$pb.TagNumber(8)
+  $core.String get memoryBlock => $_getSZ(7);
+  @$pb.TagNumber(8)
+  set memoryBlock($core.String value) => $_setString(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasMemoryBlock() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearMemoryBlock() => $_clearField(8);
+
+  @$pb.TagNumber(9)
+  $core.String get outputLanguage => $_getSZ(8);
+  @$pb.TagNumber(9)
+  set outputLanguage($core.String value) => $_setString(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasOutputLanguage() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearOutputLanguage() => $_clearField(9);
+
+  /// Active harness version at run time. id is empty when the embedded
+  /// fallback was used (no user-authored SKILL.md yet).
+  @$pb.TagNumber(10)
+  $core.String get harnessSkillVersionId => $_getSZ(9);
+  @$pb.TagNumber(10)
+  set harnessSkillVersionId($core.String value) => $_setString(9, value);
+  @$pb.TagNumber(10)
+  $core.bool hasHarnessSkillVersionId() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearHarnessSkillVersionId() => $_clearField(10);
+
+  /// SKILL.md content as of run time. Empty when harness_skill_version_id
+  /// is empty or the row has since been purged.
+  @$pb.TagNumber(11)
+  $core.String get harnessSkillMd => $_getSZ(10);
+  @$pb.TagNumber(11)
+  set harnessSkillMd($core.String value) => $_setString(10, value);
+  @$pb.TagNumber(11)
+  $core.bool hasHarnessSkillMd() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearHarnessSkillMd() => $_clearField(11);
+
+  /// True when no subtask_context row exists (legacy subtasks executed
+  /// before the v18 schema, or not yet executed). All other fields are
+  /// zero values in that case.
+  @$pb.TagNumber(12)
+  $core.bool get notRecorded => $_getBF(11);
+  @$pb.TagNumber(12)
+  set notRecorded($core.bool value) => $_setBool(11, value);
+  @$pb.TagNumber(12)
+  $core.bool hasNotRecorded() => $_has(11);
+  @$pb.TagNumber(12)
+  void clearNotRecorded() => $_clearField(12);
+}
+
 class CreateSubtaskRequest extends $pb.GeneratedMessage {
   factory CreateSubtaskRequest({
     $core.String? taskId,
@@ -3792,6 +4054,202 @@ class GitHubTokenLabelRequest extends $pb.GeneratedMessage {
   $core.bool hasLabel() => $_has(0);
   @$pb.TagNumber(1)
   void clearLabel() => $_clearField(1);
+}
+
+/// CopilotQuotaInfo carries every quota snapshot the SDK's account.getQuota
+/// RPC returns, keyed by quota type ("premium_interactions", "chat",
+/// "completions", …). The UI surfaces whichever key it finds interesting —
+/// "premium_interactions" is the headline number for the account-card panel.
+class CopilotQuotaInfo extends $pb.GeneratedMessage {
+  factory CopilotQuotaInfo({
+    $core.Iterable<$core.MapEntry<$core.String, CopilotQuotaSnapshot>>?
+        snapshots,
+  }) {
+    final result = create();
+    if (snapshots != null) result.snapshots.addEntries(snapshots);
+    return result;
+  }
+
+  CopilotQuotaInfo._();
+
+  factory CopilotQuotaInfo.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory CopilotQuotaInfo.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CopilotQuotaInfo',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..m<$core.String, CopilotQuotaSnapshot>(
+        1, _omitFieldNames ? '' : 'snapshots',
+        entryClassName: 'CopilotQuotaInfo.SnapshotsEntry',
+        keyFieldType: $pb.PbFieldType.OS,
+        valueFieldType: $pb.PbFieldType.OM,
+        valueCreator: CopilotQuotaSnapshot.create,
+        valueDefaultOrMaker: CopilotQuotaSnapshot.getDefault,
+        packageName: const $pb.PackageName('fleetkanban.v1'))
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CopilotQuotaInfo clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CopilotQuotaInfo copyWith(void Function(CopilotQuotaInfo) updates) =>
+      super.copyWith((message) => updates(message as CopilotQuotaInfo))
+          as CopilotQuotaInfo;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static CopilotQuotaInfo create() => CopilotQuotaInfo._();
+  @$core.override
+  CopilotQuotaInfo createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static CopilotQuotaInfo getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CopilotQuotaInfo>(create);
+  static CopilotQuotaInfo? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbMap<$core.String, CopilotQuotaSnapshot> get snapshots => $_getMap(0);
+}
+
+/// CopilotQuotaSnapshot mirrors SDK rpc.QuotaSnapshot. All counts are
+/// "number of requests" (not tokens); billing multiplier is applied upstream
+/// in the Copilot CLI before snapshots are exposed, so one used_requests
+/// unit equals one premium-request charge on the user's plan.
+class CopilotQuotaSnapshot extends $pb.GeneratedMessage {
+  factory CopilotQuotaSnapshot({
+    $core.double? entitlementRequests,
+    $core.double? usedRequests,
+    $core.double? remainingPercentage,
+    $core.double? overage,
+    $core.bool? overageAllowedWithExhaustedQuota,
+    $core.String? resetDate,
+  }) {
+    final result = create();
+    if (entitlementRequests != null)
+      result.entitlementRequests = entitlementRequests;
+    if (usedRequests != null) result.usedRequests = usedRequests;
+    if (remainingPercentage != null)
+      result.remainingPercentage = remainingPercentage;
+    if (overage != null) result.overage = overage;
+    if (overageAllowedWithExhaustedQuota != null)
+      result.overageAllowedWithExhaustedQuota =
+          overageAllowedWithExhaustedQuota;
+    if (resetDate != null) result.resetDate = resetDate;
+    return result;
+  }
+
+  CopilotQuotaSnapshot._();
+
+  factory CopilotQuotaSnapshot.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory CopilotQuotaSnapshot.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CopilotQuotaSnapshot',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aD(1, _omitFieldNames ? '' : 'entitlementRequests')
+    ..aD(2, _omitFieldNames ? '' : 'usedRequests')
+    ..aD(3, _omitFieldNames ? '' : 'remainingPercentage')
+    ..aD(4, _omitFieldNames ? '' : 'overage')
+    ..aOB(5, _omitFieldNames ? '' : 'overageAllowedWithExhaustedQuota')
+    ..aOS(6, _omitFieldNames ? '' : 'resetDate')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CopilotQuotaSnapshot clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CopilotQuotaSnapshot copyWith(void Function(CopilotQuotaSnapshot) updates) =>
+      super.copyWith((message) => updates(message as CopilotQuotaSnapshot))
+          as CopilotQuotaSnapshot;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static CopilotQuotaSnapshot create() => CopilotQuotaSnapshot._();
+  @$core.override
+  CopilotQuotaSnapshot createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static CopilotQuotaSnapshot getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CopilotQuotaSnapshot>(create);
+  static CopilotQuotaSnapshot? _defaultInstance;
+
+  /// Number of premium requests included in the user's plan for the current
+  /// billing period.
+  @$pb.TagNumber(1)
+  $core.double get entitlementRequests => $_getN(0);
+  @$pb.TagNumber(1)
+  set entitlementRequests($core.double value) => $_setDouble(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasEntitlementRequests() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearEntitlementRequests() => $_clearField(1);
+
+  /// Number of premium requests already consumed this billing period.
+  @$pb.TagNumber(2)
+  $core.double get usedRequests => $_getN(1);
+  @$pb.TagNumber(2)
+  set usedRequests($core.double value) => $_setDouble(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasUsedRequests() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearUsedRequests() => $_clearField(2);
+
+  /// Percentage of entitlement remaining, on a 0-100 scale. The SDK
+  /// supplies this directly; clients should prefer it over dividing
+  /// used/entitlement to match the server's rounding rules. Note: the
+  /// upstream SDK doc comment claims "0.0 to 1.0" but empirically the
+  /// Copilot CLI returns 0-100 (verified against CLI 1.0.21 / SDK v0.2.2).
+  @$pb.TagNumber(3)
+  $core.double get remainingPercentage => $_getN(2);
+  @$pb.TagNumber(3)
+  set remainingPercentage($core.double value) => $_setDouble(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasRemainingPercentage() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearRemainingPercentage() => $_clearField(3);
+
+  /// Requests charged against pay-per-request overage after the entitlement
+  /// was exhausted. Zero for users who haven't exceeded their plan.
+  @$pb.TagNumber(4)
+  $core.double get overage => $_getN(3);
+  @$pb.TagNumber(4)
+  set overage($core.double value) => $_setDouble(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasOverage() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearOverage() => $_clearField(4);
+
+  /// When true, the account is configured to keep serving requests beyond
+  /// the entitlement (billing the user for each) instead of hard-stopping.
+  @$pb.TagNumber(5)
+  $core.bool get overageAllowedWithExhaustedQuota => $_getBF(4);
+  @$pb.TagNumber(5)
+  set overageAllowedWithExhaustedQuota($core.bool value) => $_setBool(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasOverageAllowedWithExhaustedQuota() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearOverageAllowedWithExhaustedQuota() => $_clearField(5);
+
+  /// ISO-8601 timestamp of the next quota reset, or empty when the SDK did
+  /// not provide one (e.g. unmetered plans).
+  @$pb.TagNumber(6)
+  $core.String get resetDate => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set resetDate($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasResetDate() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearResetDate() => $_clearField(6);
 }
 
 /// GitHubAccountInfo mirrors a subset of the `/user` response. Copilot-plan
@@ -7530,6 +7988,469 @@ class UpdateMemorySettingsRequest extends $pb.GeneratedMessage {
   MemorySettings ensureSettings() => $_ensure(0);
 }
 
+/// MemoryHealth is the lightweight snapshot returned by GetMemoryHealth.
+/// Purpose-built for polling: no expensive aggregates (counts by kind,
+/// scratchpad buckets) — those live on ContextOverview.
+class MemoryHealth extends $pb.GeneratedMessage {
+  factory MemoryHealth({
+    $core.bool? enabled,
+    $core.bool? providerReachable,
+    $core.int? vectorCount,
+    $2.Timestamp? lastRebuildAt,
+    $core.String? lastError,
+  }) {
+    final result = create();
+    if (enabled != null) result.enabled = enabled;
+    if (providerReachable != null) result.providerReachable = providerReachable;
+    if (vectorCount != null) result.vectorCount = vectorCount;
+    if (lastRebuildAt != null) result.lastRebuildAt = lastRebuildAt;
+    if (lastError != null) result.lastError = lastError;
+    return result;
+  }
+
+  MemoryHealth._();
+
+  factory MemoryHealth.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory MemoryHealth.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'MemoryHealth',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOB(1, _omitFieldNames ? '' : 'enabled')
+    ..aOB(2, _omitFieldNames ? '' : 'providerReachable')
+    ..aI(3, _omitFieldNames ? '' : 'vectorCount')
+    ..aOM<$2.Timestamp>(4, _omitFieldNames ? '' : 'lastRebuildAt',
+        subBuilder: $2.Timestamp.create)
+    ..aOS(5, _omitFieldNames ? '' : 'lastError')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  MemoryHealth clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  MemoryHealth copyWith(void Function(MemoryHealth) updates) =>
+      super.copyWith((message) => updates(message as MemoryHealth))
+          as MemoryHealth;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static MemoryHealth create() => MemoryHealth._();
+  @$core.override
+  MemoryHealth createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static MemoryHealth getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<MemoryHealth>(create);
+  static MemoryHealth? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.bool get enabled => $_getBF(0);
+  @$pb.TagNumber(1)
+  set enabled($core.bool value) => $_setBool(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasEnabled() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearEnabled() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.bool get providerReachable => $_getBF(1);
+  @$pb.TagNumber(2)
+  set providerReachable($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasProviderReachable() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearProviderReachable() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.int get vectorCount => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set vectorCount($core.int value) => $_setSignedInt32(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasVectorCount() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearVectorCount() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $2.Timestamp get lastRebuildAt => $_getN(3);
+  @$pb.TagNumber(4)
+  set lastRebuildAt($2.Timestamp value) => $_setField(4, value);
+  @$pb.TagNumber(4)
+  $core.bool hasLastRebuildAt() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearLastRebuildAt() => $_clearField(4);
+  @$pb.TagNumber(4)
+  $2.Timestamp ensureLastRebuildAt() => $_ensure(3);
+
+  /// Human-readable error from the last provider build or reachability
+  /// probe. Empty when healthy. Rendered verbatim in the Settings panel.
+  @$pb.TagNumber(5)
+  $core.String get lastError => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set lastError($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasLastError() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearLastError() => $_clearField(5);
+}
+
+class SuggestForNewTaskRequest extends $pb.GeneratedMessage {
+  factory SuggestForNewTaskRequest({
+    $core.String? repoId,
+    $core.String? draftGoal,
+    $core.int? limit,
+  }) {
+    final result = create();
+    if (repoId != null) result.repoId = repoId;
+    if (draftGoal != null) result.draftGoal = draftGoal;
+    if (limit != null) result.limit = limit;
+    return result;
+  }
+
+  SuggestForNewTaskRequest._();
+
+  factory SuggestForNewTaskRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory SuggestForNewTaskRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SuggestForNewTaskRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'repoId')
+    ..aOS(2, _omitFieldNames ? '' : 'draftGoal')
+    ..aI(3, _omitFieldNames ? '' : 'limit')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SuggestForNewTaskRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SuggestForNewTaskRequest copyWith(
+          void Function(SuggestForNewTaskRequest) updates) =>
+      super.copyWith((message) => updates(message as SuggestForNewTaskRequest))
+          as SuggestForNewTaskRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SuggestForNewTaskRequest create() => SuggestForNewTaskRequest._();
+  @$core.override
+  SuggestForNewTaskRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static SuggestForNewTaskRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SuggestForNewTaskRequest>(create);
+  static SuggestForNewTaskRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get repoId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set repoId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRepoId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRepoId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get draftGoal => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set draftGoal($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasDraftGoal() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearDraftGoal() => $_clearField(2);
+
+  /// Per-bucket cap. Defaults to 5 when unset. The server pulls 3x this
+  /// from the fused channel so each bucket has headroom.
+  @$pb.TagNumber(3)
+  $core.int get limit => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set limit($core.int value) => $_setSignedInt32(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasLimit() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearLimit() => $_clearField(3);
+}
+
+class TaskSuggestion extends $pb.GeneratedMessage {
+  factory TaskSuggestion({
+    $core.String? nodeId,
+    $core.String? label,
+    $core.String? summaryMd,
+    $core.double? score,
+    $core.String? sourceTaskId,
+  }) {
+    final result = create();
+    if (nodeId != null) result.nodeId = nodeId;
+    if (label != null) result.label = label;
+    if (summaryMd != null) result.summaryMd = summaryMd;
+    if (score != null) result.score = score;
+    if (sourceTaskId != null) result.sourceTaskId = sourceTaskId;
+    return result;
+  }
+
+  TaskSuggestion._();
+
+  factory TaskSuggestion.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory TaskSuggestion.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'TaskSuggestion',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'nodeId')
+    ..aOS(2, _omitFieldNames ? '' : 'label')
+    ..aOS(3, _omitFieldNames ? '' : 'summaryMd')
+    ..aD(4, _omitFieldNames ? '' : 'score', fieldType: $pb.PbFieldType.OF)
+    ..aOS(5, _omitFieldNames ? '' : 'sourceTaskId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TaskSuggestion clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TaskSuggestion copyWith(void Function(TaskSuggestion) updates) =>
+      super.copyWith((message) => updates(message as TaskSuggestion))
+          as TaskSuggestion;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static TaskSuggestion create() => TaskSuggestion._();
+  @$core.override
+  TaskSuggestion createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static TaskSuggestion getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<TaskSuggestion>(create);
+  static TaskSuggestion? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get nodeId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set nodeId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasNodeId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearNodeId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get label => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set label($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasLabel() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearLabel() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get summaryMd => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set summaryMd($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasSummaryMd() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearSummaryMd() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.double get score => $_getN(3);
+  @$pb.TagNumber(4)
+  set score($core.double value) => $_setFloat(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasScore() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearScore() => $_clearField(4);
+
+  /// Original task ID — UI uses this to deep-link back to the Kanban row.
+  @$pb.TagNumber(5)
+  $core.String get sourceTaskId => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set sourceTaskId($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasSourceTaskId() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearSourceTaskId() => $_clearField(5);
+}
+
+class ContextNodeSummary extends $pb.GeneratedMessage {
+  factory ContextNodeSummary({
+    $core.String? nodeId,
+    $core.String? kind,
+    $core.String? label,
+    $core.String? contentMd,
+    $core.double? score,
+  }) {
+    final result = create();
+    if (nodeId != null) result.nodeId = nodeId;
+    if (kind != null) result.kind = kind;
+    if (label != null) result.label = label;
+    if (contentMd != null) result.contentMd = contentMd;
+    if (score != null) result.score = score;
+    return result;
+  }
+
+  ContextNodeSummary._();
+
+  factory ContextNodeSummary.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ContextNodeSummary.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ContextNodeSummary',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'nodeId')
+    ..aOS(2, _omitFieldNames ? '' : 'kind')
+    ..aOS(3, _omitFieldNames ? '' : 'label')
+    ..aOS(4, _omitFieldNames ? '' : 'contentMd')
+    ..aD(5, _omitFieldNames ? '' : 'score', fieldType: $pb.PbFieldType.OF)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ContextNodeSummary clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ContextNodeSummary copyWith(void Function(ContextNodeSummary) updates) =>
+      super.copyWith((message) => updates(message as ContextNodeSummary))
+          as ContextNodeSummary;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ContextNodeSummary create() => ContextNodeSummary._();
+  @$core.override
+  ContextNodeSummary createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ContextNodeSummary getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ContextNodeSummary>(create);
+  static ContextNodeSummary? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get nodeId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set nodeId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasNodeId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearNodeId() => $_clearField(1);
+
+  /// Decision | Constraint (filtered server-side to those two kinds).
+  @$pb.TagNumber(2)
+  $core.String get kind => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set kind($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasKind() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearKind() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get label => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set label($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasLabel() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearLabel() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get contentMd => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set contentMd($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasContentMd() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearContentMd() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.double get score => $_getN(4);
+  @$pb.TagNumber(5)
+  set score($core.double value) => $_setFloat(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasScore() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearScore() => $_clearField(5);
+}
+
+class SuggestForNewTaskResponse extends $pb.GeneratedMessage {
+  factory SuggestForNewTaskResponse({
+    $core.Iterable<TaskSuggestion>? similarTasks,
+    $core.Iterable<ContextNodeSummary>? relatedDecisions,
+    $core.Iterable<ContextNodeSummary>? relatedConstraints,
+  }) {
+    final result = create();
+    if (similarTasks != null) result.similarTasks.addAll(similarTasks);
+    if (relatedDecisions != null)
+      result.relatedDecisions.addAll(relatedDecisions);
+    if (relatedConstraints != null)
+      result.relatedConstraints.addAll(relatedConstraints);
+    return result;
+  }
+
+  SuggestForNewTaskResponse._();
+
+  factory SuggestForNewTaskResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory SuggestForNewTaskResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SuggestForNewTaskResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..pPM<TaskSuggestion>(1, _omitFieldNames ? '' : 'similarTasks',
+        subBuilder: TaskSuggestion.create)
+    ..pPM<ContextNodeSummary>(2, _omitFieldNames ? '' : 'relatedDecisions',
+        subBuilder: ContextNodeSummary.create)
+    ..pPM<ContextNodeSummary>(3, _omitFieldNames ? '' : 'relatedConstraints',
+        subBuilder: ContextNodeSummary.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SuggestForNewTaskResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SuggestForNewTaskResponse copyWith(
+          void Function(SuggestForNewTaskResponse) updates) =>
+      super.copyWith((message) => updates(message as SuggestForNewTaskResponse))
+          as SuggestForNewTaskResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static SuggestForNewTaskResponse create() => SuggestForNewTaskResponse._();
+  @$core.override
+  SuggestForNewTaskResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static SuggestForNewTaskResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SuggestForNewTaskResponse>(create);
+  static SuggestForNewTaskResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<TaskSuggestion> get similarTasks => $_getList(0);
+
+  @$pb.TagNumber(2)
+  $pb.PbList<ContextNodeSummary> get relatedDecisions => $_getList(1);
+
+  @$pb.TagNumber(3)
+  $pb.PbList<ContextNodeSummary> get relatedConstraints => $_getList(2);
+}
+
 /// WatchContextRequest resumes a stream by passing the server sequence
 /// of the last observed change per change-kind. Unset → send only
 /// future changes (no backfill).
@@ -9061,6 +9982,1355 @@ class OllamaPullProgressEvent extends $pb.GeneratedMessage {
   $core.bool hasDone() => $_has(5);
   @$pb.TagNumber(6)
   void clearDone() => $_clearField(6);
+}
+
+/// Artifact mirrors internal/store.Artifact. attrs_json is a free-form
+/// JSON object for kind-specific metadata (e.g. subtask_id for code
+/// artifacts, harness version for harness artifacts).
+class Artifact extends $pb.GeneratedMessage {
+  factory Artifact({
+    $core.String? id,
+    $core.String? taskId,
+    $core.String? subtaskId,
+    $core.String? stage,
+    $core.String? path,
+    $core.String? kind,
+    $core.String? contentHash,
+    $fixnum.Int64? sizeBytes,
+    $core.String? attrsJson,
+    $2.Timestamp? createdAt,
+  }) {
+    final result = create();
+    if (id != null) result.id = id;
+    if (taskId != null) result.taskId = taskId;
+    if (subtaskId != null) result.subtaskId = subtaskId;
+    if (stage != null) result.stage = stage;
+    if (path != null) result.path = path;
+    if (kind != null) result.kind = kind;
+    if (contentHash != null) result.contentHash = contentHash;
+    if (sizeBytes != null) result.sizeBytes = sizeBytes;
+    if (attrsJson != null) result.attrsJson = attrsJson;
+    if (createdAt != null) result.createdAt = createdAt;
+    return result;
+  }
+
+  Artifact._();
+
+  factory Artifact.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory Artifact.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'Artifact',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOS(2, _omitFieldNames ? '' : 'taskId')
+    ..aOS(3, _omitFieldNames ? '' : 'subtaskId')
+    ..aOS(4, _omitFieldNames ? '' : 'stage')
+    ..aOS(5, _omitFieldNames ? '' : 'path')
+    ..aOS(6, _omitFieldNames ? '' : 'kind')
+    ..aOS(7, _omitFieldNames ? '' : 'contentHash')
+    ..aInt64(8, _omitFieldNames ? '' : 'sizeBytes')
+    ..aOS(9, _omitFieldNames ? '' : 'attrsJson')
+    ..aOM<$2.Timestamp>(10, _omitFieldNames ? '' : 'createdAt',
+        subBuilder: $2.Timestamp.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  Artifact clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  Artifact copyWith(void Function(Artifact) updates) =>
+      super.copyWith((message) => updates(message as Artifact)) as Artifact;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static Artifact create() => Artifact._();
+  @$core.override
+  Artifact createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static Artifact getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Artifact>(create);
+  static Artifact? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get taskId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set taskId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasTaskId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearTaskId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get subtaskId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set subtaskId($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasSubtaskId() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearSubtaskId() => $_clearField(3);
+
+  /// stage: plan | code | review | harness | attempt
+  @$pb.TagNumber(4)
+  $core.String get stage => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set stage($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasStage() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearStage() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get path => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set path($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasPath() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearPath() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get kind => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set kind($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasKind() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearKind() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.String get contentHash => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set contentHash($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasContentHash() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearContentHash() => $_clearField(7);
+
+  @$pb.TagNumber(8)
+  $fixnum.Int64 get sizeBytes => $_getI64(7);
+  @$pb.TagNumber(8)
+  set sizeBytes($fixnum.Int64 value) => $_setInt64(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasSizeBytes() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearSizeBytes() => $_clearField(8);
+
+  @$pb.TagNumber(9)
+  $core.String get attrsJson => $_getSZ(8);
+  @$pb.TagNumber(9)
+  set attrsJson($core.String value) => $_setString(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasAttrsJson() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearAttrsJson() => $_clearField(9);
+
+  @$pb.TagNumber(10)
+  $2.Timestamp get createdAt => $_getN(9);
+  @$pb.TagNumber(10)
+  set createdAt($2.Timestamp value) => $_setField(10, value);
+  @$pb.TagNumber(10)
+  $core.bool hasCreatedAt() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearCreatedAt() => $_clearField(10);
+  @$pb.TagNumber(10)
+  $2.Timestamp ensureCreatedAt() => $_ensure(9);
+}
+
+class ListArtifactsRequest extends $pb.GeneratedMessage {
+  factory ListArtifactsRequest({
+    $core.String? taskId,
+    $core.String? stage,
+    $core.int? limit,
+    $core.int? pageSize,
+    $core.String? pageToken,
+  }) {
+    final result = create();
+    if (taskId != null) result.taskId = taskId;
+    if (stage != null) result.stage = stage;
+    if (limit != null) result.limit = limit;
+    if (pageSize != null) result.pageSize = pageSize;
+    if (pageToken != null) result.pageToken = pageToken;
+    return result;
+  }
+
+  ListArtifactsRequest._();
+
+  factory ListArtifactsRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ListArtifactsRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ListArtifactsRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'taskId')
+    ..aOS(2, _omitFieldNames ? '' : 'stage')
+    ..aI(3, _omitFieldNames ? '' : 'limit')
+    ..aI(4, _omitFieldNames ? '' : 'pageSize')
+    ..aOS(5, _omitFieldNames ? '' : 'pageToken')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListArtifactsRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListArtifactsRequest copyWith(void Function(ListArtifactsRequest) updates) =>
+      super.copyWith((message) => updates(message as ListArtifactsRequest))
+          as ListArtifactsRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ListArtifactsRequest create() => ListArtifactsRequest._();
+  @$core.override
+  ListArtifactsRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ListArtifactsRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ListArtifactsRequest>(create);
+  static ListArtifactsRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get taskId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set taskId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasTaskId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearTaskId() => $_clearField(1);
+
+  /// Optional filter on stage string. Empty = all stages.
+  @$pb.TagNumber(2)
+  $core.String get stage => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set stage($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasStage() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearStage() => $_clearField(2);
+
+  /// Legacy hard cap (kept for wire compatibility with pre-pagination
+  /// clients). New callers should use page_size instead. When both are
+  /// set page_size wins.
+  @$pb.TagNumber(3)
+  $core.int get limit => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set limit($core.int value) => $_setSignedInt32(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasLimit() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearLimit() => $_clearField(3);
+
+  /// Maximum number of rows to return in this page. 0 delegates to the
+  /// server default (currently 500). The server may return fewer rows
+  /// than requested at the end of the result set.
+  @$pb.TagNumber(4)
+  $core.int get pageSize => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set pageSize($core.int value) => $_setSignedInt32(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasPageSize() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearPageSize() => $_clearField(4);
+
+  /// Opaque cursor returned by a previous ListArtifacts call. Empty on
+  /// the first page. Callers MUST pass the exact bytes the server
+  /// returned — format is an implementation detail and may change.
+  @$pb.TagNumber(5)
+  $core.String get pageToken => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set pageToken($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasPageToken() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearPageToken() => $_clearField(5);
+}
+
+class ListArtifactsResponse extends $pb.GeneratedMessage {
+  factory ListArtifactsResponse({
+    $core.Iterable<Artifact>? artifacts,
+    $core.String? nextPageToken,
+  }) {
+    final result = create();
+    if (artifacts != null) result.artifacts.addAll(artifacts);
+    if (nextPageToken != null) result.nextPageToken = nextPageToken;
+    return result;
+  }
+
+  ListArtifactsResponse._();
+
+  factory ListArtifactsResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ListArtifactsResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ListArtifactsResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..pPM<Artifact>(1, _omitFieldNames ? '' : 'artifacts',
+        subBuilder: Artifact.create)
+    ..aOS(2, _omitFieldNames ? '' : 'nextPageToken')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListArtifactsResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListArtifactsResponse copyWith(
+          void Function(ListArtifactsResponse) updates) =>
+      super.copyWith((message) => updates(message as ListArtifactsResponse))
+          as ListArtifactsResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ListArtifactsResponse create() => ListArtifactsResponse._();
+  @$core.override
+  ListArtifactsResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ListArtifactsResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ListArtifactsResponse>(create);
+  static ListArtifactsResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<Artifact> get artifacts => $_getList(0);
+
+  /// Non-empty when more rows are available. Pass to the next
+  /// ListArtifacts call's page_token to continue. Empty on the final page.
+  @$pb.TagNumber(2)
+  $core.String get nextPageToken => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set nextPageToken($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasNextPageToken() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearNextPageToken() => $_clearField(2);
+}
+
+class GetArtifactRequest extends $pb.GeneratedMessage {
+  factory GetArtifactRequest({
+    $core.String? id,
+  }) {
+    final result = create();
+    if (id != null) result.id = id;
+    return result;
+  }
+
+  GetArtifactRequest._();
+
+  factory GetArtifactRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory GetArtifactRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GetArtifactRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetArtifactRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetArtifactRequest copyWith(void Function(GetArtifactRequest) updates) =>
+      super.copyWith((message) => updates(message as GetArtifactRequest))
+          as GetArtifactRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static GetArtifactRequest create() => GetArtifactRequest._();
+  @$core.override
+  GetArtifactRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static GetArtifactRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GetArtifactRequest>(create);
+  static GetArtifactRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+}
+
+class GetArtifactContentRequest extends $pb.GeneratedMessage {
+  factory GetArtifactContentRequest({
+    $core.String? id,
+  }) {
+    final result = create();
+    if (id != null) result.id = id;
+    return result;
+  }
+
+  GetArtifactContentRequest._();
+
+  factory GetArtifactContentRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory GetArtifactContentRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GetArtifactContentRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetArtifactContentRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetArtifactContentRequest copyWith(
+          void Function(GetArtifactContentRequest) updates) =>
+      super.copyWith((message) => updates(message as GetArtifactContentRequest))
+          as GetArtifactContentRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static GetArtifactContentRequest create() => GetArtifactContentRequest._();
+  @$core.override
+  GetArtifactContentRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static GetArtifactContentRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GetArtifactContentRequest>(create);
+  static GetArtifactContentRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+}
+
+/// ArtifactChunk is one streaming chunk from GetContent. eof is set on
+/// the final message; data may be empty when eof is true (flush sentinel).
+class ArtifactChunk extends $pb.GeneratedMessage {
+  factory ArtifactChunk({
+    $core.List<$core.int>? data,
+    $core.bool? eof,
+  }) {
+    final result = create();
+    if (data != null) result.data = data;
+    if (eof != null) result.eof = eof;
+    return result;
+  }
+
+  ArtifactChunk._();
+
+  factory ArtifactChunk.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ArtifactChunk.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ArtifactChunk',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..a<$core.List<$core.int>>(
+        1, _omitFieldNames ? '' : 'data', $pb.PbFieldType.OY)
+    ..aOB(2, _omitFieldNames ? '' : 'eof')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ArtifactChunk clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ArtifactChunk copyWith(void Function(ArtifactChunk) updates) =>
+      super.copyWith((message) => updates(message as ArtifactChunk))
+          as ArtifactChunk;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ArtifactChunk create() => ArtifactChunk._();
+  @$core.override
+  ArtifactChunk createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ArtifactChunk getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ArtifactChunk>(create);
+  static ArtifactChunk? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<$core.int> get data => $_getN(0);
+  @$pb.TagNumber(1)
+  set data($core.List<$core.int> value) => $_setBytes(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasData() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearData() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.bool get eof => $_getBF(1);
+  @$pb.TagNumber(2)
+  set eof($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasEof() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearEof() => $_clearField(2);
+}
+
+/// HarnessSkill is one immutable snapshot of the NL skill file. Each
+/// UpdateSkill call mints a new version; the active version is the one
+/// with the highest version number. artifact_id links back to the
+/// Artifact row that backs this version on disk.
+class HarnessSkill extends $pb.GeneratedMessage {
+  factory HarnessSkill({
+    $core.String? artifactId,
+    $core.int? version,
+    $core.String? contentMd,
+    $2.Timestamp? createdAt,
+    $core.String? contentHash,
+  }) {
+    final result = create();
+    if (artifactId != null) result.artifactId = artifactId;
+    if (version != null) result.version = version;
+    if (contentMd != null) result.contentMd = contentMd;
+    if (createdAt != null) result.createdAt = createdAt;
+    if (contentHash != null) result.contentHash = contentHash;
+    return result;
+  }
+
+  HarnessSkill._();
+
+  factory HarnessSkill.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory HarnessSkill.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'HarnessSkill',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'artifactId')
+    ..aI(2, _omitFieldNames ? '' : 'version')
+    ..aOS(3, _omitFieldNames ? '' : 'contentMd')
+    ..aOM<$2.Timestamp>(4, _omitFieldNames ? '' : 'createdAt',
+        subBuilder: $2.Timestamp.create)
+    ..aOS(5, _omitFieldNames ? '' : 'contentHash')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  HarnessSkill clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  HarnessSkill copyWith(void Function(HarnessSkill) updates) =>
+      super.copyWith((message) => updates(message as HarnessSkill))
+          as HarnessSkill;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static HarnessSkill create() => HarnessSkill._();
+  @$core.override
+  HarnessSkill createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static HarnessSkill getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<HarnessSkill>(create);
+  static HarnessSkill? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get artifactId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set artifactId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasArtifactId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearArtifactId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.int get version => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set version($core.int value) => $_setSignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasVersion() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearVersion() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get contentMd => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set contentMd($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasContentMd() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearContentMd() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $2.Timestamp get createdAt => $_getN(3);
+  @$pb.TagNumber(4)
+  set createdAt($2.Timestamp value) => $_setField(4, value);
+  @$pb.TagNumber(4)
+  $core.bool hasCreatedAt() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearCreatedAt() => $_clearField(4);
+  @$pb.TagNumber(4)
+  $2.Timestamp ensureCreatedAt() => $_ensure(3);
+
+  @$pb.TagNumber(5)
+  $core.String get contentHash => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set contentHash($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasContentHash() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearContentHash() => $_clearField(5);
+}
+
+class ListSkillVersionsResponse extends $pb.GeneratedMessage {
+  factory ListSkillVersionsResponse({
+    $core.Iterable<HarnessSkill>? versions,
+  }) {
+    final result = create();
+    if (versions != null) result.versions.addAll(versions);
+    return result;
+  }
+
+  ListSkillVersionsResponse._();
+
+  factory ListSkillVersionsResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ListSkillVersionsResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ListSkillVersionsResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..pPM<HarnessSkill>(1, _omitFieldNames ? '' : 'versions',
+        subBuilder: HarnessSkill.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListSkillVersionsResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListSkillVersionsResponse copyWith(
+          void Function(ListSkillVersionsResponse) updates) =>
+      super.copyWith((message) => updates(message as ListSkillVersionsResponse))
+          as ListSkillVersionsResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ListSkillVersionsResponse create() => ListSkillVersionsResponse._();
+  @$core.override
+  ListSkillVersionsResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ListSkillVersionsResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ListSkillVersionsResponse>(create);
+  static ListSkillVersionsResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<HarnessSkill> get versions => $_getList(0);
+}
+
+class ValidateSkillRequest extends $pb.GeneratedMessage {
+  factory ValidateSkillRequest({
+    $core.String? contentMd,
+  }) {
+    final result = create();
+    if (contentMd != null) result.contentMd = contentMd;
+    return result;
+  }
+
+  ValidateSkillRequest._();
+
+  factory ValidateSkillRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ValidateSkillRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ValidateSkillRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'contentMd')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ValidateSkillRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ValidateSkillRequest copyWith(void Function(ValidateSkillRequest) updates) =>
+      super.copyWith((message) => updates(message as ValidateSkillRequest))
+          as ValidateSkillRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ValidateSkillRequest create() => ValidateSkillRequest._();
+  @$core.override
+  ValidateSkillRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ValidateSkillRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ValidateSkillRequest>(create);
+  static ValidateSkillRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get contentMd => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set contentMd($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasContentMd() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearContentMd() => $_clearField(1);
+}
+
+/// ValidateSkillResponse carries lint results for the proposed harness
+/// content. ok=true means the content is safe to activate; warnings are
+/// non-fatal style notes the UI may surface as inline hints.
+class ValidateSkillResponse extends $pb.GeneratedMessage {
+  factory ValidateSkillResponse({
+    $core.bool? ok,
+    $core.Iterable<$core.String>? errors,
+    $core.Iterable<$core.String>? warnings,
+  }) {
+    final result = create();
+    if (ok != null) result.ok = ok;
+    if (errors != null) result.errors.addAll(errors);
+    if (warnings != null) result.warnings.addAll(warnings);
+    return result;
+  }
+
+  ValidateSkillResponse._();
+
+  factory ValidateSkillResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ValidateSkillResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ValidateSkillResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOB(1, _omitFieldNames ? '' : 'ok')
+    ..pPS(2, _omitFieldNames ? '' : 'errors')
+    ..pPS(3, _omitFieldNames ? '' : 'warnings')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ValidateSkillResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ValidateSkillResponse copyWith(
+          void Function(ValidateSkillResponse) updates) =>
+      super.copyWith((message) => updates(message as ValidateSkillResponse))
+          as ValidateSkillResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ValidateSkillResponse create() => ValidateSkillResponse._();
+  @$core.override
+  ValidateSkillResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ValidateSkillResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ValidateSkillResponse>(create);
+  static ValidateSkillResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.bool get ok => $_getBF(0);
+  @$pb.TagNumber(1)
+  set ok($core.bool value) => $_setBool(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasOk() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearOk() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $pb.PbList<$core.String> get errors => $_getList(1);
+
+  @$pb.TagNumber(3)
+  $pb.PbList<$core.String> get warnings => $_getList(2);
+}
+
+class UpdateSkillRequest extends $pb.GeneratedMessage {
+  factory UpdateSkillRequest({
+    $core.String? contentMd,
+  }) {
+    final result = create();
+    if (contentMd != null) result.contentMd = contentMd;
+    return result;
+  }
+
+  UpdateSkillRequest._();
+
+  factory UpdateSkillRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory UpdateSkillRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'UpdateSkillRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'contentMd')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UpdateSkillRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UpdateSkillRequest copyWith(void Function(UpdateSkillRequest) updates) =>
+      super.copyWith((message) => updates(message as UpdateSkillRequest))
+          as UpdateSkillRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static UpdateSkillRequest create() => UpdateSkillRequest._();
+  @$core.override
+  UpdateSkillRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static UpdateSkillRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<UpdateSkillRequest>(create);
+  static UpdateSkillRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get contentMd => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set contentMd($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasContentMd() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearContentMd() => $_clearField(1);
+}
+
+class RollbackSkillRequest extends $pb.GeneratedMessage {
+  factory RollbackSkillRequest({
+    $core.String? artifactId,
+  }) {
+    final result = create();
+    if (artifactId != null) result.artifactId = artifactId;
+    return result;
+  }
+
+  RollbackSkillRequest._();
+
+  factory RollbackSkillRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory RollbackSkillRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'RollbackSkillRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'artifactId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RollbackSkillRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RollbackSkillRequest copyWith(void Function(RollbackSkillRequest) updates) =>
+      super.copyWith((message) => updates(message as RollbackSkillRequest))
+          as RollbackSkillRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static RollbackSkillRequest create() => RollbackSkillRequest._();
+  @$core.override
+  RollbackSkillRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static RollbackSkillRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<RollbackSkillRequest>(create);
+  static RollbackSkillRequest? _defaultInstance;
+
+  /// artifact_id of the HarnessSkill version to restore as the new active
+  /// version. A new version row is created (rather than mutating history)
+  /// so the audit trail is preserved.
+  @$pb.TagNumber(1)
+  $core.String get artifactId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set artifactId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasArtifactId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearArtifactId() => $_clearField(1);
+}
+
+/// HarnessAttempt mirrors internal/store.HarnessAttempt.
+/// decision is one of: pending | approved | rejected | superseded.
+/// proposed_patch is intentionally empty in Phase C; LLM patch generation
+/// is wired in the subsequent Phase C LLM integration step.
+class HarnessAttempt extends $pb.GeneratedMessage {
+  factory HarnessAttempt({
+    $core.String? id,
+    $core.String? taskId,
+    $core.int? reworkRound,
+    $core.String? failureClass,
+    $core.String? observationMd,
+    $core.String? proposedPatch,
+    $core.String? proposedHash,
+    $core.String? decision,
+    $core.String? decidedBy,
+    $2.Timestamp? decidedAt,
+    $2.Timestamp? createdAt,
+  }) {
+    final result = create();
+    if (id != null) result.id = id;
+    if (taskId != null) result.taskId = taskId;
+    if (reworkRound != null) result.reworkRound = reworkRound;
+    if (failureClass != null) result.failureClass = failureClass;
+    if (observationMd != null) result.observationMd = observationMd;
+    if (proposedPatch != null) result.proposedPatch = proposedPatch;
+    if (proposedHash != null) result.proposedHash = proposedHash;
+    if (decision != null) result.decision = decision;
+    if (decidedBy != null) result.decidedBy = decidedBy;
+    if (decidedAt != null) result.decidedAt = decidedAt;
+    if (createdAt != null) result.createdAt = createdAt;
+    return result;
+  }
+
+  HarnessAttempt._();
+
+  factory HarnessAttempt.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory HarnessAttempt.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'HarnessAttempt',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOS(2, _omitFieldNames ? '' : 'taskId')
+    ..aI(3, _omitFieldNames ? '' : 'reworkRound')
+    ..aOS(4, _omitFieldNames ? '' : 'failureClass')
+    ..aOS(5, _omitFieldNames ? '' : 'observationMd')
+    ..aOS(6, _omitFieldNames ? '' : 'proposedPatch')
+    ..aOS(7, _omitFieldNames ? '' : 'proposedHash')
+    ..aOS(8, _omitFieldNames ? '' : 'decision')
+    ..aOS(9, _omitFieldNames ? '' : 'decidedBy')
+    ..aOM<$2.Timestamp>(10, _omitFieldNames ? '' : 'decidedAt',
+        subBuilder: $2.Timestamp.create)
+    ..aOM<$2.Timestamp>(11, _omitFieldNames ? '' : 'createdAt',
+        subBuilder: $2.Timestamp.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  HarnessAttempt clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  HarnessAttempt copyWith(void Function(HarnessAttempt) updates) =>
+      super.copyWith((message) => updates(message as HarnessAttempt))
+          as HarnessAttempt;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static HarnessAttempt create() => HarnessAttempt._();
+  @$core.override
+  HarnessAttempt createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static HarnessAttempt getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<HarnessAttempt>(create);
+  static HarnessAttempt? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get taskId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set taskId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasTaskId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearTaskId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.int get reworkRound => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set reworkRound($core.int value) => $_setSignedInt32(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasReworkRound() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearReworkRound() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get failureClass => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set failureClass($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasFailureClass() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearFailureClass() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get observationMd => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set observationMd($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasObservationMd() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearObservationMd() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get proposedPatch => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set proposedPatch($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasProposedPatch() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearProposedPatch() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.String get proposedHash => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set proposedHash($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasProposedHash() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearProposedHash() => $_clearField(7);
+
+  @$pb.TagNumber(8)
+  $core.String get decision => $_getSZ(7);
+  @$pb.TagNumber(8)
+  set decision($core.String value) => $_setString(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasDecision() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearDecision() => $_clearField(8);
+
+  @$pb.TagNumber(9)
+  $core.String get decidedBy => $_getSZ(8);
+  @$pb.TagNumber(9)
+  set decidedBy($core.String value) => $_setString(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasDecidedBy() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearDecidedBy() => $_clearField(9);
+
+  @$pb.TagNumber(10)
+  $2.Timestamp get decidedAt => $_getN(9);
+  @$pb.TagNumber(10)
+  set decidedAt($2.Timestamp value) => $_setField(10, value);
+  @$pb.TagNumber(10)
+  $core.bool hasDecidedAt() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearDecidedAt() => $_clearField(10);
+  @$pb.TagNumber(10)
+  $2.Timestamp ensureDecidedAt() => $_ensure(9);
+
+  @$pb.TagNumber(11)
+  $2.Timestamp get createdAt => $_getN(10);
+  @$pb.TagNumber(11)
+  set createdAt($2.Timestamp value) => $_setField(11, value);
+  @$pb.TagNumber(11)
+  $core.bool hasCreatedAt() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearCreatedAt() => $_clearField(11);
+  @$pb.TagNumber(11)
+  $2.Timestamp ensureCreatedAt() => $_ensure(10);
+}
+
+class ListHarnessAttemptsResponse extends $pb.GeneratedMessage {
+  factory ListHarnessAttemptsResponse({
+    $core.Iterable<HarnessAttempt>? attempts,
+  }) {
+    final result = create();
+    if (attempts != null) result.attempts.addAll(attempts);
+    return result;
+  }
+
+  ListHarnessAttemptsResponse._();
+
+  factory ListHarnessAttemptsResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ListHarnessAttemptsResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ListHarnessAttemptsResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..pPM<HarnessAttempt>(1, _omitFieldNames ? '' : 'attempts',
+        subBuilder: HarnessAttempt.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListHarnessAttemptsResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListHarnessAttemptsResponse copyWith(
+          void Function(ListHarnessAttemptsResponse) updates) =>
+      super.copyWith(
+              (message) => updates(message as ListHarnessAttemptsResponse))
+          as ListHarnessAttemptsResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ListHarnessAttemptsResponse create() =>
+      ListHarnessAttemptsResponse._();
+  @$core.override
+  ListHarnessAttemptsResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ListHarnessAttemptsResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ListHarnessAttemptsResponse>(create);
+  static ListHarnessAttemptsResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<HarnessAttempt> get attempts => $_getList(0);
+}
+
+class ListHarnessAttemptsForTaskRequest extends $pb.GeneratedMessage {
+  factory ListHarnessAttemptsForTaskRequest({
+    $core.String? taskId,
+  }) {
+    final result = create();
+    if (taskId != null) result.taskId = taskId;
+    return result;
+  }
+
+  ListHarnessAttemptsForTaskRequest._();
+
+  factory ListHarnessAttemptsForTaskRequest.fromBuffer(
+          $core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ListHarnessAttemptsForTaskRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ListHarnessAttemptsForTaskRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'taskId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListHarnessAttemptsForTaskRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ListHarnessAttemptsForTaskRequest copyWith(
+          void Function(ListHarnessAttemptsForTaskRequest) updates) =>
+      super.copyWith((message) =>
+              updates(message as ListHarnessAttemptsForTaskRequest))
+          as ListHarnessAttemptsForTaskRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ListHarnessAttemptsForTaskRequest create() =>
+      ListHarnessAttemptsForTaskRequest._();
+  @$core.override
+  ListHarnessAttemptsForTaskRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ListHarnessAttemptsForTaskRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ListHarnessAttemptsForTaskRequest>(
+          create);
+  static ListHarnessAttemptsForTaskRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get taskId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set taskId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasTaskId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearTaskId() => $_clearField(1);
+}
+
+class ApproveHarnessAttemptRequest extends $pb.GeneratedMessage {
+  factory ApproveHarnessAttemptRequest({
+    $core.String? id,
+    $core.String? decidedBy,
+  }) {
+    final result = create();
+    if (id != null) result.id = id;
+    if (decidedBy != null) result.decidedBy = decidedBy;
+    return result;
+  }
+
+  ApproveHarnessAttemptRequest._();
+
+  factory ApproveHarnessAttemptRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ApproveHarnessAttemptRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ApproveHarnessAttemptRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOS(2, _omitFieldNames ? '' : 'decidedBy')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ApproveHarnessAttemptRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ApproveHarnessAttemptRequest copyWith(
+          void Function(ApproveHarnessAttemptRequest) updates) =>
+      super.copyWith(
+              (message) => updates(message as ApproveHarnessAttemptRequest))
+          as ApproveHarnessAttemptRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ApproveHarnessAttemptRequest create() =>
+      ApproveHarnessAttemptRequest._();
+  @$core.override
+  ApproveHarnessAttemptRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ApproveHarnessAttemptRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ApproveHarnessAttemptRequest>(create);
+  static ApproveHarnessAttemptRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get decidedBy => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set decidedBy($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasDecidedBy() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearDecidedBy() => $_clearField(2);
+}
+
+class RejectHarnessAttemptRequest extends $pb.GeneratedMessage {
+  factory RejectHarnessAttemptRequest({
+    $core.String? id,
+    $core.String? decidedBy,
+  }) {
+    final result = create();
+    if (id != null) result.id = id;
+    if (decidedBy != null) result.decidedBy = decidedBy;
+    return result;
+  }
+
+  RejectHarnessAttemptRequest._();
+
+  factory RejectHarnessAttemptRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory RejectHarnessAttemptRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'RejectHarnessAttemptRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'fleetkanban.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOS(2, _omitFieldNames ? '' : 'decidedBy')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RejectHarnessAttemptRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RejectHarnessAttemptRequest copyWith(
+          void Function(RejectHarnessAttemptRequest) updates) =>
+      super.copyWith(
+              (message) => updates(message as RejectHarnessAttemptRequest))
+          as RejectHarnessAttemptRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static RejectHarnessAttemptRequest create() =>
+      RejectHarnessAttemptRequest._();
+  @$core.override
+  RejectHarnessAttemptRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static RejectHarnessAttemptRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<RejectHarnessAttemptRequest>(create);
+  static RejectHarnessAttemptRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get decidedBy => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set decidedBy($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasDecidedBy() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearDecidedBy() => $_clearField(2);
 }
 
 const $core.bool _omitFieldNames =

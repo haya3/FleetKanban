@@ -4,6 +4,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:fixnum/fixnum.dart' show Int64;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:protobuf/well_known_types/google/protobuf/empty.pb.dart'
@@ -12,6 +13,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../infra/ipc/generated/fleetkanban/v1/fleetkanban.pb.dart' as pb;
+import '../../infra/ipc/grpc_client.dart';
 import '../../infra/ipc/providers.dart';
 import 'subtask_summary_dialog.dart'
     show LogBucket, StageUsage, buildPlanLogForRound, buildReviewLogForRound;
@@ -114,32 +116,199 @@ final selectedTaskIdProvider = StateProvider<String?>((_) => null);
 /// Events that warrant an immediate tasks re-fetch. `status` is emitted by
 /// the sidecar on every persisted transition (both orchestrator and
 /// SubmitReview); `session.start` marks the moment the worktree becomes
-/// known on disk.
-const _refetchKinds = {'status', 'session.start'};
+/// known on disk; `housekeeping.branch_gc` fires when the reaper detects a
+/// branch disappearing externally, so the UI needs a fresh
+/// `task.branchExists` flag to hide the "Delete branch" / "Merge" pill.
+const _refetchKinds = {'status', 'session.start', 'housekeeping.branch_gc'};
+
+/// WatchEvents stream connection state. Surfaced via
+/// [eventStreamHealthProvider] so the app shell can render an InfoBar when
+/// the sidecar event bus is unreachable — otherwise a broken stream just
+/// leaves the Kanban looking "frozen" with no explanation.
+enum StreamHealthState { connecting, connected, disconnected }
+
+class StreamHealth {
+  const StreamHealth({
+    required this.state,
+    this.error,
+    this.nextRetryAt,
+    this.attempt = 0,
+  });
+
+  final StreamHealthState state;
+  final Object? error;
+  final DateTime? nextRetryAt;
+  final int attempt;
+
+  bool get isConnected => state == StreamHealthState.connected;
+  bool get isDisconnected => state == StreamHealthState.disconnected;
+}
+
+/// Live WatchEvents stream health. Updated by the [Tasks] notifier as the
+/// subscription connects, receives events, or enters backoff after a
+/// disconnect.
+final eventStreamHealthProvider = StateProvider<StreamHealth>(
+  (_) => const StreamHealth(state: StreamHealthState.connecting),
+);
 
 /// Tasks scoped to a repository. Family key = repoId; an empty string means
 /// "all repos" (mostly useful for diagnostics, not Kanban).
+///
+/// The WatchEvents subscription auto-reconnects with exponential backoff
+/// (1 → 32 s, capped at 30 s) and keeps a per-task high-water-mark of
+/// `seq` in [_sinceByTask] so the sidecar can suppress duplicates on
+/// reconnect. Every successful reconnect triggers [ref.invalidateSelf]
+/// so the post-disconnect state converges on the server-of-truth even if
+/// some status events were missed during the gap.
 @Riverpod(keepAlive: true)
 class Tasks extends _$Tasks {
   StreamSubscription<pb.AgentEvent>? _sub;
+  Timer? _reconnectTimer;
+  final Map<String, Int64> _sinceByTask = {};
+  int _attempt = 0;
+  bool _disposed = false;
 
   @override
   Future<List<pb.Task>> build(String repoId) async {
     final client = ref.read(ipcClientProvider);
 
-    _sub = client.task.watchEvents(pb.WatchEventsRequest()).listen((ev) {
-      if (_refetchKinds.contains(ev.kind)) {
-        ref.invalidateSelf();
-      }
-    }, onError: (_) {});
     ref.onDispose(() {
+      _disposed = true;
+      _reconnectTimer?.cancel();
       _sub?.cancel();
     });
+
+    _connect(client);
 
     final resp = await client.task.listTasks(
       pb.ListTasksRequest(repoId: repoId),
     );
     return resp.tasks;
+  }
+
+  void _connect(IpcClient client) {
+    if (_disposed) return;
+    _reconnectTimer?.cancel();
+    _sub?.cancel();
+    _setHealth(const StreamHealth(state: StreamHealthState.connecting));
+
+    final req = pb.WatchEventsRequest();
+    req.sinceSeqByTask.addAll(_sinceByTask);
+
+    _sub = client.task.watchEvents(req).listen(
+      _onEvent,
+      onError: (Object err, StackTrace _) => _scheduleReconnect(client, err),
+      onDone: () => _scheduleReconnect(client, null),
+      cancelOnError: true,
+    );
+  }
+
+  void _onEvent(pb.AgentEvent ev) {
+    if (_disposed) return;
+    final firstPacket = _attempt != 0;
+    _attempt = 0;
+    final prev = _sinceByTask[ev.taskId];
+    if (prev == null || ev.seq > prev) {
+      _sinceByTask[ev.taskId] = ev.seq;
+    }
+    _setHealth(const StreamHealth(state: StreamHealthState.connected));
+    // After a reconnect, the sidecar suppresses events whose seq <= our
+    // high-water-mark — but anything emitted while the UI was offline is
+    // simply lost (no backfill on WatchEvents by design). Re-fetch the
+    // task list once to resync, then fall back to incremental refresh.
+    if (firstPacket || _refetchKinds.contains(ev.kind)) {
+      ref.invalidateSelf();
+    }
+  }
+
+  void _scheduleReconnect(IpcClient client, Object? error) {
+    if (_disposed) return;
+    _attempt++;
+    final delay = _backoff(_attempt);
+    final nextAt = DateTime.now().add(delay);
+    _setHealth(StreamHealth(
+      state: StreamHealthState.disconnected,
+      error: error,
+      nextRetryAt: nextAt,
+      attempt: _attempt,
+    ));
+    _reconnectTimer = Timer(delay, () => _connect(client));
+  }
+
+  static Duration _backoff(int attempt) {
+    const minSec = 1;
+    const maxSec = 30;
+    final shift = (attempt - 1).clamp(0, 5);
+    final sec = (minSec << shift).clamp(minSec, maxSec);
+    return Duration(seconds: sec);
+  }
+
+  void _setHealth(StreamHealth next) {
+    ref.read(eventStreamHealthProvider.notifier).state = next;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Action error log — every mutation records its failure here so the app
+// shell can surface an InfoBar instead of swallowing the error. Entries are
+// id-addressable so the UI can dismiss them individually; the ring is
+// capped at 8 so a runaway failure loop doesn't grow unbounded.
+// ---------------------------------------------------------------------------
+
+class ActionError {
+  const ActionError({
+    required this.id,
+    required this.title,
+    required this.message,
+    required this.at,
+  });
+
+  final int id;
+  final String title;
+  final String message;
+  final DateTime at;
+}
+
+final actionErrorLogProvider = StateProvider<List<ActionError>>(
+  (_) => const [],
+);
+
+int _actionErrorSeq = 0;
+const int _actionErrorRingCap = 8;
+
+void recordActionError(
+  Ref ref, {
+  required String title,
+  required Object error,
+}) {
+  _actionErrorSeq++;
+  final entry = ActionError(
+    id: _actionErrorSeq,
+    title: title,
+    message: error.toString(),
+    at: DateTime.now(),
+  );
+  final existing = ref.read(actionErrorLogProvider);
+  final next = [...existing, entry];
+  while (next.length > _actionErrorRingCap) {
+    next.removeAt(0);
+  }
+  ref.read(actionErrorLogProvider.notifier).state = next;
+}
+
+/// Widget-side counterparts. `Ref` (provider) and `WidgetRef` (UI) share no
+/// common supertype, so we expose the dismiss/clear affordances as
+/// extensions on WidgetRef and keep the record helper on Ref for
+/// notifier-internal use.
+extension ActionErrorLogWidgetRef on WidgetRef {
+  void dismissActionError(int id) {
+    final existing = read(actionErrorLogProvider);
+    read(actionErrorLogProvider.notifier).state =
+        existing.where((e) => e.id != id).toList();
+  }
+
+  void clearActionErrors() {
+    read(actionErrorLogProvider.notifier).state = const [];
   }
 }
 
@@ -160,7 +329,34 @@ enum Mutation {
   deleteBranch,
 }
 
-/// Generic mutation notifier. Keeps error state so the UI can surface it.
+String _mutationTitle(Mutation kind) {
+  switch (kind) {
+    case Mutation.run:
+      return 'Run task failed';
+    case Mutation.cancel:
+      return 'Cancel task failed';
+    case Mutation.finalizeKeep:
+      return 'Keep task failed';
+    case Mutation.finalizeMerge:
+      return 'Merge task failed';
+    case Mutation.finalizeDiscard:
+      return 'Discard task failed';
+    case Mutation.delete:
+      return 'Delete task failed';
+    case Mutation.deleteBranch:
+      return 'Delete branch failed';
+  }
+}
+
+/// Generic mutation notifier. Records failures into the shared
+/// [actionErrorLogProvider] so the app shell can surface them via an
+/// InfoBar — callers should NOT wrap run() in .catchError((_) {}) any more,
+/// the notifier owns the error lifecycle.
+///
+/// State transitions on the notifier are kept so per-card spinners still
+/// work (watch state.isLoading). The old contract rethrew the error; we
+/// stopped doing that because the caller typically couldn't do anything
+/// useful with it and the surfacing now happens globally.
 @riverpod
 class TaskMutation extends _$TaskMutation {
   @override
@@ -204,10 +400,12 @@ class TaskMutation extends _$TaskMutation {
           await client.task.deleteTaskBranch(pb.IdRequest(id: taskId));
       }
       state = const AsyncValue.data(null);
-      ref.invalidate(tasksProvider);
+      // Sidecar emits a status event on every persisted transition; the
+      // WatchEvents subscriber invalidates tasksProvider on receipt, so we
+      // don't need to invalidate here and race the stream.
     } catch (e, st) {
       state = AsyncValue.error(e, st);
-      rethrow;
+      recordActionError(ref, title: _mutationTitle(kind), error: e);
     }
   }
 }
@@ -245,7 +443,11 @@ final deleteBranchProvider = taskMutationProvider(Mutation.deleteBranch);
 // Review submission
 // ---------------------------------------------------------------------------
 
-/// Wraps SubmitReview in a stateful Notifier so the UI can surface errors.
+/// Wraps SubmitReview in a stateful Notifier. Errors are recorded into the
+/// shared [actionErrorLogProvider] and the notifier's state.error; callers
+/// no longer need to .catchError because the app shell surfaces failures
+/// globally via an InfoBar.
+///
 /// Feedback is a required field when action == rework (enforced by sidecar).
 @riverpod
 class SubmitReview extends _$SubmitReview {
@@ -264,11 +466,24 @@ class SubmitReview extends _$SubmitReview {
         pb.SubmitReviewRequest(id: taskId, action: action, feedback: feedback),
       );
       state = const AsyncValue.data(null);
-      ref.invalidate(tasksProvider);
+      // Rely on the WatchEvents status event to invalidate tasksProvider.
     } catch (e, st) {
       state = AsyncValue.error(e, st);
-      rethrow;
+      recordActionError(ref, title: _reviewTitle(action), error: e);
     }
+  }
+}
+
+String _reviewTitle(pb.ReviewAction action) {
+  switch (action) {
+    case pb.ReviewAction.REVIEW_ACTION_APPROVE:
+      return 'Approve review failed';
+    case pb.ReviewAction.REVIEW_ACTION_REWORK:
+      return 'Rework request failed';
+    case pb.ReviewAction.REVIEW_ACTION_REJECT:
+      return 'Reject review failed';
+    default:
+      return 'Submit review failed';
   }
 }
 
@@ -281,6 +496,13 @@ class SubmitReview extends _$SubmitReview {
 /// Terminal / pending states (done, cancelled, aborted, failed) are pinned:
 /// the user interacts with them via the per-card action pills (Re-run,
 /// Keep, Discard) instead of DnD.
+///
+/// The draggable list is the UI-side mirror of
+/// `shared/kanban_dnd_edges.json::draggable_statuses`. The Go test
+/// `sidecar/internal/task/dnd_edges_test.go::TestDnDEdgesMatchSidecarGraph`
+/// validates the JSON contract against the authoritative state machine in
+/// `sidecar/internal/task/transition.go`, so any drift between this code
+/// and the DnD edges declared there fails CI.
 bool canDrag(String status) {
   switch (status) {
     case 'queued':
@@ -297,10 +519,15 @@ bool canDrag(String status) {
 /// Whether a column transition is legal for the given task. Used by
 /// DragTarget.onWillAccept to dim invalid columns during drag.
 ///
-/// Mirrors (a subset of) the sidecar's transition graph — every entry here
-/// must be a legal edge server-side or the transition will fail at commit
-/// time. Edges that require extra input (e.g. rework needs feedback text)
-/// are handled by dedicated action buttons on the card instead of DnD.
+/// This is the UI-side mirror of `shared/kanban_dnd_edges.json::edges`.
+/// Each (currentStatus → target column) entry below MUST correspond to a
+/// row in that file, and each row's sidecar_to MUST be a legal edge under
+/// `sidecar/internal/task/transition.go::allowedTransitions` — both are
+/// enforced by the `TestDnDEdgesMatchSidecarGraph` Go test so drift
+/// cannot slip through review.
+///
+/// Edges that require extra input (e.g. rework needs feedback text) are
+/// handled by dedicated action buttons on the card instead of DnD.
 bool canTransition({
   required String currentStatus,
   required KanbanColumnId target,

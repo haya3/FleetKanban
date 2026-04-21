@@ -8,24 +8,24 @@ part of 'providers.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Agent prompt + output language overrides. Persisted on the sidecar
-/// (SettingsStore) so changes apply to every Copilot session without a
-/// restart. The UI exposes 3 multi-line text fields and 1 single-line
-/// language field.
+/// Output-language preference. Persisted on the sidecar (SettingsStore)
+/// so changes apply to every Copilot session without a restart. Per-stage
+/// prompt customisation lives in the IHR Charter (harness-skill/SKILL.md);
+/// this provider only owns the free-form language directive.
 
 @ProviderFor(AgentSettings)
 final agentSettingsProvider = AgentSettingsProvider._();
 
-/// Agent prompt + output language overrides. Persisted on the sidecar
-/// (SettingsStore) so changes apply to every Copilot session without a
-/// restart. The UI exposes 3 multi-line text fields and 1 single-line
-/// language field.
+/// Output-language preference. Persisted on the sidecar (SettingsStore)
+/// so changes apply to every Copilot session without a restart. Per-stage
+/// prompt customisation lives in the IHR Charter (harness-skill/SKILL.md);
+/// this provider only owns the free-form language directive.
 final class AgentSettingsProvider
     extends $AsyncNotifierProvider<AgentSettings, pb.AgentSettings> {
-  /// Agent prompt + output language overrides. Persisted on the sidecar
-  /// (SettingsStore) so changes apply to every Copilot session without a
-  /// restart. The UI exposes 3 multi-line text fields and 1 single-line
-  /// language field.
+  /// Output-language preference. Persisted on the sidecar (SettingsStore)
+  /// so changes apply to every Copilot session without a restart. Per-stage
+  /// prompt customisation lives in the IHR Charter (harness-skill/SKILL.md);
+  /// this provider only owns the free-form language directive.
   AgentSettingsProvider._()
     : super(
         from: null,
@@ -45,12 +45,12 @@ final class AgentSettingsProvider
   AgentSettings create() => AgentSettings();
 }
 
-String _$agentSettingsHash() => r'16b88d607410c94ccdbe40e77948c58590b379b6';
+String _$agentSettingsHash() => r'0bd5c116b54434943d97cd84ad6ece344fd51e5d';
 
-/// Agent prompt + output language overrides. Persisted on the sidecar
-/// (SettingsStore) so changes apply to every Copilot session without a
-/// restart. The UI exposes 3 multi-line text fields and 1 single-line
-/// language field.
+/// Output-language preference. Persisted on the sidecar (SettingsStore)
+/// so changes apply to every Copilot session without a restart. Per-stage
+/// prompt customisation lives in the IHR Charter (harness-skill/SKILL.md);
+/// this provider only owns the free-form language directive.
 
 abstract class _$AgentSettings extends $AsyncNotifier<pb.AgentSettings> {
   FutureOr<pb.AgentSettings> build();

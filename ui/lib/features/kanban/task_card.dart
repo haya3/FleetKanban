@@ -556,15 +556,15 @@ class _PrimaryAction extends ConsumerWidget {
           color: const Color(0xFF0067C0),
           onPressed: () => ref
               .read(runTaskProvider.notifier)
-              .run(task.id)
-              .catchError((_) {}),
+              .run(task.id),
         );
       case 'planning':
         // Planning is owned by the orchestrator — the AI planner is either
-        // running or about to run. Surfacing a Run button here would hit the
-        // sidecar's `cannot run a task in status planning` guard, so show a
-        // non-actionable progress pill instead.
-        return const _PlanningPill();
+        // running or about to run. Surfacing a Run button here would hit
+        // the sidecar's `cannot run a task in status planning` guard, so
+        // pair the progress indicator with a Stop button that cancels the
+        // planner goroutine (transitions the task to cancelled).
+        return _PlanningActions(task: task);
       case 'in_progress':
         return _pill(
           icon: FluentIcons.stop,
@@ -572,8 +572,7 @@ class _PrimaryAction extends ConsumerWidget {
           color: const Color(0xFF8A3B00),
           onPressed: () => ref
               .read(cancelTaskProvider.notifier)
-              .run(task.id)
-              .catchError((_) {}),
+              .run(task.id),
         );
       case 'aborted':
         // Aborted is non-terminal (phase1-spec §2-7): branch + worktree were
@@ -588,8 +587,7 @@ class _PrimaryAction extends ConsumerWidget {
           color: const Color(0xFFC29C00),
           onPressed: () => ref
               .read(runTaskProvider.notifier)
-              .run(task.id)
-              .catchError((_) {}),
+              .run(task.id),
         );
       case 'done':
         // After Keep finalize the branch lingers for the user's external
@@ -612,14 +610,43 @@ class _PrimaryAction extends ConsumerWidget {
               .submit(
                 taskId: task.id,
                 action: pb.ReviewAction.REVIEW_ACTION_APPROVE,
-              )
-              .catchError((_) {}),
+              ),
         );
       case 'human_review':
         return _HumanReviewActions(task: task);
       default:
         return const SizedBox.shrink();
     }
+  }
+}
+
+// _PlanningActions renders a non-interactive "Planning…" progress pill
+// paired with a Stop button so the user can abort while the AI planner
+// is still drafting the plan. Cancel transitions the task straight to
+// cancelled (no worktree was created yet); the detail-dialog delete
+// path additionally removes the row.
+class _PlanningActions extends ConsumerWidget {
+  const _PlanningActions({required this.task});
+  final pb.Task task;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        const _PlanningPill(),
+        _kanbanMiniPill(
+          icon: FluentIcons.stop,
+          label: 'Stop',
+          color: const Color(0xFF8A3B00),
+          onPressed: () => ref
+              .read(cancelTaskProvider.notifier)
+              .run(task.id),
+        ),
+      ],
+    );
   }
 }
 
@@ -679,8 +706,7 @@ class _HumanReviewActions extends ConsumerWidget {
           color: const Color(0xFF107C10),
           onPressed: () => ref
               .read(finalizeKeepProvider.notifier)
-              .run(task.id)
-              .catchError((_) {}),
+              .run(task.id),
         ),
         _miniPill(
           icon: FluentIcons.refresh,
@@ -695,8 +721,7 @@ class _HumanReviewActions extends ConsumerWidget {
           iconOnly: true,
           onPressed: () => ref
               .read(finalizeDiscardProvider.notifier)
-              .run(task.id)
-              .catchError((_) {}),
+              .run(task.id),
         ),
       ],
     );
@@ -854,8 +879,7 @@ class _AbortedActions extends ConsumerWidget {
           color: const Color(0xFF107C10),
           onPressed: () => ref
               .read(finalizeKeepProvider.notifier)
-              .run(task.id)
-              .catchError((_) {}),
+              .run(task.id),
         ),
         _kanbanMiniPill(
           icon: FluentIcons.refresh,
@@ -863,8 +887,7 @@ class _AbortedActions extends ConsumerWidget {
           color: const Color(0xFFC29C00),
           onPressed: () => ref
               .read(runTaskProvider.notifier)
-              .run(task.id)
-              .catchError((_) {}),
+              .run(task.id),
         ),
         _kanbanMiniPill(
           icon: FluentIcons.delete,

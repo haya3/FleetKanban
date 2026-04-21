@@ -60,6 +60,10 @@ type CopilotRuntime interface {
 	// to drive the Settings model picker so the UI can render Free vs
 	// Premium ×N badges next to each model.
 	ListModels(ctx context.Context) ([]copilot.Model, error)
+	// GetQuota returns the Copilot billing quota snapshots for the
+	// authenticated user (entitlement / used / remaining per quota type).
+	// Surfaces the "remaining premium requests" number in the UI header.
+	GetQuota(ctx context.Context) (map[string]copilot.QuotaSnapshot, error)
 }
 
 // TokenEntry is a labelled-PAT listing row. Value-object mirror of
@@ -97,18 +101,21 @@ type EventPublisher func(e *task.AgentEvent)
 
 // Service is the application-level facade. All frontend calls go through it.
 type Service struct {
-	db       *store.DB
-	repo     *store.RepositoryStore
-	tasks    *store.TaskStore
-	subtasks *store.SubtaskStore
-	events   *store.EventStore
-	insights *store.InsightsStore
-	orch     *orchestrator.Orchestrator
-	wt       *worktree.Manager
-	log      *slog.Logger
-	runtime  CopilotRuntime
-	secrets  SecretStore
-	publish  EventPublisher
+	db              *store.DB
+	repo            *store.RepositoryStore
+	tasks           *store.TaskStore
+	subtasks        *store.SubtaskStore
+	subtaskContexts *store.SubtaskContextStore
+	harnessSkills   *store.HarnessSkillStore
+	events          *store.EventStore
+	insights        *store.InsightsStore
+	orch            *orchestrator.Orchestrator
+	wt              *worktree.Manager
+	log             *slog.Logger
+	runtime         CopilotRuntime
+	secrets         SecretStore
+	skillRoot       string
+	publish         EventPublisher
 }
 
 // Config bundles constructor dependencies.
@@ -117,8 +124,14 @@ type Config struct {
 	Orchestrator *orchestrator.Orchestrator
 	Worktrees    *worktree.Manager
 	Runtime      CopilotRuntime
-	Secrets      SecretStore    // optional; PAT APIs return ErrSecretsUnavailable when nil
-	Publish      EventPublisher // optional; nil is fine but UI live-updates for
+	Secrets      SecretStore // optional; PAT APIs return ErrSecretsUnavailable when nil
+	// SkillRoot is the directory that holds the active SKILL.md
+	// (typically <dataDir>/harness-skill). Used by GetSubtaskContext to
+	// surface the embedded / on-disk charter body when a subtask row
+	// predates the harness_skill_version table. Empty falls back to the
+	// embedded seed bytes.
+	SkillRoot string
+	Publish   EventPublisher // optional; nil is fine but UI live-updates for
 	// out-of-orchestrator events (reviews, subtasks) won't fire.
 	Logger *slog.Logger
 }
@@ -169,18 +182,21 @@ func New(cfg Config) (*Service, error) {
 		cfg.Logger = slog.Default()
 	}
 	return &Service{
-		db:       cfg.DB,
-		repo:     store.NewRepositoryStore(cfg.DB),
-		tasks:    store.NewTaskStore(cfg.DB),
-		subtasks: store.NewSubtaskStore(cfg.DB),
-		events:   store.NewEventStore(cfg.DB),
-		insights: store.NewInsightsStore(cfg.DB),
-		orch:     cfg.Orchestrator,
-		wt:       cfg.Worktrees,
-		log:      cfg.Logger,
-		runtime:  cfg.Runtime,
-		secrets:  cfg.Secrets,
-		publish:  cfg.Publish,
+		db:              cfg.DB,
+		repo:            store.NewRepositoryStore(cfg.DB),
+		tasks:           store.NewTaskStore(cfg.DB),
+		subtasks:        store.NewSubtaskStore(cfg.DB),
+		subtaskContexts: store.NewSubtaskContextStore(cfg.DB),
+		harnessSkills:   store.NewHarnessSkillStore(cfg.DB),
+		events:          store.NewEventStore(cfg.DB),
+		insights:        store.NewInsightsStore(cfg.DB),
+		orch:            cfg.Orchestrator,
+		wt:              cfg.Worktrees,
+		log:             cfg.Logger,
+		runtime:         cfg.Runtime,
+		secrets:         cfg.Secrets,
+		skillRoot:       cfg.SkillRoot,
+		publish:         cfg.Publish,
 	}, nil
 }
 
@@ -906,6 +922,14 @@ func (s *Service) ListCopilotModels(ctx context.Context) ([]copilot.Model, error
 	return s.runtime.ListModels(ctx)
 }
 
+// GetCopilotQuota returns the user's Copilot billing quota snapshots,
+// keyed by quota type. Thin pass-through over the SDK's account.getQuota
+// RPC; the UI uses the "premium_interactions" entry (when present) to
+// render the remaining-requests counter in the account-card panel.
+func (s *Service) GetCopilotQuota(ctx context.Context) (map[string]copilot.QuotaSnapshot, error) {
+	return s.runtime.GetQuota(ctx)
+}
+
 // BeginCopilotLogin kicks off a headless device-flow login. See
 // copilot.LoginCoordinator.Begin for the full contract. The UI displays the
 // returned UserCode / VerificationURI and polls CheckCopilotAuth until the
@@ -1015,77 +1039,35 @@ func (s *Service) GetConcurrency(_ context.Context) (int, error) {
 	return s.orch.Concurrency(), nil
 }
 
-// AgentSettings is the user-controlled prompt + language overrides
-// the planner / runner / reviewer fold into every Copilot session.
-// Each field is empty when the user has not customised it; consumers
-// treat empty as "use the built-in default only".
+// AgentSettings carries the user's output-language preference. Per-stage
+// prompt customisation moved to the IHR Charter (harness-skill/SKILL.md);
+// this struct now only persists the free-form language directive the
+// planner / runner / reviewer / analyzer append to their system messages.
 type AgentSettings struct {
-	PlanPrompt     string
-	CodePrompt     string
-	ReviewPrompt   string
 	OutputLanguage string
 }
 
-const (
-	settingsKeyPlanPrompt     = "agent.prompt.plan"
-	settingsKeyCodePrompt     = "agent.prompt.code"
-	settingsKeyReviewPrompt   = "agent.prompt.review"
-	settingsKeyOutputLanguage = "agent.output_language"
-)
+const settingsKeyOutputLanguage = "agent.output_language"
 
-// GetDefaultAgentPrompts returns the sidecar's built-in stage prompts.
-// Surfaced to the UI so the Settings page can pre-populate each text
-// box with the default value — the user edits from there, and saves
-// persist the result as an override.
-func (s *Service) GetDefaultAgentPrompts(_ context.Context) AgentSettings {
-	return AgentSettings{
-		PlanPrompt:   copilot.DefaultPlanPrompt,
-		CodePrompt:   copilot.DefaultCodePrompt,
-		ReviewPrompt: copilot.DefaultReviewPrompt,
-	}
-}
-
-// GetAgentSettings reads the persisted prompt overrides + output
-// language. Missing keys default to empty string so callers don't
-// have to distinguish "unset" from "empty".
+// GetAgentSettings reads the persisted output-language preference.
+// Missing key yields an empty string so callers don't have to
+// distinguish "unset" from "empty".
 func (s *Service) GetAgentSettings(ctx context.Context) (AgentSettings, error) {
 	settings := store.NewSettingsStore(s.db)
-	out := AgentSettings{}
-	for _, kv := range []struct {
-		key string
-		dst *string
-	}{
-		{settingsKeyPlanPrompt, &out.PlanPrompt},
-		{settingsKeyCodePrompt, &out.CodePrompt},
-		{settingsKeyReviewPrompt, &out.ReviewPrompt},
-		{settingsKeyOutputLanguage, &out.OutputLanguage},
-	} {
-		var v string
-		if _, err := settings.GetJSON(ctx, kv.key, &v); err != nil {
-			return AgentSettings{}, err
-		}
-		*kv.dst = v
+	var v string
+	if _, err := settings.GetJSON(ctx, settingsKeyOutputLanguage, &v); err != nil {
+		return AgentSettings{}, err
 	}
-	return out, nil
+	return AgentSettings{OutputLanguage: v}, nil
 }
 
-// SetAgentSettings upserts each field. Returns the post-write
-// snapshot so the UI can immediately reflect any server-side
-// normalisation.
+// SetAgentSettings upserts the output-language preference. Returns the
+// post-write snapshot so the UI can immediately reflect any server-side
+// normalisation (leading / trailing whitespace trim).
 func (s *Service) SetAgentSettings(ctx context.Context, in AgentSettings) (AgentSettings, error) {
 	settings := store.NewSettingsStore(s.db)
-	for _, kv := range []struct {
-		key   string
-		value string
-	}{
-		{settingsKeyPlanPrompt, strings.TrimRight(in.PlanPrompt, "\r\n\t ")},
-		{settingsKeyCodePrompt, strings.TrimRight(in.CodePrompt, "\r\n\t ")},
-		{settingsKeyReviewPrompt, strings.TrimRight(in.ReviewPrompt, "\r\n\t ")},
-		{settingsKeyOutputLanguage, strings.TrimSpace(in.OutputLanguage)},
-	} {
-		if err := settings.SetJSON(ctx, kv.key, kv.value); err != nil {
-			return AgentSettings{}, err
-		}
+	if err := settings.SetJSON(ctx, settingsKeyOutputLanguage, strings.TrimSpace(in.OutputLanguage)); err != nil {
+		return AgentSettings{}, err
 	}
 	return s.GetAgentSettings(ctx)
 }
@@ -1233,14 +1215,14 @@ func (s *Service) DeleteTask(ctx context.Context, id string, deleteBranch bool) 
 	// Block deletion of tasks the orchestrator is actively running.
 	// Review states are allowed: they're not running, just awaiting a
 	// decision, and the user may want to prune them rather than
-	// Keep/Discard.
+	// Keep/Discard. Planning and AIReview both run goroutines that can
+	// mutate the task row after we delete it, so we signal cancel first
+	// — Cancel returns nil when nothing is registered, making this a
+	// harmless best-effort nudge for rows whose planner already exited.
 	switch t.Status {
 	case task.StatusInProgress:
 		return ErrTaskStillRunning
-	case task.StatusAIReview:
-		// If an AI reviewer goroutine is active, cancel it first so it
-		// doesn't mutate the task row after we delete it. Best-effort:
-		// Cancel returns nil when nothing is registered.
+	case task.StatusPlanning, task.StatusAIReview:
 		_ = s.orch.Cancel(id)
 	}
 
@@ -1512,6 +1494,102 @@ func (s *Service) ListSubtasks(ctx context.Context, parentID string) ([]*task.Su
 		return nil, errors.New("app: ListSubtasks: task_id is required")
 	}
 	return s.subtasks.ListByTask(ctx, parentID)
+}
+
+// SubtaskContextInfo is the UI-facing view of one subtask_context row
+// enriched with the harness SKILL.md content resolved through
+// harness_skill_version_id. NotRecorded=true is the legacy fallback
+// (subtasks run before v18 schema, or not yet executed): all other
+// fields are zero values and the UI renders a "not recorded" notice.
+type SubtaskContextInfo struct {
+	SubtaskID             string
+	Round                 int
+	SystemPrompt          string
+	UserPrompt            string
+	StagePromptTemplate   string
+	PlanSummary           string
+	PriorSummaries        []string
+	MemoryBlock           string
+	OutputLanguage        string
+	HarnessSkillVersionID string
+	HarnessSkillMD        string
+	NotRecorded           bool
+}
+
+// GetSubtaskContext fetches the persisted prompt + injected context for
+// a subtask execution so the UI can render the Subtask Summary dialog's
+// "System Prompt / Injected Context / Harness" tabs without re-simulating.
+//
+// Round semantics (contractually identical to the proto field documented
+// on GetSubtaskContextRequest):
+//   - round >  0 — exact lookup; returns NotRecorded=true when the row
+//     does not exist.
+//   - round <= 0 — latest: resolves to the highest round persisted for
+//     this subtask (store.GetLatest → ORDER BY round DESC LIMIT 1). Zero
+//     and negative values behave identically so callers don't need to
+//     sanitize input.
+//
+// Missing rows return an info with NotRecorded=true (no error) so the
+// dialog can show a fallback tab rather than a gRPC failure.
+func (s *Service) GetSubtaskContext(ctx context.Context, subtaskID string, round int) (SubtaskContextInfo, error) {
+	if strings.TrimSpace(subtaskID) == "" {
+		return SubtaskContextInfo{}, errors.New("app: GetSubtaskContext: subtask_id is required")
+	}
+	var (
+		row store.SubtaskContext
+		err error
+	)
+	if round <= 0 {
+		row, err = s.subtaskContexts.GetLatest(ctx, subtaskID)
+	} else {
+		row, err = s.subtaskContexts.Get(ctx, subtaskID, round)
+	}
+	if errors.Is(err, store.ErrNoSubtaskContext) {
+		return SubtaskContextInfo{SubtaskID: subtaskID, Round: round, NotRecorded: true}, nil
+	}
+	if err != nil {
+		return SubtaskContextInfo{}, err
+	}
+	info := SubtaskContextInfo{
+		SubtaskID:             row.SubtaskID,
+		Round:                 row.Round,
+		SystemPrompt:          row.SystemPrompt,
+		UserPrompt:            row.UserPrompt,
+		StagePromptTemplate:   row.StagePromptTemplate,
+		PlanSummary:           row.PlanSummary,
+		PriorSummaries:        row.PriorSummaries,
+		MemoryBlock:           row.MemoryBlock,
+		OutputLanguage:        row.OutputLanguage,
+		HarnessSkillVersionID: row.HarnessSkillVersionID,
+	}
+	if row.HarnessSkillVersionID != "" && s.harnessSkills != nil {
+		v, herr := s.harnessSkills.Get(ctx, row.HarnessSkillVersionID)
+		switch {
+		case herr == nil:
+			info.HarnessSkillMD = v.ContentMD
+		case errors.Is(herr, store.ErrNoSkillVersion):
+			// Version row was pruned after the subtask ran; keep the
+			// ID so the UI shows it as "version removed" rather than
+			// pretending the subtask had no harness.
+		default:
+			return SubtaskContextInfo{}, fmt.Errorf("app: fetch harness version: %w", herr)
+		}
+	}
+	// No DB-backed harness row for this run (HarnessSkillVersionID == "")
+	// or the row was pruned. Fall back to the live on-disk / embedded
+	// charter so the UI's "Harness" tab still shows something useful —
+	// brand-new installs that haven't saved a SKILL.md edit yet would
+	// otherwise see only an empty tab.
+	if info.HarnessSkillMD == "" {
+		md, rerr := copilot.ReadActiveSkillMD(s.skillRoot)
+		if rerr != nil {
+			s.log.Warn("app: read active SKILL.md for subtask context",
+				"subtask_id", subtaskID, "err", rerr)
+		} else {
+			info.HarnessSkillMD = md
+		}
+	}
+	return info, nil
 }
 
 // CreateSubtaskInput is the payload for inserting a subtask. The planner

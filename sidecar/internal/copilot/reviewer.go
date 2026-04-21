@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/FleetKanban/fleetkanban/internal/copilot/tools"
 	"github.com/FleetKanban/fleetkanban/internal/orchestrator"
 	"github.com/FleetKanban/fleetkanban/internal/task"
 	copilot "github.com/github/copilot-sdk/go"
@@ -41,10 +42,12 @@ const reworkMarker = "REWORK:"
 // policy so a misbehaving reviewer agent cannot mutate code out from
 // under the user.
 type Reviewer struct {
-	client   *copilot.Client
-	model    string
-	timeout  time.Duration
-	settings SettingsLookup
+	client       *copilot.Client
+	model        string
+	timeout      time.Duration
+	settings     SettingsLookup
+	stagePrompts StagePromptLookup
+	memory       MemoryInjector
 }
 
 // NewReviewer constructs a Reviewer bound to rt's SDK client. When model
@@ -64,8 +67,17 @@ func (r *Runtime) NewReviewer(ctx context.Context, model string) (*Reviewer, err
 	}
 	r.mu.RLock()
 	settings := r.cfg.Settings
+	stagePrompts := r.cfg.StagePrompts
+	memory := r.cfg.Memory
 	r.mu.RUnlock()
-	return &Reviewer{client: client, model: model, timeout: reviewerTimeout, settings: settings}, nil
+	return &Reviewer{
+		client:       client,
+		model:        model,
+		timeout:      reviewerTimeout,
+		settings:     settings,
+		stagePrompts: stagePrompts,
+		memory:       memory,
+	}, nil
 }
 
 // Review implements orchestrator.AIReviewer. Returns Approve=true when the
@@ -119,8 +131,11 @@ func (r *Reviewer) Review(ctx context.Context, t *task.Task, diff, prevFeedback 
 	}
 
 	settings := agentSettingsOrEmpty(ctx, r.settings)
-	systemContent := effectivePrompt(settings.ReviewPrompt, DefaultReviewPrompt) +
-		languageAddendum(settings.OutputLanguage)
+	systemContent := ResolveStagePrompt(r.stagePrompts, "review", DefaultReviewPrompt) + languageAddendum(settings.OutputLanguage)
+	var sessionTools []copilot.Tool
+	if r.memory != nil {
+		sessionTools = []copilot.Tool{tools.NewSearchMemoryTool(r.memory, t.RepoID)}
+	}
 	session, err := r.client.CreateSession(ctx, &copilot.SessionConfig{
 		Model:            model,
 		Streaming:        true,
@@ -130,6 +145,7 @@ func (r *Reviewer) Review(ctx context.Context, t *task.Task, diff, prevFeedback 
 			Content: systemContent,
 		},
 		OnPermissionRequest: denyWrites,
+		Tools:               sessionTools,
 	})
 	if err != nil {
 		return orchestrator.ReviewDecision{}, "", task.SessionUsage{}, fmt.Errorf("copilot: reviewer session: %w", err)
@@ -238,6 +254,14 @@ func (r *Reviewer) Review(ctx context.Context, t *task.Task, diff, prevFeedback 
 	defer unsubscribe()
 
 	prompt := buildReviewPrompt(t, diff, prevFeedback, reworkCount)
+	if r.memory != nil {
+		if mem := r.memory.BuildForReviewer(ctx, t.RepoID, t.Goal, diffSummary(diff), t.ID); mem != "" {
+			// Prepended to the user prompt (not system) so a rework
+			// iteration re-fetches the latest memory block instead of
+			// caching a stale snapshot in the session's system slot.
+			prompt = mem + "\n" + prompt
+		}
+	}
 	if _, err := session.Send(ctx, copilot.MessageOptions{Prompt: prompt}); err != nil {
 		return orchestrator.ReviewDecision{}, "", usage.snapshot(), fmt.Errorf("copilot: reviewer send: %w", err)
 	}
@@ -268,6 +292,36 @@ func (r *Reviewer) Review(ctx context.Context, t *task.Task, diff, prevFeedback 
 		}
 	}
 	return parseReviewDecision(transcript.String()), model, usage.snapshot(), nil
+}
+
+// diffSummary condenses a unified diff to the first ~240 chars of
+// non-hunk-header content so BuildForReviewer's hybrid search has a
+// signal beyond the task goal without paying the full-diff embedding
+// cost. Falls back to an empty string for empty diffs; the review
+// stage then retrieves memory on goal alone.
+func diffSummary(diff string) string {
+	if diff == "" {
+		return ""
+	}
+	lines := strings.Split(diff, "\n")
+	var b strings.Builder
+	for _, ln := range lines {
+		if ln == "" || strings.HasPrefix(ln, "@@") || strings.HasPrefix(ln, "+++") || strings.HasPrefix(ln, "---") || strings.HasPrefix(ln, "diff ") || strings.HasPrefix(ln, "index ") {
+			continue
+		}
+		if len(ln) > 0 && (ln[0] == '+' || ln[0] == '-') {
+			b.WriteString(ln[1:])
+			b.WriteByte(' ')
+		}
+		if b.Len() > 240 {
+			break
+		}
+	}
+	out := strings.TrimSpace(b.String())
+	if len(out) > 240 {
+		out = out[:240]
+	}
+	return out
 }
 
 // buildReviewPrompt constructs the review request. The diff is wrapped in

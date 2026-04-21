@@ -59,6 +59,11 @@ dependencies:
   # API is drop-in compatible — same MarkdownBody / MarkdownStyleSheet.
   flutter_markdown_plus: ^1.0.7
 
+  # NLAH harness editor (Phase B): frontmatter parsing + unified diff
+  # rendering for the harness version timeline.
+  yaml: ^3.1.0
+  diff_match_patch: ^0.4.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -78,10 +78,21 @@ action (button click) and disabled by default.
 
 ### 3.1 Multi-Session Memory
 
-- Store summaries of completed tasks, adopted architectural decisions, and
-  failure cases with embeddings in SQLite + a vector extension (`sqlite-vss`)
-- Search for similar past tasks on new-task submission and auto-inject them
-  into the prompt
+Phase 1 already provides the storage and retrieval substrate (see
+[architecture.md §3.4](./architecture.md#34-sqlite-schema) — `ctx_node`
++ closure tables + `ctx_node_vec` float32 BLOB embeddings with in-Go
+cosine similarity + FTS5, fused via RRF). Phase 3 layers the automation
+on top:
+
+- At task finalization, automatically distill summaries of completed
+  tasks, adopted architectural decisions, and failure cases into
+  `ctx_node` entries (with embeddings) — today users promote manually
+  via the scratchpad
+- On new-task submission, search for similar past tasks / decisions /
+  failures across the per-repo Context Memory and auto-inject the
+  top-k hits into the Planner prompt without an explicit user action
+- Surface "this task looks like X from three weeks ago — here's how
+  it went" hints in the New Task dialog
 
 ### 3.2 Automated Conflict Resolution
 

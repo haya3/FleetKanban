@@ -88,18 +88,21 @@ final $typed_data.Uint8List stashUncommittedResponseDescriptor =
 const AgentSettings$json = {
   '1': 'AgentSettings',
   '2': [
-    {'1': 'plan_prompt', '3': 1, '4': 1, '5': 9, '10': 'planPrompt'},
-    {'1': 'code_prompt', '3': 2, '4': 1, '5': 9, '10': 'codePrompt'},
-    {'1': 'review_prompt', '3': 3, '4': 1, '5': 9, '10': 'reviewPrompt'},
     {'1': 'output_language', '3': 4, '4': 1, '5': 9, '10': 'outputLanguage'},
   ],
+  '9': [
+    {'1': 1, '2': 2},
+    {'1': 2, '2': 3},
+    {'1': 3, '2': 4},
+  ],
+  '10': ['plan_prompt', 'code_prompt', 'review_prompt'],
 };
 
 /// Descriptor for `AgentSettings`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List agentSettingsDescriptor = $convert.base64Decode(
-    'Cg1BZ2VudFNldHRpbmdzEh8KC3BsYW5fcHJvbXB0GAEgASgJUgpwbGFuUHJvbXB0Eh8KC2NvZG'
-    'VfcHJvbXB0GAIgASgJUgpjb2RlUHJvbXB0EiMKDXJldmlld19wcm9tcHQYAyABKAlSDHJldmll'
-    'd1Byb21wdBInCg9vdXRwdXRfbGFuZ3VhZ2UYBCABKAlSDm91dHB1dExhbmd1YWdl');
+    'Cg1BZ2VudFNldHRpbmdzEicKD291dHB1dF9sYW5ndWFnZRgEIAEoCVIOb3V0cHV0TGFuZ3VhZ2'
+    'VKBAgBEAJKBAgCEANKBAgDEARSC3BsYW5fcHJvbXB0Ugtjb2RlX3Byb21wdFINcmV2aWV3X3By'
+    'b21wdA==');
 
 @$core.Deprecated('Use idRequestDescriptor instead')
 const IdRequest$json = {
@@ -289,6 +292,7 @@ const Task$json = {
     {'1': 'rework_count', '3': 18, '4': 1, '5': 5, '10': 'reworkCount'},
     {'1': 'plan_model', '3': 19, '4': 1, '5': 9, '10': 'planModel'},
     {'1': 'review_model', '3': 20, '4': 1, '5': 9, '10': 'reviewModel'},
+    {'1': 'harness_version', '3': 21, '4': 1, '5': 5, '10': 'harnessVersion'},
   ],
 };
 
@@ -307,7 +311,7 @@ final $typed_data.Uint8List taskDescriptor = $convert.base64Decode(
     'Lmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXBSCmZpbmlzaGVkQXQSJwoPcmV2aWV3X2ZlZWRiYW'
     'NrGBEgASgJUg5yZXZpZXdGZWVkYmFjaxIhCgxyZXdvcmtfY291bnQYEiABKAVSC3Jld29ya0Nv'
     'dW50Eh0KCnBsYW5fbW9kZWwYEyABKAlSCXBsYW5Nb2RlbBIhCgxyZXZpZXdfbW9kZWwYFCABKA'
-    'lSC3Jldmlld01vZGVs');
+    'lSC3Jldmlld01vZGVsEicKD2hhcm5lc3NfdmVyc2lvbhgVIAEoBVIOaGFybmVzc1ZlcnNpb24=');
 
 @$core.Deprecated('Use subtaskDescriptor instead')
 const Subtask$json = {
@@ -689,6 +693,64 @@ final $typed_data.Uint8List listSubtasksResponseDescriptor = $convert.base64Deco
     'ChRMaXN0U3VidGFza3NSZXNwb25zZRIzCghzdWJ0YXNrcxgBIAMoCzIXLmZsZWV0a2FuYmFuLn'
     'YxLlN1YnRhc2tSCHN1YnRhc2tz');
 
+@$core.Deprecated('Use getSubtaskContextRequestDescriptor instead')
+const GetSubtaskContextRequest$json = {
+  '1': 'GetSubtaskContextRequest',
+  '2': [
+    {'1': 'subtask_id', '3': 1, '4': 1, '5': 9, '10': 'subtaskId'},
+    {'1': 'round', '3': 2, '4': 1, '5': 5, '10': 'round'},
+  ],
+};
+
+/// Descriptor for `GetSubtaskContextRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getSubtaskContextRequestDescriptor =
+    $convert.base64Decode(
+        'ChhHZXRTdWJ0YXNrQ29udGV4dFJlcXVlc3QSHQoKc3VidGFza19pZBgBIAEoCVIJc3VidGFza0'
+        'lkEhQKBXJvdW5kGAIgASgFUgVyb3VuZA==');
+
+@$core.Deprecated('Use copilotSubtaskContextDescriptor instead')
+const CopilotSubtaskContext$json = {
+  '1': 'CopilotSubtaskContext',
+  '2': [
+    {'1': 'subtask_id', '3': 1, '4': 1, '5': 9, '10': 'subtaskId'},
+    {'1': 'round', '3': 2, '4': 1, '5': 5, '10': 'round'},
+    {'1': 'system_prompt', '3': 3, '4': 1, '5': 9, '10': 'systemPrompt'},
+    {'1': 'user_prompt', '3': 4, '4': 1, '5': 9, '10': 'userPrompt'},
+    {
+      '1': 'stage_prompt_template',
+      '3': 5,
+      '4': 1,
+      '5': 9,
+      '10': 'stagePromptTemplate'
+    },
+    {'1': 'plan_summary', '3': 6, '4': 1, '5': 9, '10': 'planSummary'},
+    {'1': 'prior_summaries', '3': 7, '4': 3, '5': 9, '10': 'priorSummaries'},
+    {'1': 'memory_block', '3': 8, '4': 1, '5': 9, '10': 'memoryBlock'},
+    {'1': 'output_language', '3': 9, '4': 1, '5': 9, '10': 'outputLanguage'},
+    {
+      '1': 'harness_skill_version_id',
+      '3': 10,
+      '4': 1,
+      '5': 9,
+      '10': 'harnessSkillVersionId'
+    },
+    {'1': 'harness_skill_md', '3': 11, '4': 1, '5': 9, '10': 'harnessSkillMd'},
+    {'1': 'not_recorded', '3': 12, '4': 1, '5': 8, '10': 'notRecorded'},
+  ],
+};
+
+/// Descriptor for `CopilotSubtaskContext`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List copilotSubtaskContextDescriptor = $convert.base64Decode(
+    'ChVDb3BpbG90U3VidGFza0NvbnRleHQSHQoKc3VidGFza19pZBgBIAEoCVIJc3VidGFza0lkEh'
+    'QKBXJvdW5kGAIgASgFUgVyb3VuZBIjCg1zeXN0ZW1fcHJvbXB0GAMgASgJUgxzeXN0ZW1Qcm9t'
+    'cHQSHwoLdXNlcl9wcm9tcHQYBCABKAlSCnVzZXJQcm9tcHQSMgoVc3RhZ2VfcHJvbXB0X3RlbX'
+    'BsYXRlGAUgASgJUhNzdGFnZVByb21wdFRlbXBsYXRlEiEKDHBsYW5fc3VtbWFyeRgGIAEoCVIL'
+    'cGxhblN1bW1hcnkSJwoPcHJpb3Jfc3VtbWFyaWVzGAcgAygJUg5wcmlvclN1bW1hcmllcxIhCg'
+    'xtZW1vcnlfYmxvY2sYCCABKAlSC21lbW9yeUJsb2NrEicKD291dHB1dF9sYW5ndWFnZRgJIAEo'
+    'CVIOb3V0cHV0TGFuZ3VhZ2USNwoYaGFybmVzc19za2lsbF92ZXJzaW9uX2lkGAogASgJUhVoYX'
+    'JuZXNzU2tpbGxWZXJzaW9uSWQSKAoQaGFybmVzc19za2lsbF9tZBgLIAEoCVIOaGFybmVzc1Nr'
+    'aWxsTWQSIQoMbm90X3JlY29yZGVkGAwgASgIUgtub3RSZWNvcmRlZA==');
+
 @$core.Deprecated('Use createSubtaskRequestDescriptor instead')
 const CreateSubtaskRequest$json = {
   '1': 'CreateSubtaskRequest',
@@ -1013,6 +1075,86 @@ const GitHubTokenLabelRequest$json = {
 final $typed_data.Uint8List gitHubTokenLabelRequestDescriptor =
     $convert.base64Decode(
         'ChdHaXRIdWJUb2tlbkxhYmVsUmVxdWVzdBIUCgVsYWJlbBgBIAEoCVIFbGFiZWw=');
+
+@$core.Deprecated('Use copilotQuotaInfoDescriptor instead')
+const CopilotQuotaInfo$json = {
+  '1': 'CopilotQuotaInfo',
+  '2': [
+    {
+      '1': 'snapshots',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.fleetkanban.v1.CopilotQuotaInfo.SnapshotsEntry',
+      '10': 'snapshots'
+    },
+  ],
+  '3': [CopilotQuotaInfo_SnapshotsEntry$json],
+};
+
+@$core.Deprecated('Use copilotQuotaInfoDescriptor instead')
+const CopilotQuotaInfo_SnapshotsEntry$json = {
+  '1': 'SnapshotsEntry',
+  '2': [
+    {'1': 'key', '3': 1, '4': 1, '5': 9, '10': 'key'},
+    {
+      '1': 'value',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.fleetkanban.v1.CopilotQuotaSnapshot',
+      '10': 'value'
+    },
+  ],
+  '7': {'7': true},
+};
+
+/// Descriptor for `CopilotQuotaInfo`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List copilotQuotaInfoDescriptor = $convert.base64Decode(
+    'ChBDb3BpbG90UXVvdGFJbmZvEk0KCXNuYXBzaG90cxgBIAMoCzIvLmZsZWV0a2FuYmFuLnYxLk'
+    'NvcGlsb3RRdW90YUluZm8uU25hcHNob3RzRW50cnlSCXNuYXBzaG90cxpiCg5TbmFwc2hvdHNF'
+    'bnRyeRIQCgNrZXkYASABKAlSA2tleRI6CgV2YWx1ZRgCIAEoCzIkLmZsZWV0a2FuYmFuLnYxLk'
+    'NvcGlsb3RRdW90YVNuYXBzaG90UgV2YWx1ZToCOAE=');
+
+@$core.Deprecated('Use copilotQuotaSnapshotDescriptor instead')
+const CopilotQuotaSnapshot$json = {
+  '1': 'CopilotQuotaSnapshot',
+  '2': [
+    {
+      '1': 'entitlement_requests',
+      '3': 1,
+      '4': 1,
+      '5': 1,
+      '10': 'entitlementRequests'
+    },
+    {'1': 'used_requests', '3': 2, '4': 1, '5': 1, '10': 'usedRequests'},
+    {
+      '1': 'remaining_percentage',
+      '3': 3,
+      '4': 1,
+      '5': 1,
+      '10': 'remainingPercentage'
+    },
+    {'1': 'overage', '3': 4, '4': 1, '5': 1, '10': 'overage'},
+    {
+      '1': 'overage_allowed_with_exhausted_quota',
+      '3': 5,
+      '4': 1,
+      '5': 8,
+      '10': 'overageAllowedWithExhaustedQuota'
+    },
+    {'1': 'reset_date', '3': 6, '4': 1, '5': 9, '10': 'resetDate'},
+  ],
+};
+
+/// Descriptor for `CopilotQuotaSnapshot`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List copilotQuotaSnapshotDescriptor = $convert.base64Decode(
+    'ChRDb3BpbG90UXVvdGFTbmFwc2hvdBIxChRlbnRpdGxlbWVudF9yZXF1ZXN0cxgBIAEoAVITZW'
+    '50aXRsZW1lbnRSZXF1ZXN0cxIjCg11c2VkX3JlcXVlc3RzGAIgASgBUgx1c2VkUmVxdWVzdHMS'
+    'MQoUcmVtYWluaW5nX3BlcmNlbnRhZ2UYAyABKAFSE3JlbWFpbmluZ1BlcmNlbnRhZ2USGAoHb3'
+    'ZlcmFnZRgEIAEoAVIHb3ZlcmFnZRJOCiRvdmVyYWdlX2FsbG93ZWRfd2l0aF9leGhhdXN0ZWRf'
+    'cXVvdGEYBSABKAhSIG92ZXJhZ2VBbGxvd2VkV2l0aEV4aGF1c3RlZFF1b3RhEh0KCnJlc2V0X2'
+    'RhdGUYBiABKAlSCXJlc2V0RGF0ZQ==');
 
 @$core.Deprecated('Use gitHubAccountInfoDescriptor instead')
 const GitHubAccountInfo$json = {
@@ -2078,6 +2220,129 @@ final $typed_data.Uint8List updateMemorySettingsRequestDescriptor =
         'ChtVcGRhdGVNZW1vcnlTZXR0aW5nc1JlcXVlc3QSOgoIc2V0dGluZ3MYASABKAsyHi5mbGVldG'
         'thbmJhbi52MS5NZW1vcnlTZXR0aW5nc1IIc2V0dGluZ3M=');
 
+@$core.Deprecated('Use memoryHealthDescriptor instead')
+const MemoryHealth$json = {
+  '1': 'MemoryHealth',
+  '2': [
+    {'1': 'enabled', '3': 1, '4': 1, '5': 8, '10': 'enabled'},
+    {
+      '1': 'provider_reachable',
+      '3': 2,
+      '4': 1,
+      '5': 8,
+      '10': 'providerReachable'
+    },
+    {'1': 'vector_count', '3': 3, '4': 1, '5': 5, '10': 'vectorCount'},
+    {
+      '1': 'last_rebuild_at',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'lastRebuildAt'
+    },
+    {'1': 'last_error', '3': 5, '4': 1, '5': 9, '10': 'lastError'},
+  ],
+};
+
+/// Descriptor for `MemoryHealth`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List memoryHealthDescriptor = $convert.base64Decode(
+    'CgxNZW1vcnlIZWFsdGgSGAoHZW5hYmxlZBgBIAEoCFIHZW5hYmxlZBItChJwcm92aWRlcl9yZW'
+    'FjaGFibGUYAiABKAhSEXByb3ZpZGVyUmVhY2hhYmxlEiEKDHZlY3Rvcl9jb3VudBgDIAEoBVIL'
+    'dmVjdG9yQ291bnQSQgoPbGFzdF9yZWJ1aWxkX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLl'
+    'RpbWVzdGFtcFINbGFzdFJlYnVpbGRBdBIdCgpsYXN0X2Vycm9yGAUgASgJUglsYXN0RXJyb3I=');
+
+@$core.Deprecated('Use suggestForNewTaskRequestDescriptor instead')
+const SuggestForNewTaskRequest$json = {
+  '1': 'SuggestForNewTaskRequest',
+  '2': [
+    {'1': 'repo_id', '3': 1, '4': 1, '5': 9, '10': 'repoId'},
+    {'1': 'draft_goal', '3': 2, '4': 1, '5': 9, '10': 'draftGoal'},
+    {'1': 'limit', '3': 3, '4': 1, '5': 5, '10': 'limit'},
+  ],
+};
+
+/// Descriptor for `SuggestForNewTaskRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List suggestForNewTaskRequestDescriptor =
+    $convert.base64Decode(
+        'ChhTdWdnZXN0Rm9yTmV3VGFza1JlcXVlc3QSFwoHcmVwb19pZBgBIAEoCVIGcmVwb0lkEh0KCm'
+        'RyYWZ0X2dvYWwYAiABKAlSCWRyYWZ0R29hbBIUCgVsaW1pdBgDIAEoBVIFbGltaXQ=');
+
+@$core.Deprecated('Use taskSuggestionDescriptor instead')
+const TaskSuggestion$json = {
+  '1': 'TaskSuggestion',
+  '2': [
+    {'1': 'node_id', '3': 1, '4': 1, '5': 9, '10': 'nodeId'},
+    {'1': 'label', '3': 2, '4': 1, '5': 9, '10': 'label'},
+    {'1': 'summary_md', '3': 3, '4': 1, '5': 9, '10': 'summaryMd'},
+    {'1': 'score', '3': 4, '4': 1, '5': 2, '10': 'score'},
+    {'1': 'source_task_id', '3': 5, '4': 1, '5': 9, '10': 'sourceTaskId'},
+  ],
+};
+
+/// Descriptor for `TaskSuggestion`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List taskSuggestionDescriptor = $convert.base64Decode(
+    'Cg5UYXNrU3VnZ2VzdGlvbhIXCgdub2RlX2lkGAEgASgJUgZub2RlSWQSFAoFbGFiZWwYAiABKA'
+    'lSBWxhYmVsEh0KCnN1bW1hcnlfbWQYAyABKAlSCXN1bW1hcnlNZBIUCgVzY29yZRgEIAEoAlIF'
+    'c2NvcmUSJAoOc291cmNlX3Rhc2tfaWQYBSABKAlSDHNvdXJjZVRhc2tJZA==');
+
+@$core.Deprecated('Use contextNodeSummaryDescriptor instead')
+const ContextNodeSummary$json = {
+  '1': 'ContextNodeSummary',
+  '2': [
+    {'1': 'node_id', '3': 1, '4': 1, '5': 9, '10': 'nodeId'},
+    {'1': 'kind', '3': 2, '4': 1, '5': 9, '10': 'kind'},
+    {'1': 'label', '3': 3, '4': 1, '5': 9, '10': 'label'},
+    {'1': 'content_md', '3': 4, '4': 1, '5': 9, '10': 'contentMd'},
+    {'1': 'score', '3': 5, '4': 1, '5': 2, '10': 'score'},
+  ],
+};
+
+/// Descriptor for `ContextNodeSummary`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List contextNodeSummaryDescriptor = $convert.base64Decode(
+    'ChJDb250ZXh0Tm9kZVN1bW1hcnkSFwoHbm9kZV9pZBgBIAEoCVIGbm9kZUlkEhIKBGtpbmQYAi'
+    'ABKAlSBGtpbmQSFAoFbGFiZWwYAyABKAlSBWxhYmVsEh0KCmNvbnRlbnRfbWQYBCABKAlSCWNv'
+    'bnRlbnRNZBIUCgVzY29yZRgFIAEoAlIFc2NvcmU=');
+
+@$core.Deprecated('Use suggestForNewTaskResponseDescriptor instead')
+const SuggestForNewTaskResponse$json = {
+  '1': 'SuggestForNewTaskResponse',
+  '2': [
+    {
+      '1': 'similar_tasks',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.fleetkanban.v1.TaskSuggestion',
+      '10': 'similarTasks'
+    },
+    {
+      '1': 'related_decisions',
+      '3': 2,
+      '4': 3,
+      '5': 11,
+      '6': '.fleetkanban.v1.ContextNodeSummary',
+      '10': 'relatedDecisions'
+    },
+    {
+      '1': 'related_constraints',
+      '3': 3,
+      '4': 3,
+      '5': 11,
+      '6': '.fleetkanban.v1.ContextNodeSummary',
+      '10': 'relatedConstraints'
+    },
+  ],
+};
+
+/// Descriptor for `SuggestForNewTaskResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List suggestForNewTaskResponseDescriptor = $convert.base64Decode(
+    'ChlTdWdnZXN0Rm9yTmV3VGFza1Jlc3BvbnNlEkMKDXNpbWlsYXJfdGFza3MYASADKAsyHi5mbG'
+    'VldGthbmJhbi52MS5UYXNrU3VnZ2VzdGlvblIMc2ltaWxhclRhc2tzEk8KEXJlbGF0ZWRfZGVj'
+    'aXNpb25zGAIgAygLMiIuZmxlZXRrYW5iYW4udjEuQ29udGV4dE5vZGVTdW1tYXJ5UhByZWxhdG'
+    'VkRGVjaXNpb25zElMKE3JlbGF0ZWRfY29uc3RyYWludHMYAyADKAsyIi5mbGVldGthbmJhbi52'
+    'MS5Db250ZXh0Tm9kZVN1bW1hcnlSEnJlbGF0ZWRDb25zdHJhaW50cw==');
+
 @$core.Deprecated('Use watchContextRequestDescriptor instead')
 const WatchContextRequest$json = {
   '1': 'WatchContextRequest',
@@ -2466,3 +2731,322 @@ final $typed_data.Uint8List ollamaPullProgressEventDescriptor = $convert.base64D
     'dubG9hZGVkGAIgASgDUgpkb3dubG9hZGVkEhQKBXRvdGFsGAMgASgDUgV0b3RhbBIWCgZkaWdl'
     'c3QYBCABKAlSBmRpZ2VzdBIUCgVlcnJvchgFIAEoCVIFZXJyb3ISEgoEZG9uZRgGIAEoCFIEZG'
     '9uZQ==');
+
+@$core.Deprecated('Use artifactDescriptor instead')
+const Artifact$json = {
+  '1': 'Artifact',
+  '2': [
+    {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+    {'1': 'task_id', '3': 2, '4': 1, '5': 9, '10': 'taskId'},
+    {'1': 'subtask_id', '3': 3, '4': 1, '5': 9, '10': 'subtaskId'},
+    {'1': 'stage', '3': 4, '4': 1, '5': 9, '10': 'stage'},
+    {'1': 'path', '3': 5, '4': 1, '5': 9, '10': 'path'},
+    {'1': 'kind', '3': 6, '4': 1, '5': 9, '10': 'kind'},
+    {'1': 'content_hash', '3': 7, '4': 1, '5': 9, '10': 'contentHash'},
+    {'1': 'size_bytes', '3': 8, '4': 1, '5': 3, '10': 'sizeBytes'},
+    {'1': 'attrs_json', '3': 9, '4': 1, '5': 9, '10': 'attrsJson'},
+    {
+      '1': 'created_at',
+      '3': 10,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'createdAt'
+    },
+  ],
+};
+
+/// Descriptor for `Artifact`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List artifactDescriptor = $convert.base64Decode(
+    'CghBcnRpZmFjdBIOCgJpZBgBIAEoCVICaWQSFwoHdGFza19pZBgCIAEoCVIGdGFza0lkEh0KCn'
+    'N1YnRhc2tfaWQYAyABKAlSCXN1YnRhc2tJZBIUCgVzdGFnZRgEIAEoCVIFc3RhZ2USEgoEcGF0'
+    'aBgFIAEoCVIEcGF0aBISCgRraW5kGAYgASgJUgRraW5kEiEKDGNvbnRlbnRfaGFzaBgHIAEoCV'
+    'ILY29udGVudEhhc2gSHQoKc2l6ZV9ieXRlcxgIIAEoA1IJc2l6ZUJ5dGVzEh0KCmF0dHJzX2pz'
+    'b24YCSABKAlSCWF0dHJzSnNvbhI5CgpjcmVhdGVkX2F0GAogASgLMhouZ29vZ2xlLnByb3RvYn'
+    'VmLlRpbWVzdGFtcFIJY3JlYXRlZEF0');
+
+@$core.Deprecated('Use listArtifactsRequestDescriptor instead')
+const ListArtifactsRequest$json = {
+  '1': 'ListArtifactsRequest',
+  '2': [
+    {'1': 'task_id', '3': 1, '4': 1, '5': 9, '10': 'taskId'},
+    {'1': 'stage', '3': 2, '4': 1, '5': 9, '10': 'stage'},
+    {'1': 'limit', '3': 3, '4': 1, '5': 5, '10': 'limit'},
+    {'1': 'page_size', '3': 4, '4': 1, '5': 5, '10': 'pageSize'},
+    {'1': 'page_token', '3': 5, '4': 1, '5': 9, '10': 'pageToken'},
+  ],
+};
+
+/// Descriptor for `ListArtifactsRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List listArtifactsRequestDescriptor = $convert.base64Decode(
+    'ChRMaXN0QXJ0aWZhY3RzUmVxdWVzdBIXCgd0YXNrX2lkGAEgASgJUgZ0YXNrSWQSFAoFc3RhZ2'
+    'UYAiABKAlSBXN0YWdlEhQKBWxpbWl0GAMgASgFUgVsaW1pdBIbCglwYWdlX3NpemUYBCABKAVS'
+    'CHBhZ2VTaXplEh0KCnBhZ2VfdG9rZW4YBSABKAlSCXBhZ2VUb2tlbg==');
+
+@$core.Deprecated('Use listArtifactsResponseDescriptor instead')
+const ListArtifactsResponse$json = {
+  '1': 'ListArtifactsResponse',
+  '2': [
+    {
+      '1': 'artifacts',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.fleetkanban.v1.Artifact',
+      '10': 'artifacts'
+    },
+    {'1': 'next_page_token', '3': 2, '4': 1, '5': 9, '10': 'nextPageToken'},
+  ],
+};
+
+/// Descriptor for `ListArtifactsResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List listArtifactsResponseDescriptor = $convert.base64Decode(
+    'ChVMaXN0QXJ0aWZhY3RzUmVzcG9uc2USNgoJYXJ0aWZhY3RzGAEgAygLMhguZmxlZXRrYW5iYW'
+    '4udjEuQXJ0aWZhY3RSCWFydGlmYWN0cxImCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAlSDW5leHRQ'
+    'YWdlVG9rZW4=');
+
+@$core.Deprecated('Use getArtifactRequestDescriptor instead')
+const GetArtifactRequest$json = {
+  '1': 'GetArtifactRequest',
+  '2': [
+    {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+  ],
+};
+
+/// Descriptor for `GetArtifactRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getArtifactRequestDescriptor =
+    $convert.base64Decode('ChJHZXRBcnRpZmFjdFJlcXVlc3QSDgoCaWQYASABKAlSAmlk');
+
+@$core.Deprecated('Use getArtifactContentRequestDescriptor instead')
+const GetArtifactContentRequest$json = {
+  '1': 'GetArtifactContentRequest',
+  '2': [
+    {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+  ],
+};
+
+/// Descriptor for `GetArtifactContentRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List getArtifactContentRequestDescriptor =
+    $convert.base64Decode(
+        'ChlHZXRBcnRpZmFjdENvbnRlbnRSZXF1ZXN0Eg4KAmlkGAEgASgJUgJpZA==');
+
+@$core.Deprecated('Use artifactChunkDescriptor instead')
+const ArtifactChunk$json = {
+  '1': 'ArtifactChunk',
+  '2': [
+    {'1': 'data', '3': 1, '4': 1, '5': 12, '10': 'data'},
+    {'1': 'eof', '3': 2, '4': 1, '5': 8, '10': 'eof'},
+  ],
+};
+
+/// Descriptor for `ArtifactChunk`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List artifactChunkDescriptor = $convert.base64Decode(
+    'Cg1BcnRpZmFjdENodW5rEhIKBGRhdGEYASABKAxSBGRhdGESEAoDZW9mGAIgASgIUgNlb2Y=');
+
+@$core.Deprecated('Use harnessSkillDescriptor instead')
+const HarnessSkill$json = {
+  '1': 'HarnessSkill',
+  '2': [
+    {'1': 'artifact_id', '3': 1, '4': 1, '5': 9, '10': 'artifactId'},
+    {'1': 'version', '3': 2, '4': 1, '5': 5, '10': 'version'},
+    {'1': 'content_md', '3': 3, '4': 1, '5': 9, '10': 'contentMd'},
+    {
+      '1': 'created_at',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'createdAt'
+    },
+    {'1': 'content_hash', '3': 5, '4': 1, '5': 9, '10': 'contentHash'},
+  ],
+};
+
+/// Descriptor for `HarnessSkill`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List harnessSkillDescriptor = $convert.base64Decode(
+    'CgxIYXJuZXNzU2tpbGwSHwoLYXJ0aWZhY3RfaWQYASABKAlSCmFydGlmYWN0SWQSGAoHdmVyc2'
+    'lvbhgCIAEoBVIHdmVyc2lvbhIdCgpjb250ZW50X21kGAMgASgJUgljb250ZW50TWQSOQoKY3Jl'
+    'YXRlZF9hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXBSCWNyZWF0ZWRBdBIhCg'
+    'xjb250ZW50X2hhc2gYBSABKAlSC2NvbnRlbnRIYXNo');
+
+@$core.Deprecated('Use listSkillVersionsResponseDescriptor instead')
+const ListSkillVersionsResponse$json = {
+  '1': 'ListSkillVersionsResponse',
+  '2': [
+    {
+      '1': 'versions',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.fleetkanban.v1.HarnessSkill',
+      '10': 'versions'
+    },
+  ],
+};
+
+/// Descriptor for `ListSkillVersionsResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List listSkillVersionsResponseDescriptor =
+    $convert.base64Decode(
+        'ChlMaXN0U2tpbGxWZXJzaW9uc1Jlc3BvbnNlEjgKCHZlcnNpb25zGAEgAygLMhwuZmxlZXRrYW'
+        '5iYW4udjEuSGFybmVzc1NraWxsUgh2ZXJzaW9ucw==');
+
+@$core.Deprecated('Use validateSkillRequestDescriptor instead')
+const ValidateSkillRequest$json = {
+  '1': 'ValidateSkillRequest',
+  '2': [
+    {'1': 'content_md', '3': 1, '4': 1, '5': 9, '10': 'contentMd'},
+  ],
+};
+
+/// Descriptor for `ValidateSkillRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List validateSkillRequestDescriptor = $convert.base64Decode(
+    'ChRWYWxpZGF0ZVNraWxsUmVxdWVzdBIdCgpjb250ZW50X21kGAEgASgJUgljb250ZW50TWQ=');
+
+@$core.Deprecated('Use validateSkillResponseDescriptor instead')
+const ValidateSkillResponse$json = {
+  '1': 'ValidateSkillResponse',
+  '2': [
+    {'1': 'ok', '3': 1, '4': 1, '5': 8, '10': 'ok'},
+    {'1': 'errors', '3': 2, '4': 3, '5': 9, '10': 'errors'},
+    {'1': 'warnings', '3': 3, '4': 3, '5': 9, '10': 'warnings'},
+  ],
+};
+
+/// Descriptor for `ValidateSkillResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List validateSkillResponseDescriptor = $convert.base64Decode(
+    'ChVWYWxpZGF0ZVNraWxsUmVzcG9uc2USDgoCb2sYASABKAhSAm9rEhYKBmVycm9ycxgCIAMoCV'
+    'IGZXJyb3JzEhoKCHdhcm5pbmdzGAMgAygJUgh3YXJuaW5ncw==');
+
+@$core.Deprecated('Use updateSkillRequestDescriptor instead')
+const UpdateSkillRequest$json = {
+  '1': 'UpdateSkillRequest',
+  '2': [
+    {'1': 'content_md', '3': 1, '4': 1, '5': 9, '10': 'contentMd'},
+  ],
+};
+
+/// Descriptor for `UpdateSkillRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List updateSkillRequestDescriptor =
+    $convert.base64Decode(
+        'ChJVcGRhdGVTa2lsbFJlcXVlc3QSHQoKY29udGVudF9tZBgBIAEoCVIJY29udGVudE1k');
+
+@$core.Deprecated('Use rollbackSkillRequestDescriptor instead')
+const RollbackSkillRequest$json = {
+  '1': 'RollbackSkillRequest',
+  '2': [
+    {'1': 'artifact_id', '3': 1, '4': 1, '5': 9, '10': 'artifactId'},
+  ],
+};
+
+/// Descriptor for `RollbackSkillRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List rollbackSkillRequestDescriptor = $convert.base64Decode(
+    'ChRSb2xsYmFja1NraWxsUmVxdWVzdBIfCgthcnRpZmFjdF9pZBgBIAEoCVIKYXJ0aWZhY3RJZA'
+    '==');
+
+@$core.Deprecated('Use harnessAttemptDescriptor instead')
+const HarnessAttempt$json = {
+  '1': 'HarnessAttempt',
+  '2': [
+    {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+    {'1': 'task_id', '3': 2, '4': 1, '5': 9, '10': 'taskId'},
+    {'1': 'rework_round', '3': 3, '4': 1, '5': 5, '10': 'reworkRound'},
+    {'1': 'failure_class', '3': 4, '4': 1, '5': 9, '10': 'failureClass'},
+    {'1': 'observation_md', '3': 5, '4': 1, '5': 9, '10': 'observationMd'},
+    {'1': 'proposed_patch', '3': 6, '4': 1, '5': 9, '10': 'proposedPatch'},
+    {'1': 'proposed_hash', '3': 7, '4': 1, '5': 9, '10': 'proposedHash'},
+    {'1': 'decision', '3': 8, '4': 1, '5': 9, '10': 'decision'},
+    {'1': 'decided_by', '3': 9, '4': 1, '5': 9, '10': 'decidedBy'},
+    {
+      '1': 'decided_at',
+      '3': 10,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'decidedAt'
+    },
+    {
+      '1': 'created_at',
+      '3': 11,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'createdAt'
+    },
+  ],
+};
+
+/// Descriptor for `HarnessAttempt`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List harnessAttemptDescriptor = $convert.base64Decode(
+    'Cg5IYXJuZXNzQXR0ZW1wdBIOCgJpZBgBIAEoCVICaWQSFwoHdGFza19pZBgCIAEoCVIGdGFza0'
+    'lkEiEKDHJld29ya19yb3VuZBgDIAEoBVILcmV3b3JrUm91bmQSIwoNZmFpbHVyZV9jbGFzcxgE'
+    'IAEoCVIMZmFpbHVyZUNsYXNzEiUKDm9ic2VydmF0aW9uX21kGAUgASgJUg1vYnNlcnZhdGlvbk'
+    '1kEiUKDnByb3Bvc2VkX3BhdGNoGAYgASgJUg1wcm9wb3NlZFBhdGNoEiMKDXByb3Bvc2VkX2hh'
+    'c2gYByABKAlSDHByb3Bvc2VkSGFzaBIaCghkZWNpc2lvbhgIIAEoCVIIZGVjaXNpb24SHQoKZG'
+    'VjaWRlZF9ieRgJIAEoCVIJZGVjaWRlZEJ5EjkKCmRlY2lkZWRfYXQYCiABKAsyGi5nb29nbGUu'
+    'cHJvdG9idWYuVGltZXN0YW1wUglkZWNpZGVkQXQSOQoKY3JlYXRlZF9hdBgLIAEoCzIaLmdvb2'
+    'dsZS5wcm90b2J1Zi5UaW1lc3RhbXBSCWNyZWF0ZWRBdA==');
+
+@$core.Deprecated('Use listHarnessAttemptsResponseDescriptor instead')
+const ListHarnessAttemptsResponse$json = {
+  '1': 'ListHarnessAttemptsResponse',
+  '2': [
+    {
+      '1': 'attempts',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.fleetkanban.v1.HarnessAttempt',
+      '10': 'attempts'
+    },
+  ],
+};
+
+/// Descriptor for `ListHarnessAttemptsResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List listHarnessAttemptsResponseDescriptor =
+    $convert.base64Decode(
+        'ChtMaXN0SGFybmVzc0F0dGVtcHRzUmVzcG9uc2USOgoIYXR0ZW1wdHMYASADKAsyHi5mbGVldG'
+        'thbmJhbi52MS5IYXJuZXNzQXR0ZW1wdFIIYXR0ZW1wdHM=');
+
+@$core.Deprecated('Use listHarnessAttemptsForTaskRequestDescriptor instead')
+const ListHarnessAttemptsForTaskRequest$json = {
+  '1': 'ListHarnessAttemptsForTaskRequest',
+  '2': [
+    {'1': 'task_id', '3': 1, '4': 1, '5': 9, '10': 'taskId'},
+  ],
+};
+
+/// Descriptor for `ListHarnessAttemptsForTaskRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List listHarnessAttemptsForTaskRequestDescriptor =
+    $convert.base64Decode(
+        'CiFMaXN0SGFybmVzc0F0dGVtcHRzRm9yVGFza1JlcXVlc3QSFwoHdGFza19pZBgBIAEoCVIGdG'
+        'Fza0lk');
+
+@$core.Deprecated('Use approveHarnessAttemptRequestDescriptor instead')
+const ApproveHarnessAttemptRequest$json = {
+  '1': 'ApproveHarnessAttemptRequest',
+  '2': [
+    {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+    {'1': 'decided_by', '3': 2, '4': 1, '5': 9, '10': 'decidedBy'},
+  ],
+};
+
+/// Descriptor for `ApproveHarnessAttemptRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List approveHarnessAttemptRequestDescriptor =
+    $convert.base64Decode(
+        'ChxBcHByb3ZlSGFybmVzc0F0dGVtcHRSZXF1ZXN0Eg4KAmlkGAEgASgJUgJpZBIdCgpkZWNpZG'
+        'VkX2J5GAIgASgJUglkZWNpZGVkQnk=');
+
+@$core.Deprecated('Use rejectHarnessAttemptRequestDescriptor instead')
+const RejectHarnessAttemptRequest$json = {
+  '1': 'RejectHarnessAttemptRequest',
+  '2': [
+    {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+    {'1': 'decided_by', '3': 2, '4': 1, '5': 9, '10': 'decidedBy'},
+  ],
+};
+
+/// Descriptor for `RejectHarnessAttemptRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List rejectHarnessAttemptRequestDescriptor =
+    $convert.base64Decode(
+        'ChtSZWplY3RIYXJuZXNzQXR0ZW1wdFJlcXVlc3QSDgoCaWQYASABKAlSAmlkEh0KCmRlY2lkZW'
+        'RfYnkYAiABKAlSCWRlY2lkZWRCeQ==');

@@ -134,7 +134,30 @@ func (o *Orchestrator) Finalize(ctx context.Context, taskID string, action Final
 		return fmt.Errorf("orchestrator: finalize transition: %w", err)
 	}
 	o.emitStatus(ctx, taskID, t.Status, nextStatus)
+	o.mirrorFinalizedTask(t, finalization)
 	return nil
+}
+
+// mirrorFinalizedTask fires the Graph Memory ingest hook for a task
+// that just reached Done via Keep or Merge. Async because a provider
+// timeout (Ollama restart etc.) must not block the finalize RPC, and
+// the mirror is idempotent so a retry on next finalize is always safe.
+func (o *Orchestrator) mirrorFinalizedTask(t *task.Task, finalization task.FinalizationKind) {
+	if o.cfg.TaskMirror == nil || t == nil {
+		return
+	}
+	if finalization != task.FinalizationKeep && finalization != task.FinalizationMerged {
+		return
+	}
+	goal := t.Goal
+	taskID := t.ID
+	repoID := t.RepoID
+	go func() {
+		bg := context.Background()
+		if err := o.cfg.TaskMirror.IngestTask(bg, repoID, taskID, goal, ""); err != nil {
+			o.log.Warn("orchestrator: task mirror", "task", taskID, "err", err)
+		}
+	}()
 }
 
 // finalizeDoneMerge handles the "already done, but let's merge after all"
@@ -174,5 +197,6 @@ func (o *Orchestrator) finalizeDoneMerge(ctx context.Context, t *task.Task) erro
 		// it on the next pass.
 		return fmt.Errorf("orchestrator: clear branch_exists: %w", err)
 	}
+	o.mirrorFinalizedTask(t, task.FinalizationMerged)
 	return nil
 }

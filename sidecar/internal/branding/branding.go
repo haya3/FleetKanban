@@ -45,7 +45,7 @@ const (
 	// errors that users could otherwise only fix by hand.
 	//
 	// Bump this whenever a proto change lands. Never decrement.
-	ProtocolVersion = 25
+	ProtocolVersion = 33
 )
 
 // AppVersion is the user-facing release version (semver, no leading "v").
