@@ -53,8 +53,6 @@ import (
 	"github.com/FleetKanban/fleetkanban/internal/branding"
 	"github.com/FleetKanban/fleetkanban/internal/copilot"
 	"github.com/FleetKanban/fleetkanban/internal/ctxmem"
-	"github.com/FleetKanban/fleetkanban/internal/ihr"
-	"github.com/FleetKanban/fleetkanban/internal/runstate"
 	ctxanalyzer "github.com/FleetKanban/fleetkanban/internal/ctxmem/analyzer"
 	ctxcodegraph "github.com/FleetKanban/fleetkanban/internal/ctxmem/codegraph"
 	ctxembed "github.com/FleetKanban/fleetkanban/internal/ctxmem/embed"
@@ -65,9 +63,11 @@ import (
 	ctxretrieval "github.com/FleetKanban/fleetkanban/internal/ctxmem/retrieval"
 	ctxstore "github.com/FleetKanban/fleetkanban/internal/ctxmem/store"
 	ctxsvc "github.com/FleetKanban/fleetkanban/internal/ctxmem/svc"
+	"github.com/FleetKanban/fleetkanban/internal/ihr"
 	"github.com/FleetKanban/fleetkanban/internal/ipc"
 	"github.com/FleetKanban/fleetkanban/internal/orchestrator"
 	"github.com/FleetKanban/fleetkanban/internal/reaper"
+	"github.com/FleetKanban/fleetkanban/internal/runstate"
 	"github.com/FleetKanban/fleetkanban/internal/store"
 	"github.com/FleetKanban/fleetkanban/internal/task"
 	"github.com/FleetKanban/fleetkanban/internal/winapi"
@@ -437,7 +437,7 @@ func run(parent context.Context, log *slog.Logger, port int) error {
 		Evolver:         evolver,
 		TaskMirror:      ctxTaskMirror{svc: ctxService},
 		Logger:          log.With("component", "orch"),
-		Sink:         broker.Sink(),
+		Sink:            broker.Sink(),
 		Notifier: func(n orchestrator.Notification) {
 			go func() {
 				title, body := buildToastContent(n)

@@ -113,31 +113,19 @@ func splitOp(expr, op string) []string {
 func evalAtom(atom string, s StageState, maxRework int) (bool, error) {
 	atom = strings.TrimSpace(atom)
 
-	switch {
-	// plan_json.subtasks.length > 0
-	case atom == "plan_json.subtasks.length > 0":
+	switch atom {
+	case "plan_json.subtasks.length > 0":
 		return s.PlanSubtaskCount > 0, nil
-
-	// all_subtasks_terminal
-	case atom == "all_subtasks_terminal":
+	case "all_subtasks_terminal":
 		return s.AllSubtasksTerminal, nil
-
-	// decision == "APPROVE"
-	case atom == `decision == "APPROVE"`:
+	case `decision == "APPROVE"`:
 		return s.Decision == "APPROVE", nil
-
-	// decision == "REWORK"
-	case atom == `decision == "REWORK"`:
+	case `decision == "REWORK"`:
 		return s.Decision == "REWORK", nil
-
-	// rework_count < max_rework_count
-	case atom == "rework_count < max_rework_count":
+	case "rework_count < max_rework_count":
 		return s.ReworkCount < maxRework, nil
-
-	// rework_count >= max_rework_count
-	case atom == "rework_count >= max_rework_count":
+	case "rework_count >= max_rework_count":
 		return s.ReworkCount >= maxRework, nil
-
 	default:
 		return false, fmt.Errorf("unrecognised expression atom: %q", atom)
 	}

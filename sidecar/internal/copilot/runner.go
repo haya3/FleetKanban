@@ -44,9 +44,9 @@ type MemoryInjector interface {
 type SubtaskContextSnapshot struct {
 	SubtaskID           string
 	Round               int
-	SystemPrompt        string   // SDK SystemMessage.Content
-	UserPrompt          string   // SDK first MessageOptions.Prompt
-	StagePromptTemplate string   // Code-stage prompt body pre-language-addendum (from charter if present, else DefaultCodePrompt)
+	SystemPrompt        string // SDK SystemMessage.Content
+	UserPrompt          string // SDK first MessageOptions.Prompt
+	StagePromptTemplate string // Code-stage prompt body pre-language-addendum (from charter if present, else DefaultCodePrompt)
 	PlanSummary         string
 	PriorSummaries      []string // already-formatted display lines
 	MemoryBlock         string   // injected memory block (may be empty)

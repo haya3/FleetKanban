@@ -165,7 +165,7 @@ func (s *ArtifactServer) GetContent(req *pb.GetArtifactContentRequest, stream pb
 	if err != nil {
 		return status.Errorf(codes.Internal, "open artifact: %v", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	buf := make([]byte, artifactContentChunkSize)
 	for {

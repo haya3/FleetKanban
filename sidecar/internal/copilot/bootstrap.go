@@ -119,12 +119,16 @@ func ReadActiveSkillMD(skillRoot string) (string, error) {
 }
 
 // writeSeedFile copies a single file from srcFS at srcPath to destPath.
-func writeSeedFile(srcFS fs.FS, srcPath, destPath string) error {
+func writeSeedFile(srcFS fs.FS, srcPath, destPath string) (err error) {
 	src, err := srcFS.Open(srcPath)
 	if err != nil {
 		return fmt.Errorf("open embedded %q: %w", srcPath, err)
 	}
-	defer src.Close()
+	defer func() {
+		if cerr := src.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("close embedded %q: %w", srcPath, cerr)
+		}
+	}()
 
 	dst, err := os.OpenFile(destPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
 	if err != nil {
@@ -134,7 +138,11 @@ func writeSeedFile(srcFS fs.FS, srcPath, destPath string) error {
 		}
 		return fmt.Errorf("create %q: %w", destPath, err)
 	}
-	defer dst.Close()
+	defer func() {
+		if cerr := dst.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("close %q: %w", destPath, cerr)
+		}
+	}()
 
 	if _, err := io.Copy(dst, src); err != nil {
 		return fmt.Errorf("copy to %q: %w", destPath, err)

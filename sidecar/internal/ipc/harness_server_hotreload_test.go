@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pb "github.com/FleetKanban/fleetkanban/internal/ipc/gen/fleetkanban/v1"
 	"github.com/FleetKanban/fleetkanban/internal/ihr"
+	pb "github.com/FleetKanban/fleetkanban/internal/ipc/gen/fleetkanban/v1"
 	"github.com/FleetKanban/fleetkanban/internal/store"
 )
 

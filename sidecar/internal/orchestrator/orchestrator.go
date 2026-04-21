@@ -130,12 +130,12 @@ const MaxReworkCount = 2
 type Orchestrator struct {
 	cfg Config
 
-	log      *slog.Logger
-	eventIDs ulidFactory
-	runstate        *runstate.Writer           // nil when cfg.Runstate is nil (test/no-op mode)
+	log             *slog.Logger
+	eventIDs        ulidFactory
+	runstate        *runstate.Writer            // nil when cfg.Runstate is nil (test/no-op mode)
 	charter         atomic.Pointer[ihr.Charter] // hot-swappable; nil when no SKILL.md is available; falls back to hardcoded MaxReworkCount
-	harnessAttempts *store.HarnessAttemptStore // nil when cfg.HarnessAttempts is nil; attempt recording is a no-op
-	evolver         *ihr.Evolver               // nil when cfg.Evolver is nil; async patch proposal is a no-op
+	harnessAttempts *store.HarnessAttemptStore  // nil when cfg.HarnessAttempts is nil; attempt recording is a no-op
+	evolver         *ihr.Evolver                // nil when cfg.Evolver is nil; async patch proposal is a no-op
 
 	rootCtx    context.Context
 	rootCancel context.CancelFunc
@@ -250,19 +250,19 @@ func (o *Orchestrator) SetCharter(c *ihr.Charter) {
 // Membership here is intentionally conservative — add a kind only when
 // a post-mortem reader actually wants to grep for it.
 var durableHistoryKinds = map[task.EventKind]bool{
-	task.EventStatus:            true,
-	task.EventSessionStart:      true,
-	task.EventSessionIdle:       true,
-	task.EventPlanSummary:       true,
-	task.EventSubtaskStart:      true,
-	task.EventSubtaskEnd:        true,
-	task.EventAIReviewStart:     true,
-	task.EventAIReviewDecision:  true,
-	task.EventReviewSubmitted:   true,
-	task.EventFileChanged:       true,
-	task.EventSessionUsage:      true,
-	task.EventPermissionRequest: true,
-	task.EventError:             true,
+	task.EventStatus:             true,
+	task.EventSessionStart:       true,
+	task.EventSessionIdle:        true,
+	task.EventPlanSummary:        true,
+	task.EventSubtaskStart:       true,
+	task.EventSubtaskEnd:         true,
+	task.EventAIReviewStart:      true,
+	task.EventAIReviewDecision:   true,
+	task.EventReviewSubmitted:    true,
+	task.EventFileChanged:        true,
+	task.EventSessionUsage:       true,
+	task.EventPermissionRequest:  true,
+	task.EventError:              true,
 	task.EventSecurityPathEscape: true,
 }
 
@@ -1405,7 +1405,7 @@ func (o *Orchestrator) runAIReview(taskID string, log *slog.Logger) {
 		}); err != nil {
 			log.Warn("orchestrator: harness attempt record failed", "err", err)
 		} else {
-			o.kickEvolver(attemptID, taskID, int(t.ReworkCount), failureClass, observation, log)
+			o.kickEvolver(attemptID, taskID, t.ReworkCount, failureClass, observation, log)
 		}
 	}
 
@@ -1507,13 +1507,13 @@ func (o *Orchestrator) emitAIReviewDecision(ctx context.Context, t *task.Task, d
 		}
 	}
 	payload := map[string]any{
-		"approve":             decision.Approve,
-		"feedback":            decision.Feedback,
-		"summary":             decision.Summary,
-		"rework_count":        reworkCount,
-		"round":               round,
-		"model":               model,
-		"rework_cap_reached":  capReached,
+		"approve":            decision.Approve,
+		"feedback":           decision.Feedback,
+		"summary":            decision.Summary,
+		"rework_count":       reworkCount,
+		"round":              round,
+		"model":              model,
+		"rework_cap_reached": capReached,
 	}
 	o.appendAuxEvent(ctx, t, &task.AgentEvent{
 		Kind:    task.EventAIReviewDecision,

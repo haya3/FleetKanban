@@ -32,10 +32,10 @@ func TestDnDEdgesMatchSidecarGraph(t *testing.T) {
 
 	var contract struct {
 		Edges []struct {
-			FromStatus    string `json:"from_status"`
-			TargetColumn  string `json:"target_column"`
-			SidecarTo     string `json:"sidecar_to"`
-			Action        string `json:"action"`
+			FromStatus   string `json:"from_status"`
+			TargetColumn string `json:"target_column"`
+			SidecarTo    string `json:"sidecar_to"`
+			Action       string `json:"action"`
 		} `json:"edges"`
 		DraggableStatuses []string `json:"draggable_statuses"`
 	}

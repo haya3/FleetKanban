@@ -147,11 +147,11 @@ type propertyKey struct {
 // PROPVARIANT: only the VT_LPWSTR variant is needed here.
 // Layout: vt (2 bytes) + reserved (6 bytes) + union (8 bytes pointer-sized).
 type propVariant struct {
-	vt       uint16
+	vt         uint16
 	wReserved1 uint16
 	wReserved2 uint16
 	wReserved3 uint16
-	pwszVal  uintptr // pointer to UTF-16 string when vt == VT_LPWSTR (31)
+	pwszVal    uintptr // pointer to UTF-16 string when vt == VT_LPWSTR (31)
 }
 
 const vtLPWSTR = 31

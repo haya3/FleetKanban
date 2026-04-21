@@ -33,8 +33,8 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	pb "github.com/FleetKanban/fleetkanban/internal/ipc/gen/fleetkanban/v1"
 	"github.com/FleetKanban/fleetkanban/internal/ihr"
+	pb "github.com/FleetKanban/fleetkanban/internal/ipc/gen/fleetkanban/v1"
 	"github.com/FleetKanban/fleetkanban/internal/store"
 )
 

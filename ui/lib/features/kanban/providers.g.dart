@@ -55,15 +55,36 @@ abstract class _$DagFontScale extends $AsyncNotifier<double> {
 
 /// Tasks scoped to a repository. Family key = repoId; an empty string means
 /// "all repos" (mostly useful for diagnostics, not Kanban).
+///
+/// The WatchEvents subscription auto-reconnects with exponential backoff
+/// (1 → 32 s, capped at 30 s) and keeps a per-task high-water-mark of
+/// `seq` in [_sinceByTask] so the sidecar can suppress duplicates on
+/// reconnect. Every successful reconnect triggers [ref.invalidateSelf]
+/// so the post-disconnect state converges on the server-of-truth even if
+/// some status events were missed during the gap.
 
 @ProviderFor(Tasks)
 final tasksProvider = TasksFamily._();
 
 /// Tasks scoped to a repository. Family key = repoId; an empty string means
 /// "all repos" (mostly useful for diagnostics, not Kanban).
+///
+/// The WatchEvents subscription auto-reconnects with exponential backoff
+/// (1 → 32 s, capped at 30 s) and keeps a per-task high-water-mark of
+/// `seq` in [_sinceByTask] so the sidecar can suppress duplicates on
+/// reconnect. Every successful reconnect triggers [ref.invalidateSelf]
+/// so the post-disconnect state converges on the server-of-truth even if
+/// some status events were missed during the gap.
 final class TasksProvider extends $AsyncNotifierProvider<Tasks, List<pb.Task>> {
   /// Tasks scoped to a repository. Family key = repoId; an empty string means
   /// "all repos" (mostly useful for diagnostics, not Kanban).
+  ///
+  /// The WatchEvents subscription auto-reconnects with exponential backoff
+  /// (1 → 32 s, capped at 30 s) and keeps a per-task high-water-mark of
+  /// `seq` in [_sinceByTask] so the sidecar can suppress duplicates on
+  /// reconnect. Every successful reconnect triggers [ref.invalidateSelf]
+  /// so the post-disconnect state converges on the server-of-truth even if
+  /// some status events were missed during the gap.
   TasksProvider._({
     required TasksFamily super.from,
     required String super.argument,
@@ -100,10 +121,17 @@ final class TasksProvider extends $AsyncNotifierProvider<Tasks, List<pb.Task>> {
   }
 }
 
-String _$tasksHash() => r'f82b5b6f96e2ce5e57702f181f261d02e8a7057e';
+String _$tasksHash() => r'b19062d8cfde7b6e5c903dc75468315c688ae3ac';
 
 /// Tasks scoped to a repository. Family key = repoId; an empty string means
 /// "all repos" (mostly useful for diagnostics, not Kanban).
+///
+/// The WatchEvents subscription auto-reconnects with exponential backoff
+/// (1 → 32 s, capped at 30 s) and keeps a per-task high-water-mark of
+/// `seq` in [_sinceByTask] so the sidecar can suppress duplicates on
+/// reconnect. Every successful reconnect triggers [ref.invalidateSelf]
+/// so the post-disconnect state converges on the server-of-truth even if
+/// some status events were missed during the gap.
 
 final class TasksFamily extends $Family
     with
@@ -125,6 +153,13 @@ final class TasksFamily extends $Family
 
   /// Tasks scoped to a repository. Family key = repoId; an empty string means
   /// "all repos" (mostly useful for diagnostics, not Kanban).
+  ///
+  /// The WatchEvents subscription auto-reconnects with exponential backoff
+  /// (1 → 32 s, capped at 30 s) and keeps a per-task high-water-mark of
+  /// `seq` in [_sinceByTask] so the sidecar can suppress duplicates on
+  /// reconnect. Every successful reconnect triggers [ref.invalidateSelf]
+  /// so the post-disconnect state converges on the server-of-truth even if
+  /// some status events were missed during the gap.
 
   TasksProvider call(String repoId) =>
       TasksProvider._(argument: repoId, from: this);
@@ -135,6 +170,13 @@ final class TasksFamily extends $Family
 
 /// Tasks scoped to a repository. Family key = repoId; an empty string means
 /// "all repos" (mostly useful for diagnostics, not Kanban).
+///
+/// The WatchEvents subscription auto-reconnects with exponential backoff
+/// (1 → 32 s, capped at 30 s) and keeps a per-task high-water-mark of
+/// `seq` in [_sinceByTask] so the sidecar can suppress duplicates on
+/// reconnect. Every successful reconnect triggers [ref.invalidateSelf]
+/// so the post-disconnect state converges on the server-of-truth even if
+/// some status events were missed during the gap.
 
 abstract class _$Tasks extends $AsyncNotifier<List<pb.Task>> {
   late final _$args = ref.$arg as String;
@@ -157,15 +199,39 @@ abstract class _$Tasks extends $AsyncNotifier<List<pb.Task>> {
   }
 }
 
-/// Generic mutation notifier. Keeps error state so the UI can surface it.
+/// Generic mutation notifier. Records failures into the shared
+/// [actionErrorLogProvider] so the app shell can surface them via an
+/// InfoBar — callers should NOT wrap run() in .catchError((_) {}) any more,
+/// the notifier owns the error lifecycle.
+///
+/// State transitions on the notifier are kept so per-card spinners still
+/// work (watch state.isLoading). The old contract rethrew the error; we
+/// stopped doing that because the caller typically couldn't do anything
+/// useful with it and the surfacing now happens globally.
 
 @ProviderFor(TaskMutation)
 final taskMutationProvider = TaskMutationFamily._();
 
-/// Generic mutation notifier. Keeps error state so the UI can surface it.
+/// Generic mutation notifier. Records failures into the shared
+/// [actionErrorLogProvider] so the app shell can surface them via an
+/// InfoBar — callers should NOT wrap run() in .catchError((_) {}) any more,
+/// the notifier owns the error lifecycle.
+///
+/// State transitions on the notifier are kept so per-card spinners still
+/// work (watch state.isLoading). The old contract rethrew the error; we
+/// stopped doing that because the caller typically couldn't do anything
+/// useful with it and the surfacing now happens globally.
 final class TaskMutationProvider
     extends $AsyncNotifierProvider<TaskMutation, void> {
-  /// Generic mutation notifier. Keeps error state so the UI can surface it.
+  /// Generic mutation notifier. Records failures into the shared
+  /// [actionErrorLogProvider] so the app shell can surface them via an
+  /// InfoBar — callers should NOT wrap run() in .catchError((_) {}) any more,
+  /// the notifier owns the error lifecycle.
+  ///
+  /// State transitions on the notifier are kept so per-card spinners still
+  /// work (watch state.isLoading). The old contract rethrew the error; we
+  /// stopped doing that because the caller typically couldn't do anything
+  /// useful with it and the surfacing now happens globally.
   TaskMutationProvider._({
     required TaskMutationFamily super.from,
     required Mutation super.argument,
@@ -202,9 +268,17 @@ final class TaskMutationProvider
   }
 }
 
-String _$taskMutationHash() => r'3c33c6dc6f8998d901c6f64b843571431b89e507';
+String _$taskMutationHash() => r'df85119b509c77229d4fdf5a23fcf4e34188836a';
 
-/// Generic mutation notifier. Keeps error state so the UI can surface it.
+/// Generic mutation notifier. Records failures into the shared
+/// [actionErrorLogProvider] so the app shell can surface them via an
+/// InfoBar — callers should NOT wrap run() in .catchError((_) {}) any more,
+/// the notifier owns the error lifecycle.
+///
+/// State transitions on the notifier are kept so per-card spinners still
+/// work (watch state.isLoading). The old contract rethrew the error; we
+/// stopped doing that because the caller typically couldn't do anything
+/// useful with it and the surfacing now happens globally.
 
 final class TaskMutationFamily extends $Family
     with
@@ -224,7 +298,15 @@ final class TaskMutationFamily extends $Family
         isAutoDispose: true,
       );
 
-  /// Generic mutation notifier. Keeps error state so the UI can surface it.
+  /// Generic mutation notifier. Records failures into the shared
+  /// [actionErrorLogProvider] so the app shell can surface them via an
+  /// InfoBar — callers should NOT wrap run() in .catchError((_) {}) any more,
+  /// the notifier owns the error lifecycle.
+  ///
+  /// State transitions on the notifier are kept so per-card spinners still
+  /// work (watch state.isLoading). The old contract rethrew the error; we
+  /// stopped doing that because the caller typically couldn't do anything
+  /// useful with it and the surfacing now happens globally.
 
   TaskMutationProvider call(Mutation kind) =>
       TaskMutationProvider._(argument: kind, from: this);
@@ -233,7 +315,15 @@ final class TaskMutationFamily extends $Family
   String toString() => r'taskMutationProvider';
 }
 
-/// Generic mutation notifier. Keeps error state so the UI can surface it.
+/// Generic mutation notifier. Records failures into the shared
+/// [actionErrorLogProvider] so the app shell can surface them via an
+/// InfoBar — callers should NOT wrap run() in .catchError((_) {}) any more,
+/// the notifier owns the error lifecycle.
+///
+/// State transitions on the notifier are kept so per-card spinners still
+/// work (watch state.isLoading). The old contract rethrew the error; we
+/// stopped doing that because the caller typically couldn't do anything
+/// useful with it and the surfacing now happens globally.
 
 abstract class _$TaskMutation extends $AsyncNotifier<void> {
   late final _$args = ref.$arg as Mutation;
@@ -256,17 +346,29 @@ abstract class _$TaskMutation extends $AsyncNotifier<void> {
   }
 }
 
-/// Wraps SubmitReview in a stateful Notifier so the UI can surface errors.
+/// Wraps SubmitReview in a stateful Notifier. Errors are recorded into the
+/// shared [actionErrorLogProvider] and the notifier's state.error; callers
+/// no longer need to .catchError because the app shell surfaces failures
+/// globally via an InfoBar.
+///
 /// Feedback is a required field when action == rework (enforced by sidecar).
 
 @ProviderFor(SubmitReview)
 final submitReviewProvider = SubmitReviewProvider._();
 
-/// Wraps SubmitReview in a stateful Notifier so the UI can surface errors.
+/// Wraps SubmitReview in a stateful Notifier. Errors are recorded into the
+/// shared [actionErrorLogProvider] and the notifier's state.error; callers
+/// no longer need to .catchError because the app shell surfaces failures
+/// globally via an InfoBar.
+///
 /// Feedback is a required field when action == rework (enforced by sidecar).
 final class SubmitReviewProvider
     extends $AsyncNotifierProvider<SubmitReview, void> {
-  /// Wraps SubmitReview in a stateful Notifier so the UI can surface errors.
+  /// Wraps SubmitReview in a stateful Notifier. Errors are recorded into the
+  /// shared [actionErrorLogProvider] and the notifier's state.error; callers
+  /// no longer need to .catchError because the app shell surfaces failures
+  /// globally via an InfoBar.
+  ///
   /// Feedback is a required field when action == rework (enforced by sidecar).
   SubmitReviewProvider._()
     : super(
@@ -287,9 +389,13 @@ final class SubmitReviewProvider
   SubmitReview create() => SubmitReview();
 }
 
-String _$submitReviewHash() => r'08170c0c3fa4beee590534a689be6d70b33d3585';
+String _$submitReviewHash() => r'111e555368465dc6392785734c4a3af7c2717c6d';
 
-/// Wraps SubmitReview in a stateful Notifier so the UI can surface errors.
+/// Wraps SubmitReview in a stateful Notifier. Errors are recorded into the
+/// shared [actionErrorLogProvider] and the notifier's state.error; callers
+/// no longer need to .catchError because the app shell surfaces failures
+/// globally via an InfoBar.
+///
 /// Feedback is a required field when action == rework (enforced by sidecar).
 
 abstract class _$SubmitReview extends $AsyncNotifier<void> {

@@ -34,9 +34,9 @@ type Charter struct {
 	// omit a stage's entry fall back to the built-in Default*Prompt
 	// constants in the copilot package — validation warns on the gap so
 	// users know their edits have holes.
-	Prompts         map[string]string
-	Body            string                   // Markdown body after frontmatter
-	RawContent      string                   // full bytes (for hashing)
+	Prompts    map[string]string
+	Body       string // Markdown body after frontmatter
+	RawContent string // full bytes (for hashing)
 }
 
 // PromptFor returns the charter-defined system prompt for a stage. Empty
@@ -140,20 +140,13 @@ func ParseCharter(content []byte) (*Charter, error) {
 	}
 
 	for stage, rc := range raw.Contract {
-		c.Contracts[stage] = StageContract{In: rc.In, Out: rc.Out}
+		c.Contracts[stage] = StageContract(rc)
 	}
 	for _, rt := range raw.Transitions {
-		c.Transitions = append(c.Transitions, Transition{
-			From: rt.From,
-			To:   rt.To,
-			When: rt.When,
-		})
+		c.Transitions = append(c.Transitions, Transition(rt))
 	}
 	for class, rp := range raw.FailureTaxonomy {
-		c.FailureTaxonomy[class] = FailurePolicy{
-			Retry:    rp.Retry,
-			Fallback: rp.Fallback,
-		}
+		c.FailureTaxonomy[class] = FailurePolicy(rp)
 	}
 
 	if ve := c.Validate(); ve != nil && len(ve.Errors) > 0 {
@@ -259,13 +252,13 @@ func (c *Charter) Validate() *ValidationError {
 // --- YAML raw types -------------------------------------------------------
 
 type rawCharter struct {
-	HarnessVersion  int                       `yaml:"harness_version"`
-	Stages          []string                  `yaml:"stages"`
-	MaxReworkCount  int                       `yaml:"max_rework_count"`
-	Contract        map[string]rawContract    `yaml:"contract"`
-	Transitions     []rawTransition           `yaml:"transitions"`
-	FailureTaxonomy map[string]rawFailPolicy  `yaml:"failure_taxonomy"`
-	Prompts         map[string]string         `yaml:"prompts"`
+	HarnessVersion  int                      `yaml:"harness_version"`
+	Stages          []string                 `yaml:"stages"`
+	MaxReworkCount  int                      `yaml:"max_rework_count"`
+	Contract        map[string]rawContract   `yaml:"contract"`
+	Transitions     []rawTransition          `yaml:"transitions"`
+	FailureTaxonomy map[string]rawFailPolicy `yaml:"failure_taxonomy"`
+	Prompts         map[string]string        `yaml:"prompts"`
 }
 
 type rawContract struct {

@@ -13,13 +13,13 @@ import (
 // (Windows Terminal 1.15+). Only the fields FleetKanban populates are
 // declared; the rest are left to Terminal defaults.
 type fragmentProfile struct {
-	GUID             string `json:"guid"`
-	Name             string `json:"name"`
-	Commandline      string `json:"commandline"`
-	Icon             string `json:"icon"`
-	StartingDir      string `json:"startingDirectory"`
-	TabTitle         string `json:"tabTitle"`
-	UseAcrylic       bool   `json:"useAcrylic"`
+	GUID        string `json:"guid"`
+	Name        string `json:"name"`
+	Commandline string `json:"commandline"`
+	Icon        string `json:"icon"`
+	StartingDir string `json:"startingDirectory"`
+	TabTitle    string `json:"tabTitle"`
+	UseAcrylic  bool   `json:"useAcrylic"`
 }
 
 type fragmentDocument struct {

@@ -14,8 +14,8 @@ import (
 // when COM cannot be initialised or when the process is not interactive.
 func TestRegisterJumpList_CompileCheck(t *testing.T) {
 	// Ensure both functions are callable (compile-time check).
-	var _ func(string) error = RegisterJumpList
-	var _ func() error = ClearJumpList
+	var _ = RegisterJumpList
+	var _ = ClearJumpList
 }
 
 func TestRegisterJumpList_Live(t *testing.T) {

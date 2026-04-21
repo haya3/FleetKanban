@@ -228,9 +228,9 @@ func (s *HarnessAttemptStore) queryAttempts(ctx context.Context, q string) ([]Ha
 
 func scanAttempt(s scanner) (HarnessAttempt, error) {
 	var (
-		a          HarnessAttempt
-		decidedAt  sql.NullString
-		createdAt  string
+		a         HarnessAttempt
+		decidedAt sql.NullString
+		createdAt string
 	)
 	if err := s.Scan(
 		&a.ID, &a.TaskID, &a.ReworkRound, &a.FailureClass, &a.ObservationMD,
