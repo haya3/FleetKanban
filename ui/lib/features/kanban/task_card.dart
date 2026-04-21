@@ -554,9 +554,7 @@ class _PrimaryAction extends ConsumerWidget {
           icon: FluentIcons.play,
           label: 'Run',
           color: const Color(0xFF0067C0),
-          onPressed: () => ref
-              .read(runTaskProvider.notifier)
-              .run(task.id),
+          onPressed: () => ref.read(runTaskProvider.notifier).run(task.id),
         );
       case 'planning':
         // Planning is owned by the orchestrator — the AI planner is either
@@ -570,9 +568,7 @@ class _PrimaryAction extends ConsumerWidget {
           icon: FluentIcons.stop,
           label: 'Abort',
           color: const Color(0xFF8A3B00),
-          onPressed: () => ref
-              .read(cancelTaskProvider.notifier)
-              .run(task.id),
+          onPressed: () => ref.read(cancelTaskProvider.notifier).run(task.id),
         );
       case 'aborted':
         // Aborted is non-terminal (phase1-spec §2-7): branch + worktree were
@@ -585,9 +581,7 @@ class _PrimaryAction extends ConsumerWidget {
           icon: FluentIcons.refresh,
           label: 'Re-run',
           color: const Color(0xFFC29C00),
-          onPressed: () => ref
-              .read(runTaskProvider.notifier)
-              .run(task.id),
+          onPressed: () => ref.read(runTaskProvider.notifier).run(task.id),
         );
       case 'done':
         // After Keep finalize the branch lingers for the user's external
@@ -641,9 +635,7 @@ class _PlanningActions extends ConsumerWidget {
           icon: FluentIcons.stop,
           label: 'Stop',
           color: const Color(0xFF8A3B00),
-          onPressed: () => ref
-              .read(cancelTaskProvider.notifier)
-              .run(task.id),
+          onPressed: () => ref.read(cancelTaskProvider.notifier).run(task.id),
         ),
       ],
     );
@@ -704,9 +696,7 @@ class _HumanReviewActions extends ConsumerWidget {
           icon: FluentIcons.check_mark,
           label: 'Keep',
           color: const Color(0xFF107C10),
-          onPressed: () => ref
-              .read(finalizeKeepProvider.notifier)
-              .run(task.id),
+          onPressed: () => ref.read(finalizeKeepProvider.notifier).run(task.id),
         ),
         _miniPill(
           icon: FluentIcons.refresh,
@@ -719,9 +709,8 @@ class _HumanReviewActions extends ConsumerWidget {
           label: 'Discard',
           color: const Color(0xFFC42B1C),
           iconOnly: true,
-          onPressed: () => ref
-              .read(finalizeDiscardProvider.notifier)
-              .run(task.id),
+          onPressed: () =>
+              ref.read(finalizeDiscardProvider.notifier).run(task.id),
         ),
       ],
     );
@@ -877,17 +866,13 @@ class _AbortedActions extends ConsumerWidget {
           icon: FluentIcons.check_mark,
           label: 'Keep',
           color: const Color(0xFF107C10),
-          onPressed: () => ref
-              .read(finalizeKeepProvider.notifier)
-              .run(task.id),
+          onPressed: () => ref.read(finalizeKeepProvider.notifier).run(task.id),
         ),
         _kanbanMiniPill(
           icon: FluentIcons.refresh,
           label: 'Re-run',
           color: const Color(0xFFC29C00),
-          onPressed: () => ref
-              .read(runTaskProvider.notifier)
-              .run(task.id),
+          onPressed: () => ref.read(runTaskProvider.notifier).run(task.id),
         ),
         _kanbanMiniPill(
           icon: FluentIcons.delete,

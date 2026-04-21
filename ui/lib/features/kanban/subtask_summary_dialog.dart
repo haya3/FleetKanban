@@ -1261,10 +1261,8 @@ class _ContextSection extends ConsumerWidget {
           child: ProgressRing(strokeWidth: 2),
         ),
       ),
-      error: (e, _) => _ContextFallback(
-        message: 'Context unavailable: $e',
-        theme: theme,
-      ),
+      error: (e, _) =>
+          _ContextFallback(message: 'Context unavailable: $e', theme: theme),
       data: (ctx) {
         if (ctx == null) {
           return _ContextFallback(

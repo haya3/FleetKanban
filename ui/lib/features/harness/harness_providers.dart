@@ -38,9 +38,7 @@ final harnessServiceProvider = Provider<pbgrpc.HarnessServiceClient>((ref) {
   ref.onDispose(() {
     channel.shutdown();
   });
-  final callOptions = CallOptions(
-    metadata: {authMetadataKey: endpoint.token},
-  );
+  final callOptions = CallOptions(metadata: {authMetadataKey: endpoint.token});
   return pbgrpc.HarnessServiceClient(channel, options: callOptions);
 });
 
@@ -53,7 +51,9 @@ final activeSkillProvider = FutureProvider<pb.HarnessSkill>((ref) async {
 /// All harness versions, newest first. Order is not explicitly
 /// specified by the RPC, so the provider re-sorts by version
 /// descending to make the left-pane timeline deterministic.
-final skillVersionsProvider = FutureProvider<List<pb.HarnessSkill>>((ref) async {
+final skillVersionsProvider = FutureProvider<List<pb.HarnessSkill>>((
+  ref,
+) async {
   final client = ref.watch(harnessServiceProvider);
   final resp = await client.listSkillVersions(Empty());
   final versions = [...resp.versions];
@@ -96,38 +96,38 @@ final selectedSkillArtifactIdProvider = StateProvider<String?>((_) => null);
 /// Approve / Reject). Constructed against the shared sidecar endpoint.
 final harnessAttemptServiceProvider =
     Provider<pbgrpc.HarnessAttemptServiceClient>((ref) {
-  final endpoint = ref.watch(sidecarEndpointProvider);
-  final channel = ClientChannel(
-    '127.0.0.1',
-    port: endpoint.port,
-    options: const ChannelOptions(
-      credentials: ChannelCredentials.insecure(),
-      idleTimeout: Duration(seconds: 30),
-    ),
-  );
-  ref.onDispose(() {
-    channel.shutdown();
-  });
-  final callOptions = CallOptions(
-    metadata: {authMetadataKey: endpoint.token},
-  );
-  return pbgrpc.HarnessAttemptServiceClient(channel, options: callOptions);
-});
+      final endpoint = ref.watch(sidecarEndpointProvider);
+      final channel = ClientChannel(
+        '127.0.0.1',
+        port: endpoint.port,
+        options: const ChannelOptions(
+          credentials: ChannelCredentials.insecure(),
+          idleTimeout: Duration(seconds: 30),
+        ),
+      );
+      ref.onDispose(() {
+        channel.shutdown();
+      });
+      final callOptions = CallOptions(
+        metadata: {authMetadataKey: endpoint.token},
+      );
+      return pbgrpc.HarnessAttemptServiceClient(channel, options: callOptions);
+    });
 
 /// Pending HarnessAttempt rows — decision == 'pending', newest first.
 /// autoDispose so the Proposals tab refreshes cleanly when reopened.
 final pendingAttemptsProvider =
     FutureProvider.autoDispose<List<pb.HarnessAttempt>>((ref) async {
-  final client = ref.watch(harnessAttemptServiceProvider);
-  final resp = await client.listPending(Empty());
-  final attempts = [...resp.attempts];
-  attempts.sort((a, b) {
-    final ac = a.hasCreatedAt() ? a.createdAt.toDateTime() : DateTime(0);
-    final bc = b.hasCreatedAt() ? b.createdAt.toDateTime() : DateTime(0);
-    return bc.compareTo(ac);
-  });
-  return attempts;
-});
+      final client = ref.watch(harnessAttemptServiceProvider);
+      final resp = await client.listPending(Empty());
+      final attempts = [...resp.attempts];
+      attempts.sort((a, b) {
+        final ac = a.hasCreatedAt() ? a.createdAt.toDateTime() : DateTime(0);
+        final bc = b.hasCreatedAt() ? b.createdAt.toDateTime() : DateTime(0);
+        return bc.compareTo(ac);
+      });
+      return attempts;
+    });
 
 /// Count of pending proposals. Driven off [pendingAttemptsProvider] so
 /// the Kanban column-header badge and the Proposals list stay coherent
@@ -148,5 +148,6 @@ final selectedAttemptIdProvider = StateProvider<String?>((_) => null);
 /// control.
 enum HarnessPageMode { editor, proposals }
 
-final harnessPageModeProvider =
-    StateProvider<HarnessPageMode>((_) => HarnessPageMode.editor);
+final harnessPageModeProvider = StateProvider<HarnessPageMode>(
+  (_) => HarnessPageMode.editor,
+);

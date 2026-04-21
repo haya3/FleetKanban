@@ -235,8 +235,8 @@ class _HarnessPageState extends ConsumerState<HarnessPage> {
     final versions = ref.watch(skillVersionsProvider);
     final selectedArtifact = ref.watch(selectedSkillArtifactIdProvider);
     final mode = ref.watch(harnessPageModeProvider);
-    final pendingCount = ref.watch(pendingAttemptsCountProvider).asData?.value
-        ?? 0;
+    final pendingCount =
+        ref.watch(pendingAttemptsCountProvider).asData?.value ?? 0;
 
     // Keep the editor in sync with the active skill exactly once.
     active.whenData(_hydrate);
@@ -332,14 +332,14 @@ class _HarnessPageState extends ConsumerState<HarnessPage> {
                   versions: versions,
                   selectedArtifactId: selectedArtifact,
                   onSelect: (id) =>
-                      ref
-                              .read(selectedSkillArtifactIdProvider.notifier)
-                              .state =
+                      ref.read(selectedSkillArtifactIdProvider.notifier).state =
                           id,
                 ),
               ),
               const _VerticalDivider(),
-              Expanded(child: _Editor(controller: _editor, active: active)),
+              Expanded(
+                child: _Editor(controller: _editor, active: active),
+              ),
               const _VerticalDivider(),
               SizedBox(
                 width: 320,
@@ -473,15 +473,11 @@ class _VersionTimeline extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
-            child: Text(
-              'Versions',
-              style: theme.typography.bodyStrong,
-            ),
+            child: Text('Versions', style: theme.typography.bodyStrong),
           ),
           Expanded(
             child: versions.when(
-              loading: () =>
-                  const Center(child: ProgressRing(strokeWidth: 2)),
+              loading: () => const Center(child: ProgressRing(strokeWidth: 2)),
               error: (e, _) => Padding(
                 padding: const EdgeInsets.all(12),
                 child: ErrorInfoBar(
@@ -511,8 +507,8 @@ class _VersionTimeline extends StatelessWidget {
                         final bg = selected
                             ? theme.accentColor.normal.withValues(alpha: 0.15)
                             : states.isHovered
-                                ? theme.resources.subtleFillColorTertiary
-                                : Colors.transparent;
+                            ? theme.resources.subtleFillColorTertiary
+                            : Colors.transparent;
                         return Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -536,8 +532,7 @@ class _VersionTimeline extends StatelessWidget {
                                 created,
                                 style: TextStyle(
                                   fontSize: 11,
-                                  color: theme
-                                      .resources.textFillColorSecondary,
+                                  color: theme.resources.textFillColorSecondary,
                                 ),
                               ),
                             ],
@@ -658,10 +653,7 @@ class _RightPanelState extends State<_RightPanel> {
           Tab(
             text: const Text('Diff'),
             icon: const Icon(FluentIcons.diff_inline),
-            body: DiffView(
-              before: _diffBaseline(),
-              after: widget.editor.text,
-            ),
+            body: DiffView(before: _diffBaseline(), after: widget.editor.text),
           ),
         ],
       ),

@@ -210,10 +210,7 @@ class _AppScaffold extends ConsumerWidget {
                 child: Center(
                   child: Text(
                     'FleetKanban',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
                   ),
                 ),
               ),

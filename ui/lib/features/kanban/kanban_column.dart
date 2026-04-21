@@ -219,10 +219,7 @@ class _HarnessProposalsBadge extends ConsumerWidget {
               ? theme.accentColor.light
               : theme.accentColor.normal;
           return Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 6,
-              vertical: 1,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
             decoration: BoxDecoration(
               color: bg,
               borderRadius: BorderRadius.circular(10),

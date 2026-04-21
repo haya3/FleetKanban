@@ -148,9 +148,8 @@ class _ProposalsTabState extends ConsumerState<ProposalsTab> {
                 child: _ProposalsList(
                   attempts: attempts,
                   selectedId: selectedId,
-                  onSelect: (id) => ref
-                      .read(selectedAttemptIdProvider.notifier)
-                      .state = id,
+                  onSelect: (id) =>
+                      ref.read(selectedAttemptIdProvider.notifier).state = id,
                   onRefresh: () => ref.invalidate(pendingAttemptsProvider),
                 ),
               ),
@@ -211,8 +210,7 @@ class _ProposalsList extends StatelessWidget {
           ),
           Expanded(
             child: attempts.when(
-              loading: () =>
-                  const Center(child: ProgressRing(strokeWidth: 2)),
+              loading: () => const Center(child: ProgressRing(strokeWidth: 2)),
               error: (e, _) => Padding(
                 padding: const EdgeInsets.all(12),
                 child: ErrorInfoBar(
@@ -285,8 +283,8 @@ class _ProposalRow extends StatelessWidget {
         final bg = selected
             ? theme.accentColor.normal.withValues(alpha: 0.15)
             : states.isHovered
-                ? theme.resources.subtleFillColorTertiary
-                : Colors.transparent;
+            ? theme.resources.subtleFillColorTertiary
+            : Colors.transparent;
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           color: bg,
@@ -495,7 +493,7 @@ class _AttemptDetail extends StatelessWidget {
                 child: SelectableText(
                   attempt.proposedPatch.isEmpty
                       ? 'LLM patch generation pending — observation is the '
-                          'user-facing signal for now.'
+                            'user-facing signal for now.'
                       : attempt.proposedPatch,
                   style: TextStyle(
                     fontFamily: 'Cascadia Code',

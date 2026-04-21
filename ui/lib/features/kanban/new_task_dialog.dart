@@ -256,10 +256,7 @@ class _NewTaskDialogState extends ConsumerState<_NewTaskDialog> {
 /// is disabled for this repo, the draft is too short, or the repo has
 /// no prior tasks to match against.
 class _SimilarSuggestions extends StatelessWidget {
-  const _SimilarSuggestions({
-    required this.suggestions,
-    required this.loading,
-  });
+  const _SimilarSuggestions({required this.suggestions, required this.loading});
 
   final pb.SuggestForNewTaskResponse? suggestions;
   final bool loading;
@@ -367,10 +364,7 @@ class _SuggestionGroup extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            title,
-            style: theme.typography.bodyStrong,
-          ),
+          Text(title, style: theme.typography.bodyStrong),
           const SizedBox(height: 4),
           ...items,
         ],
@@ -392,7 +386,9 @@ class _SuggestionItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    final snippet = preview.length > 160 ? '${preview.substring(0, 160)}…' : preview;
+    final snippet = preview.length > 160
+        ? '${preview.substring(0, 160)}…'
+        : preview;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(

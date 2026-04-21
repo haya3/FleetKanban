@@ -195,12 +195,15 @@ class Tasks extends _$Tasks {
     final req = pb.WatchEventsRequest();
     req.sinceSeqByTask.addAll(_sinceByTask);
 
-    _sub = client.task.watchEvents(req).listen(
-      _onEvent,
-      onError: (Object err, StackTrace _) => _scheduleReconnect(client, err),
-      onDone: () => _scheduleReconnect(client, null),
-      cancelOnError: true,
-    );
+    _sub = client.task
+        .watchEvents(req)
+        .listen(
+          _onEvent,
+          onError: (Object err, StackTrace _) =>
+              _scheduleReconnect(client, err),
+          onDone: () => _scheduleReconnect(client, null),
+          cancelOnError: true,
+        );
   }
 
   void _onEvent(pb.AgentEvent ev) {
@@ -226,12 +229,14 @@ class Tasks extends _$Tasks {
     _attempt++;
     final delay = _backoff(_attempt);
     final nextAt = DateTime.now().add(delay);
-    _setHealth(StreamHealth(
-      state: StreamHealthState.disconnected,
-      error: error,
-      nextRetryAt: nextAt,
-      attempt: _attempt,
-    ));
+    _setHealth(
+      StreamHealth(
+        state: StreamHealthState.disconnected,
+        error: error,
+        nextRetryAt: nextAt,
+        attempt: _attempt,
+      ),
+    );
     _reconnectTimer = Timer(delay, () => _connect(client));
   }
 
@@ -303,8 +308,9 @@ void recordActionError(
 extension ActionErrorLogWidgetRef on WidgetRef {
   void dismissActionError(int id) {
     final existing = read(actionErrorLogProvider);
-    read(actionErrorLogProvider.notifier).state =
-        existing.where((e) => e.id != id).toList();
+    read(actionErrorLogProvider.notifier).state = existing
+        .where((e) => e.id != id)
+        .toList();
   }
 
   void clearActionErrors() {

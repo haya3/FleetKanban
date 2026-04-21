@@ -1165,8 +1165,7 @@ class _MemoryHealthBadge extends ConsumerStatefulWidget {
   const _MemoryHealthBadge({required this.repoId});
   final String repoId;
   @override
-  ConsumerState<_MemoryHealthBadge> createState() =>
-      _MemoryHealthBadgeState();
+  ConsumerState<_MemoryHealthBadge> createState() => _MemoryHealthBadgeState();
 }
 
 class _MemoryHealthBadgeState extends ConsumerState<_MemoryHealthBadge> {

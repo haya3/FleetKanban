@@ -44,7 +44,9 @@ class _AccountCard extends ConsumerWidget {
     // read cannot turn `.value` back into null (loading / error transitions
     // in riverpod 3 make `.value` null instead of throwing).
     final info = ref.watch(githubAccountInfoProvider).value;
-    final displayName = (info?.name.isNotEmpty ?? false) ? info!.name : authUser;
+    final displayName = (info?.name.isNotEmpty ?? false)
+        ? info!.name
+        : authUser;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
@@ -145,8 +147,7 @@ class _QuotaLine extends ConsumerWidget {
         child: Text('Premium: —', style: caption),
       );
     }
-    final rawRemaining =
-        snapshot.entitlementRequests - snapshot.usedRequests;
+    final rawRemaining = snapshot.entitlementRequests - snapshot.usedRequests;
     final remaining = rawRemaining < 0 ? 0.0 : rawRemaining;
     // The SDK's remainingPercentage is already on a 0-100 scale despite its
     // doc comment claiming "0.0 to 1.0" — verified against the live Copilot
@@ -160,10 +161,7 @@ class _QuotaLine extends ConsumerWidget {
           'Used ${_fmt(snapshot.usedRequests)} of ${_fmt(snapshot.entitlementRequests)} premium requests'
           '${snapshot.overage > 0 ? " (+${_fmt(snapshot.overage)} overage)" : ""}'
           '$reset',
-      child: Text(
-        'Premium: ${_fmt(remaining)} left ($pct%)',
-        style: caption,
-      ),
+      child: Text('Premium: ${_fmt(remaining)} left ($pct%)', style: caption),
     );
   }
 
