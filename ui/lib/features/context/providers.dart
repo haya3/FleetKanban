@@ -2,6 +2,8 @@
 // slice of state through one of these so callers do not have to know
 // which gRPC client method maps to which tab.
 
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:protobuf/well_known_types/google/protobuf/empty.pb.dart'
@@ -215,8 +217,17 @@ class AnalyzerState extends _$AnalyzerState {
   /// without consuming unbounded memory on a stuck analyzer.
   static const int _maxProgressLines = 100;
 
+  Timer? _completeResetTimer;
+
   @override
   AnalyzerStatus build() {
+    // The notifier is autoDispose; cancel any pending reset so it cannot
+    // fire after disposal and trigger a StateError on `state =`.
+    ref.onDispose(() {
+      _completeResetTimer?.cancel();
+      _completeResetTimer = null;
+    });
+
     // Listen for analyzer lifecycle events on the change stream.
     ref.listen<AsyncValue<pb.ContextChangeEvent>>(
       contextChangesStreamProvider,
@@ -245,7 +256,8 @@ class AnalyzerState extends _$AnalyzerState {
               state = const AnalyzerStatus(phase: AnalyzerPhase.complete);
               ref.invalidate(contextOverviewProvider);
               ref.invalidate(contextScratchpadPendingProvider);
-              Future.delayed(const Duration(seconds: 6), () {
+              _completeResetTimer?.cancel();
+              _completeResetTimer = Timer(const Duration(seconds: 6), () {
                 if (state.phase == AnalyzerPhase.complete) {
                   state = const AnalyzerStatus(phase: AnalyzerPhase.idle);
                 }

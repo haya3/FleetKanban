@@ -59,6 +59,16 @@ jobs:
       - name: flutter pub get
         run: flutter pub get
 
+      - name: build_runner drift check
+        # .g.dart outputs are committed so CI can skip the full code-gen pass
+        # at build time. But that means a PR that edits an @riverpod source
+        # without re-running build_runner locally would ship a stale .g.dart.
+        # Re-generate and fail if anything differs — cheap insurance.
+        shell: pwsh
+        run: |
+          dart run build_runner build --delete-conflicting-outputs
+          git diff --exit-code -- '**/*.g.dart'
+
       - name: flutter analyze
         run: flutter analyze
 

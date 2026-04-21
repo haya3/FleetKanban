@@ -6,6 +6,32 @@ are tentative and will be revisited when implementation starts.
 
 ---
 
+## Technical debt carried from Phase 1
+
+These do not block Phase 2 but should be retired opportunistically.
+
+- **Replace `flutter_riverpod/legacy.dart` StateProviders with `@riverpod`
+  state classes.** `paneIndexProvider`, `selectedRepoIdProvider`,
+  `selectedTaskIdProvider`, `selectedContextRepoProvider`,
+  `contextSearchQueryProvider`, and about five more sit in the legacy
+  namespace today because riverpod 3 moved `StateProvider` out of the
+  main API. The code-gen equivalent is a small `@riverpod class Foo`
+  with a `set(value)` method; callers change from
+  `ref.read(p.notifier).state = v` to `ref.read(p.notifier).set(v)`.
+- **Swap `bitsdojo_window` for a maintained alternative
+  (`window_manager` etc.).** `bitsdojo_window` 0.1.6 pins `win32 ^5.1.1`
+  and has been unmaintained since 2024-10, which blocks the `win32` 6
+  major bump. Scheduled for `release/v0.2.0`.
+- **Re-enable `riverpod_lint` + `custom_lint`.** Currently omitted
+  because `custom_lint 0.8.1` needs analyzer ^8 while `riverpod_lint
+  3.1.3` needs analyzer ^9. Restore once `custom_lint` publishes an
+  analyzer-9 compatible build.
+- **Add `dart run build_runner build` drift check in
+  `.github/workflows/lint-test.yml`.** We commit `*.g.dart` outputs, so
+  CI should fail when they go stale relative to the `@riverpod` sources.
+
+---
+
 ## Phase 2 — Quality Assurance & External Integrations
 
 **Aim**: Let users verify agent output without manual work and push it to

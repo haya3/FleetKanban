@@ -40,7 +40,11 @@ class _AccountCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = FluentTheme.of(context);
     final resources = theme.resources;
-    final account = ref.watch(githubAccountInfoProvider);
+    // Resolve to a local once so a rebuild between the null-check and the
+    // read cannot turn `.value` back into null (loading / error transitions
+    // in riverpod 3 make `.value` null instead of throwing).
+    final info = ref.watch(githubAccountInfoProvider).value;
+    final displayName = (info?.name.isNotEmpty ?? false) ? info!.name : authUser;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
@@ -52,21 +56,19 @@ class _AccountCard extends ConsumerWidget {
         children: [
           Row(
             children: [
-              _Avatar(url: account.value?.avatarUrl ?? ''),
+              _Avatar(url: info?.avatarUrl ?? ''),
               const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      account.value?.name.isNotEmpty == true
-                          ? account.value!.name
-                          : authUser,
+                      displayName,
                       style: theme.typography.bodyStrong,
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
-                      '@${account.value?.login ?? authUser}',
+                      '@${info?.login ?? authUser}',
                       style: theme.typography.caption?.copyWith(
                         color: resources.textFillColorSecondary,
                       ),
@@ -78,7 +80,7 @@ class _AccountCard extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 6),
-          _PlanLine(info: account.value),
+          _PlanLine(info: info),
         ],
       ),
     );
