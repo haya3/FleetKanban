@@ -28,6 +28,7 @@
 
 - **Planeja → executa em paralelo → você aprova.** A IA planeja a implementação, executa até 12 tarefas em paralelo em git worktrees isolados e deixa a decisão final de **Keep / Merge / Discard** para você.
 - **Nunca escreve no seu remote.** Sem `git push`, sem criação de PR, sem auto-merge — escritas no remote só acontecem quando você mesmo as faz.
+- **Sem telemetria. Seguro para o ambiente corporativo.** Sem analytics de uso, sem relatórios de falhas, sem phone-home. O único tráfego de saída são as chamadas à API do Copilot que seus agentes fazem — seguro para implantar dentro do perímetro corporativo.
 - **Um app Windows 11 de verdade.** Mica / Acrylic, Jump List, notificações Toast, progresso na barra de tarefas — construído com Flutter desktop, não Electron.
 
 ## Download
@@ -84,6 +85,7 @@ Pré-requisitos completos e flags para pular em CI ficam em [CONTRIBUTING.md](./
 ## FAQ
 
 - **Meu código é enviado para a nuvem?** Estado de tarefas, logs e o índice de conhecimento são todos armazenados localmente em SQLite. Quando o agente roda, o SDK Copilot fala com a API do GitHub Copilot exatamente como qualquer outro cliente Copilot — nada mais sai da sua máquina.
+- **O FleetKanban coleta telemetria?** Não. Não há analytics de uso, não há relatórios de falhas e não há endpoint de phone-home. O único tráfego de saída do app são as chamadas à API do Copilot que o agente faz durante a execução das tarefas (o mesmo que qualquer outro cliente Copilot) mais a verificação de versão que o prompt de atualização dentro do app executa contra o GitHub Releases. Isso torna o FleetKanban seguro para implantar em ambientes corporativos — combine-o com uma assinatura Copilot Business ou Enterprise e seu código permanece dentro do perímetro corporativo.
 - **Ele vai fazer push para o meu remote sozinho?** Não. `git push`, criação de PR e auto-merge simplesmente não estão implementados. Fazer push e abrir PRs é algo que você faz explicitamente, usando o Git CLI, o GitHub Desktop ou sua IDE.
 - **Funciona no macOS / Linux?** Não. O FleetKanban é somente Windows 11 64 bits — permanentemente.
 

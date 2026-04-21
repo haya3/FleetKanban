@@ -28,6 +28,7 @@
 
 - **Plan → parallel execute → you approve.** The AI plans the implementation, runs up to 12 tasks in parallel on isolated git worktrees, and leaves the final **Keep / Merge / Discard** call to you.
 - **Never writes to your remote.** No `git push`, no PR creation, no auto-merge — remote writes only happen when you do them yourself.
+- **No telemetry. Safe for the enterprise.** No usage analytics, no crash reports, no phone-home. The only outbound traffic is the Copilot API calls your agents make — safe to roll out behind an enterprise boundary.
 - **A real Windows 11 app.** Mica / Acrylic, Jump List, toast notifications, taskbar progress — built with Flutter desktop, not Electron.
 
 ## Download
@@ -84,6 +85,7 @@ Full prerequisites and CI skip flags live in [CONTRIBUTING.md](./CONTRIBUTING.md
 ## FAQ
 
 - **Does my code get sent to the cloud?** Task state, logs, and the knowledge index are all stored locally in SQLite. When the agent runs, the Copilot SDK talks to the GitHub Copilot API just like any other Copilot client — nothing else leaves your machine.
+- **Does FleetKanban collect telemetry?** No. There is no usage analytics, no crash reporting, and no phone-home endpoint. The only outbound traffic from the app is the Copilot API calls the agent makes during task execution (same as any other Copilot client) plus the version check the in-app update prompt performs against GitHub Releases. This makes FleetKanban safe to deploy in enterprise environments — pair it with a Copilot Business or Enterprise subscription and your code stays inside the enterprise boundary.
 - **Will it push to my remote by itself?** No. `git push`, PR creation, and auto-merge are simply not implemented. Pushing and opening PRs is something you do explicitly, using the Git CLI, GitHub Desktop, or your IDE.
 - **Does it work on macOS / Linux?** No. FleetKanban is Windows 11 64-bit only — permanently.
 

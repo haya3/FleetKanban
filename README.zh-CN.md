@@ -28,6 +28,7 @@
 
 - **规划 → 并行执行 → 由你审批。** AI 负责制定实现方案，在隔离的 git worktree 上并行运行最多 12 个任务，最终的 **Keep / Merge / Discard** 决定权留给你。
 - **从不写入你的远程仓库。** 没有 `git push`、不会创建 PR、不会自动合并 — 只有你亲自操作时才会发生远程写入。
+- **零遥测，面向企业环境安全。** 没有使用情况分析、没有崩溃报告、没有回传服务器。唯一的外部流量是你的智能体发起的 Copilot API 调用 — 可以放心地部署在企业环境边界之内。
 - **真正的 Windows 11 原生应用。** Mica / Acrylic、Jump List、Toast 通知、任务栏进度 — 使用 Flutter 桌面构建，而非 Electron。
 
 ## 下载
@@ -84,6 +85,7 @@ FleetKanban 有意走出与 Claude Code、Cursor 以及 GitHub Copilot Workspace
 ## FAQ
 
 - **我的代码会被发送到云端吗？** 任务状态、日志与知识索引全部本地存储在 SQLite 中。智能体运行时，Copilot SDK 与 GitHub Copilot API 的通信方式与其他任何 Copilot 客户端完全相同 — 除此之外没有任何内容离开你的机器。
+- **FleetKanban 会收集遥测吗？** 不会。没有使用情况分析、没有崩溃报告，也没有回传服务器的端点。应用对外的流量仅限于智能体在执行任务期间发起的 Copilot API 调用（与其他任何 Copilot 客户端一致），以及应用内升级提示针对 GitHub Releases 执行的版本检查。这使得 FleetKanban 可以安全地部署到企业环境中 — 搭配 Copilot Business 或 Enterprise 订阅使用，你的代码便能始终留在企业环境边界之内。
 - **它会自行推送到我的远程吗？** 不会。`git push`、PR 创建与自动合并根本没有实现。推送与开 PR 是你使用 Git CLI、GitHub Desktop 或你的 IDE 显式完成的操作。
 - **支持 macOS / Linux 吗？** 不支持。FleetKanban 永久只支持 Windows 11 64 位。
 
