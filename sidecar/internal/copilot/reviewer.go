@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
+	copilot "github.com/github/copilot-sdk/go"
 	"github.com/haya3/FleetKanban/internal/copilot/tools"
 	"github.com/haya3/FleetKanban/internal/orchestrator"
 	"github.com/haya3/FleetKanban/internal/task"
-	copilot "github.com/github/copilot-sdk/go"
 )
 
 // reviewerTimeout is the wall-clock cap on a single AI review session.

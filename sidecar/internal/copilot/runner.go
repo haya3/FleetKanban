@@ -9,9 +9,9 @@ import (
 	"log/slog"
 	"time"
 
+	copilot "github.com/github/copilot-sdk/go"
 	"github.com/haya3/FleetKanban/internal/copilot/tools"
 	"github.com/haya3/FleetKanban/internal/task"
-	copilot "github.com/github/copilot-sdk/go"
 )
 
 // TaskTimeout is the maximum wall-clock a single Copilot session is allowed

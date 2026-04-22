@@ -67,8 +67,8 @@ class SourceRebuildService {
   Directory? _cachedRoot;
   bool _resolved = false;
 
-  /// The <repo> directory when the running app was installed from a
-  /// local Velopack feed at <repo>/build/release/ (i.e. produced by
+  /// The `<repo>` directory when the running app was installed from a
+  /// local Velopack feed at `<repo>/build/release/` (i.e. produced by
   /// scripts/build-from-source.ps1). Returns null for public-release
   /// installs (GitHub feed) or when the script is missing.
   Directory? resolveSourceRepoRoot() {

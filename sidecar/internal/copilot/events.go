@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/haya3/FleetKanban/internal/task"
 	copilot "github.com/github/copilot-sdk/go"
+	"github.com/haya3/FleetKanban/internal/task"
 )
 
 // MapSessionEvent converts a SDK SessionEvent to a task.AgentEvent, returning
