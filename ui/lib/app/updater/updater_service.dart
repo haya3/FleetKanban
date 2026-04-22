@@ -124,10 +124,12 @@ class SourceRebuildNotifier extends Notifier<SourceRebuildState> {
     state = const SourceRebuildState(phase: SourceRebuildPhase.pulling);
     _append('> git pull --ff-only  (in ${root.path})');
 
-    final pulled = await _runProcess(
-      'git',
-      ['-C', root.path, 'pull', '--ff-only'],
-    );
+    final pulled = await _runProcess('git', [
+      '-C',
+      root.path,
+      'pull',
+      '--ff-only',
+    ]);
     if (!pulled.ok) {
       state = state.copyWith(
         phase: SourceRebuildPhase.failure,
@@ -151,17 +153,13 @@ class SourceRebuildNotifier extends Notifier<SourceRebuildState> {
     // the rare Write-Output lines. Wrapping with *>&1 collapses
     // streams 2-6 into 1 so _append gets the full build trace.
     final escapedScript = script.replaceAll("'", "''");
-    final built = await _runProcess(
-      'powershell.exe',
-      [
-        '-NoProfile',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-Command',
-        "& '$escapedScript' -SkipPrereqs *>&1",
-      ],
-      workingDirectory: root.path,
-    );
+    final built = await _runProcess('powershell.exe', [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-Command',
+      "& '$escapedScript' -SkipPrereqs *>&1",
+    ], workingDirectory: root.path);
     if (!built.ok) {
       state = state.copyWith(
         phase: SourceRebuildPhase.failure,
@@ -194,11 +192,7 @@ class SourceRebuildNotifier extends Notifier<SourceRebuildState> {
   }) async {
     late Process proc;
     try {
-      proc = await Process.start(
-        exe,
-        args,
-        workingDirectory: workingDirectory,
-      );
+      proc = await Process.start(exe, args, workingDirectory: workingDirectory);
     } catch (e) {
       _append('[spawn error] $exe: $e');
       return (ok: false, exitCode: -1);

@@ -101,7 +101,9 @@ class VelopackUpdater {
   /// (self-signed is fine).
   Uri? resolveLocalFeed() {
     final exeDir = File(Platform.resolvedExecutable).parent;
-    final marker = File('${exeDir.path}${Platform.pathSeparator}update-feed.txt');
+    final marker = File(
+      '${exeDir.path}${Platform.pathSeparator}update-feed.txt',
+    );
     if (!marker.existsSync()) return null;
     var raw = marker.readAsStringSync().trim();
     if (raw.startsWith('﻿')) raw = raw.substring(1);
@@ -234,8 +236,9 @@ class VelopackUpdater {
   /// version, and returns a result pointing at it. Supports file:// and
   /// http(s):// base URIs.
   Future<UpdateCheckResult> _checkLocalFeed(Uri base) async {
-    final baseNormalized =
-        base.path.endsWith('/') ? base : base.replace(path: '${base.path}/');
+    final baseNormalized = base.path.endsWith('/')
+        ? base
+        : base.replace(path: '${base.path}/');
     final releasesUri = baseNormalized.resolve('RELEASES');
     final body = await _readFeedResource(releasesUri);
 
@@ -282,7 +285,9 @@ class VelopackUpdater {
     if (uri.scheme == 'file') {
       final f = File.fromUri(uri);
       if (!f.existsSync()) {
-        throw VelopackUpdaterException('local feed RELEASES missing: ${f.path}');
+        throw VelopackUpdaterException(
+          'local feed RELEASES missing: ${f.path}',
+        );
       }
       body = f.readAsStringSync();
     } else {

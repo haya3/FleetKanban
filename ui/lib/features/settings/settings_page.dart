@@ -1659,10 +1659,7 @@ class _SourceRebuildSectionState extends ConsumerState<_SourceRebuildSection> {
           ),
           if (state.errorMessage != null) ...[
             const SizedBox(height: 8),
-            ErrorInfoBar(
-              title: 'Rebuild failed',
-              message: state.errorMessage!,
-            ),
+            ErrorInfoBar(title: 'Rebuild failed', message: state.errorMessage!),
           ],
           if (state.logLines.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -1732,11 +1729,7 @@ class _PhaseLabel extends StatelessWidget {
     if (label.isEmpty) return const SizedBox.shrink();
     return Text(
       label,
-      style: TextStyle(
-        color: color,
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
-      ),
+      style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w500),
     );
   }
 }

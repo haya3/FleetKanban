@@ -9845,8 +9845,8 @@ const file_fleetkanban_v1_fleetkanban_proto_rawDesc = "" +
 	"\vListPending\x12\x16.google.protobuf.Empty\x1a+.fleetkanban.v1.ListHarnessAttemptsResponse\x12m\n" +
 	"\vListForTask\x121.fleetkanban.v1.ListHarnessAttemptsForTaskRequest\x1a+.fleetkanban.v1.ListHarnessAttemptsResponse\x12W\n" +
 	"\aApprove\x12,.fleetkanban.v1.ApproveHarnessAttemptRequest\x1a\x1e.fleetkanban.v1.HarnessAttempt\x12U\n" +
-	"\x06Reject\x12+.fleetkanban.v1.RejectHarnessAttemptRequest\x1a\x1e.fleetkanban.v1.HarnessAttemptB\xd1\x01\n" +
-	"\x12com.fleetkanban.v1B\x10FleetkanbanProtoP\x01ZPgithub.com/haya3/FleetKanban/internal/ipc/gen/fleetkanban/v1;fleetkanbanv1\xa2\x02\x03FXX\xaa\x02\x0eFleetkanban.V1\xca\x02\x0eFleetkanban\\V1\xe2\x02\x1aFleetkanban\\V1\\GPBMetadata\xea\x02\x0fFleetkanban::V1b\x06proto3"
+	"\x06Reject\x12+.fleetkanban.v1.RejectHarnessAttemptRequest\x1a\x1e.fleetkanban.v1.HarnessAttemptB\xcb\x01\n" +
+	"\x12com.fleetkanban.v1B\x10FleetkanbanProtoP\x01ZJgithub.com/haya3/FleetKanban/internal/ipc/gen/fleetkanban/v1;fleetkanbanv1\xa2\x02\x03FXX\xaa\x02\x0eFleetkanban.V1\xca\x02\x0eFleetkanban\\V1\xe2\x02\x1aFleetkanban\\V1\\GPBMetadata\xea\x02\x0fFleetkanban::V1b\x06proto3"
 
 var (
 	file_fleetkanban_v1_fleetkanban_proto_rawDescOnce sync.Once
