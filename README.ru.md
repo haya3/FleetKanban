@@ -67,23 +67,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-from-source.
 
 1. **Опишите задачу на естественном языке**
    Например: *«Обновить боковую панель, чтобы она поддерживала тёмную тему»*.
-   <!-- TODO(phase1): replace with docs/screenshots/how-1-new-task.png -->
-   <img src="docs/screenshots/coming-soon.png" alt="Диалог новой задачи на Kanban-доске" width="720">
+   <img src="docs/screenshots/how-1-new-task.png" alt="Диалог новой задачи на Kanban-доске" width="720">
 
 2. **AI планирует и разбивает задачу на DAG из Subtask**
    Этап Plan формирует план выполнения и разбивает работу на параллельные / последовательные subtask, визуализированные компоновкой Sugiyama.
-   <!-- TODO(phase1): replace with docs/screenshots/how-2-subtask-dag.png -->
-   <img src="docs/screenshots/coming-soon.png" alt="Визуализация Subtask DAG с параллельными и последовательными зависимостями" width="720">
+   <img src="docs/screenshots/how-2-subtask-dag.png" alt="Визуализация Subtask DAG с параллельными и последовательными зависимостями" width="720">
 
 3. **Параллельное выполнение в изолированных git worktree**
    По умолчанию — 4 задачи параллельно, до 12. Каждая subtask выполняется в собственном git worktree — ваша ветка `main` остаётся чистой, задачи никогда не пересекаются.
-   <!-- TODO(phase1): replace with docs/screenshots/how-3-parallel-running.png -->
-   <img src="docs/screenshots/coming-soon.png" alt="Несколько AI-задач, запущенных параллельно на Kanban-доске" width="720">
+   <img src="docs/screenshots/how-3-parallel-running.png" alt="Несколько AI-задач, запущенных параллельно на Kanban-доске" width="720">
 
 4. **AI Review → Human Review**
    После того как AI выполнит самопроверку, вы читаете diff и выбираете **Keep / Merge / Discard**. Ничего не сливается автоматически.
-   <!-- TODO(phase1): replace with docs/screenshots/how-4-diff-review.png -->
-   <img src="docs/screenshots/coming-soon.png" alt="Панель проверки diff с действиями Keep, Merge и Discard" width="720">
+   <img src="docs/screenshots/how-4-diff-review.png" alt="Панель проверки diff с действиями Keep, Merge и Discard" width="720">
 
 ## Чем FleetKanban отличается
 

@@ -67,23 +67,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-from-source.
 
 1. **用自然语言描述你的任务**
    例如：*“更新侧边栏以支持暗色模式。”*
-   <!-- TODO(phase1): replace with docs/screenshots/how-1-new-task.png -->
-   <img src="docs/screenshots/coming-soon.png" alt="Kanban 面板上的新任务对话框" width="720">
+   <img src="docs/screenshots/how-1-new-task.png" alt="Kanban 面板上的新任务对话框" width="720">
 
 2. **AI 进行规划，并将其拆分为 Subtask DAG**
    Plan 阶段生成执行计划，将工作拆解为并行 / 串行的 Subtask，并以 Sugiyama 布局可视化展示。
-   <!-- TODO(phase1): replace with docs/screenshots/how-2-subtask-dag.png -->
-   <img src="docs/screenshots/coming-soon.png" alt="展示并行与串行依赖的 Subtask DAG 可视化" width="720">
+   <img src="docs/screenshots/how-2-subtask-dag.png" alt="展示并行与串行依赖的 Subtask DAG 可视化" width="720">
 
 3. **在隔离的 git worktree 上并行执行**
    默认 4 个任务并行，最多可达 12 个。每个 Subtask 都在各自的 git worktree 中运行 — 你的 `main` 分支保持整洁，任务之间永不冲突。
-   <!-- TODO(phase1): replace with docs/screenshots/how-3-parallel-running.png -->
-   <img src="docs/screenshots/coming-soon.png" alt="Kanban 面板上多个 AI 任务并行运行" width="720">
+   <img src="docs/screenshots/how-3-parallel-running.png" alt="Kanban 面板上多个 AI 任务并行运行" width="720">
 
 4. **AI Review → Human Review**
    AI 自我审查之后，由你阅读 diff 并选择 **Keep / Merge / Discard**。没有任何内容会被自动合并。
-   <!-- TODO(phase1): replace with docs/screenshots/how-4-diff-review.png -->
-   <img src="docs/screenshots/coming-soon.png" alt="带有 Keep、Merge、Discard 操作的 diff 审查面板" width="720">
+   <img src="docs/screenshots/how-4-diff-review.png" alt="带有 Keep、Merge、Discard 操作的 diff 审查面板" width="720">
 
 ## FleetKanban 的与众不同
 

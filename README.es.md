@@ -67,23 +67,19 @@ Cualquiera de los dos caminos escribe el nuevo paquete en `build\release\`; la a
 
 1. **Describe tu tarea en lenguaje natural**
    Por ejemplo: *«Actualiza la barra lateral para que soporte modo oscuro».*
-   <!-- TODO(phase1): replace with docs/screenshots/how-1-new-task.png -->
-   <img src="docs/screenshots/coming-soon.png" alt="Diálogo de nueva tarea en el tablero Kanban" width="720">
+   <img src="docs/screenshots/how-1-new-task.png" alt="Diálogo de nueva tarea en el tablero Kanban" width="720">
 
 2. **La IA planifica y lo divide en un DAG de subtareas**
    La etapa Plan produce un plan de ejecución y descompone el trabajo en subtareas paralelas / seriales, visualizadas con un layout Sugiyama.
-   <!-- TODO(phase1): replace with docs/screenshots/how-2-subtask-dag.png -->
-   <img src="docs/screenshots/coming-soon.png" alt="Visualización del DAG de subtareas mostrando dependencias paralelas y seriales" width="720">
+   <img src="docs/screenshots/how-2-subtask-dag.png" alt="Visualización del DAG de subtareas mostrando dependencias paralelas y seriales" width="720">
 
 3. **Ejecución paralela sobre git worktrees aislados**
    4 tareas en paralelo por defecto, hasta 12. Cada subtarea corre en su propio git worktree — tu rama `main` permanece limpia y las tareas nunca colisionan.
-   <!-- TODO(phase1): replace with docs/screenshots/how-3-parallel-running.png -->
-   <img src="docs/screenshots/coming-soon.png" alt="Múltiples tareas de IA ejecutándose en paralelo en el tablero Kanban" width="720">
+   <img src="docs/screenshots/how-3-parallel-running.png" alt="Múltiples tareas de IA ejecutándose en paralelo en el tablero Kanban" width="720">
 
 4. **AI Review → Human Review**
    Después de la auto-revisión de la IA, tú lees el diff y eliges **Keep / Merge / Discard**. Nada se mergea automáticamente.
-   <!-- TODO(phase1): replace with docs/screenshots/how-4-diff-review.png -->
-   <img src="docs/screenshots/coming-soon.png" alt="Panel de revisión de diff con las acciones Keep, Merge y Discard" width="720">
+   <img src="docs/screenshots/how-4-diff-review.png" alt="Panel de revisión de diff con las acciones Keep, Merge y Discard" width="720">
 
 ## Qué hace diferente a FleetKanban
 

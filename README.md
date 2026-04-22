@@ -67,23 +67,19 @@ Either path writes the new package into `build\release\`; the running app picks 
 
 1. **Describe your task in natural language**
    For example: *"Update the sidebar to support dark mode."*
-   <!-- TODO(phase1): replace with docs/screenshots/how-1-new-task.png -->
-   <img src="docs/screenshots/coming-soon.png" alt="New task dialog on the Kanban board" width="720">
+   <img src="docs/screenshots/how-1-new-task.png" alt="New task dialog on the Kanban board" width="720">
 
 2. **The AI plans and splits it into a subtask DAG**
    The Plan stage produces an execution plan and breaks the work into parallel / serial subtasks, visualised with a Sugiyama layout.
-   <!-- TODO(phase1): replace with docs/screenshots/how-2-subtask-dag.png -->
-   <img src="docs/screenshots/coming-soon.png" alt="Subtask DAG visualisation showing parallel and serial dependencies" width="720">
+   <img src="docs/screenshots/how-2-subtask-dag.png" alt="Subtask DAG visualisation showing parallel and serial dependencies" width="720">
 
 3. **Parallel execution on isolated git worktrees**
    4 tasks in parallel by default, up to 12. Each subtask runs in its own git worktree — your `main` branch stays clean and tasks never collide.
-   <!-- TODO(phase1): replace with docs/screenshots/how-3-parallel-running.png -->
-   <img src="docs/screenshots/coming-soon.png" alt="Multiple AI tasks running in parallel on the Kanban board" width="720">
+   <img src="docs/screenshots/how-3-parallel-running.png" alt="Multiple AI tasks running in parallel on the Kanban board" width="720">
 
 4. **AI Review → Human Review**
    After the AI self-reviews, you read the diff and choose **Keep / Merge / Discard**. Nothing auto-merges.
-   <!-- TODO(phase1): replace with docs/screenshots/how-4-diff-review.png -->
-   <img src="docs/screenshots/coming-soon.png" alt="Diff review pane with Keep, Merge, and Discard actions" width="720">
+   <img src="docs/screenshots/how-4-diff-review.png" alt="Diff review pane with Keep, Merge, and Discard actions" width="720">
 
 ## What makes FleetKanban different
 

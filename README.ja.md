@@ -67,23 +67,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-from-source.
 
 1. **自然言語でタスクを記述する**
    例: *「サイドバーをダークモード対応にする。」*
-   <!-- TODO(phase1): replace with docs/screenshots/how-1-new-task.png -->
-   <img src="docs/screenshots/coming-soon.png" alt="Kanban ボード上の新規タスクダイアログ" width="720">
+   <img src="docs/screenshots/how-1-new-task.png" alt="Kanban ボード上の新規タスクダイアログ" width="720">
 
 2. **AI が計画し Subtask DAG に分解する**
    Plan ステージが実行計画を生成し、作業を並列/直列の Subtask に分解して Sugiyama レイアウトで可視化します。
-   <!-- TODO(phase1): replace with docs/screenshots/how-2-subtask-dag.png -->
-   <img src="docs/screenshots/coming-soon.png" alt="並列/直列の依存関係を示す Subtask DAG の可視化" width="720">
+   <img src="docs/screenshots/how-2-subtask-dag.png" alt="並列/直列の依存関係を示す Subtask DAG の可視化" width="720">
 
 3. **隔離された git worktree 上での並列実行**
    既定で 4 タスク並列、最大 12 タスクまで。各 Subtask は専用の git worktree で実行されるため、`main` ブランチはクリーンなままで、タスク同士が衝突することもありません。
-   <!-- TODO(phase1): replace with docs/screenshots/how-3-parallel-running.png -->
-   <img src="docs/screenshots/coming-soon.png" alt="Kanban ボード上で並列実行される複数の AI タスク" width="720">
+   <img src="docs/screenshots/how-3-parallel-running.png" alt="Kanban ボード上で並列実行される複数の AI タスク" width="720">
 
 4. **AI Review → Human Review**
    AI がセルフレビューを行ったのち、ユーザが diff を確認して **Keep / Merge / Discard** を選択します。自動マージは一切ありません。
-   <!-- TODO(phase1): replace with docs/screenshots/how-4-diff-review.png -->
-   <img src="docs/screenshots/coming-soon.png" alt="Keep / Merge / Discard アクションを備えた diff レビューペイン" width="720">
+   <img src="docs/screenshots/how-4-diff-review.png" alt="Keep / Merge / Discard アクションを備えた diff レビューペイン" width="720">
 
 ## FleetKanban の何が違うのか
 

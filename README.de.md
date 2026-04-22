@@ -67,23 +67,19 @@ Beide Wege schreiben das neue Paket in `build\release\`; die laufende App nimmt 
 
 1. **Beschreiben Sie Ihren Task in natürlicher Sprache**
    Zum Beispiel: *„Erweitere die Sidebar um Unterstützung für den Dark Mode."*
-   <!-- TODO(phase1): replace with docs/screenshots/how-1-new-task.png -->
-   <img src="docs/screenshots/coming-soon.png" alt="Dialog „Neuer Task" auf dem Kanban-Board" width="720">
+   <img src="docs/screenshots/how-1-new-task.png" alt="Dialog „Neuer Task" auf dem Kanban-Board" width="720">
 
 2. **Die KI plant und zerlegt den Task in einen Subtask-DAG**
    Die Plan-Stufe erzeugt einen Ausführungsplan und teilt die Arbeit in parallele / serielle Subtasks auf, visualisiert mit einem Sugiyama-Layout.
-   <!-- TODO(phase1): replace with docs/screenshots/how-2-subtask-dag.png -->
-   <img src="docs/screenshots/coming-soon.png" alt="Subtask-DAG-Visualisierung mit parallelen und seriellen Abhängigkeiten" width="720">
+   <img src="docs/screenshots/how-2-subtask-dag.png" alt="Subtask-DAG-Visualisierung mit parallelen und seriellen Abhängigkeiten" width="720">
 
 3. **Parallele Ausführung auf isolierten git worktrees**
    Standardmäßig 4 Tasks parallel, bis zu 12. Jeder Subtask läuft in seinem eigenen git worktree — Ihr `main`-Branch bleibt sauber und Tasks kollidieren nie.
-   <!-- TODO(phase1): replace with docs/screenshots/how-3-parallel-running.png -->
-   <img src="docs/screenshots/coming-soon.png" alt="Mehrere parallel laufende KI-Tasks auf dem Kanban-Board" width="720">
+   <img src="docs/screenshots/how-3-parallel-running.png" alt="Mehrere parallel laufende KI-Tasks auf dem Kanban-Board" width="720">
 
 4. **KI-Review → Human Review**
    Nachdem die KI ihr Ergebnis selbst reviewed hat, lesen Sie den Diff und wählen **Keep / Merge / Discard**. Nichts wird automatisch gemergt.
-   <!-- TODO(phase1): replace with docs/screenshots/how-4-diff-review.png -->
-   <img src="docs/screenshots/coming-soon.png" alt="Diff-Review-Bereich mit den Aktionen Keep, Merge und Discard" width="720">
+   <img src="docs/screenshots/how-4-diff-review.png" alt="Diff-Review-Bereich mit den Aktionen Keep, Merge und Discard" width="720">
 
 ## Was FleetKanban anders macht
 
