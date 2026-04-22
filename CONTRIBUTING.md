@@ -111,7 +111,23 @@ FleetKanban/
 
 ### One-shot bootstrap
 
-winget can install most of the toolchain in one go:
+`scripts/build-from-source.ps1` installs the full toolchain (Go / Flutter /
+VS Build Tools / .NET SDK / PowerShell 7 / Task / buf / Velopack `vpk`) via
+winget + `go install` + `dotnet tool`, then builds a Velopack installer:
+
+```powershell
+git clone https://github.com/haya3/FleetKanban.git
+cd FleetKanban/repo
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-from-source.ps1
+# → build/release/com.fleetkanban.FleetKanban-win-Setup.exe
+```
+
+Parameters: `-Mode Dev|Release|MSIX` (default `Release`), `-SkipPrereqs`
+(skip tool checks on re-runs), `-InstallPrereqsOnly` (provision toolchain
+and exit). The script is idempotent — re-running installs only what is
+missing.
+
+Manual bootstrap is also supported for users who prefer it:
 
 ```powershell
 winget install GoLang.Go
@@ -120,25 +136,53 @@ winget install Git.Git
 winget install Microsoft.VisualStudio.2022.BuildTools --override "--wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
 winget install GitHub.CopilotCLI
 # Flutter: the official ZIP is recommended (https://flutter.dev/)
-```
 
-Enable Flutter:
-
-```powershell
 flutter config --enable-windows-desktop
 flutter doctor
-```
-
-Clone the repository and bootstrap tooling:
-
-```powershell
-git clone https://github.com/haya3/FleetKanban.git
-cd fleetkanban
 
 go install github.com/go-task/task/v3/cmd/task@latest
 task proto:tools
 task flutter:pub
 ```
+
+### Self-built installs receive in-app updates
+
+When `build-from-source.ps1 -Mode Release` runs, it passes
+`FEED_URL=file:///<repo>/build/release/` to `task release:pack`, which
+drops an `update-feed.txt` marker into the Velopack package. The installed
+app reads this file at startup and polls the local `build/release/` feed
+instead of GitHub Releases.
+
+That means the update flow after a first install is either:
+
+**From a terminal:**
+
+```powershell
+git pull
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-from-source.ps1 -SkipPrereqs
+```
+
+**Or from inside the running app:** open **Settings → Source updates
+(self-built install) → Pull & rebuild from source**. The button runs the
+same `git pull --ff-only` + `build-from-source.ps1 -SkipPrereqs` pipeline
+and tails the build log inline. This section only appears when the
+running app was installed from a self-build (detected via
+`update-feed.txt`); on public-release installs it stays hidden.
+
+Bump `appVersion` in the three sources (`ui/pubspec.yaml`,
+`ui/lib/app/version.dart`, `sidecar/internal/branding/branding.go` — gated
+by `scripts/check-versions.ps1`) before the rebuild if you want the
+installed app to actually see a newer version. After a successful build,
+the in-app Update InfoBar surfaces on the next `updateCheckProvider`
+poll; clicking Update swaps in the new binary via `Update.exe apply` and
+restarts the app.
+
+Sharing the feed over LAN works too — serve `build/release/` over
+**HTTPS** (self-signed is fine) and point `update-feed.txt` at the
+`https://` URL instead of a `file://` URI. Plain `http://` is rejected
+by `resolveLocalFeed()` because the downloaded nupkg is executed
+verbatim and a LAN MITM on HTTP would be an arbitrary-code-execution
+vector.
 
 ## Build & Run
 

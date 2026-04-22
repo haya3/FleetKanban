@@ -37,9 +37,31 @@
 - 运行条件：**Windows 11 64 位** · **GitHub Copilot 订阅** · **Git for Windows**
 - 安装后，应用可通过应用内 InfoBar **一键自更新**。
 
-> **Early Preview。** FleetKanban 目前处于 Phase 1 开发阶段。在首个 tag 版本发布之前，可参考 [CONTRIBUTING.md](./CONTRIBUTING.md) 从源码构建体验。
+> **Early Preview（从源码构建）。** FleetKanban 目前处于 Phase 1 开发阶段。在首个 tag 版本发布之前，请[从源码构建](#从源码构建early-preview)——只需一个 PowerShell 脚本即可完成。
 
 > **SmartScreen。** Phase 1 发布时为未签名版本，因此 Windows SmartScreen 在首次启动时会显示“Windows 已保护你的电脑”。点击“更多信息”→“仍要运行”即可继续。EV / Azure Trusted Signing 计划在 Phase 2 引入。
+
+## 从源码构建（Early Preview）
+
+在首个 tag 版本发布之前，一个 PowerShell 脚本即可通过 winget 安装完整的工具链（Go、Flutter、VS 2022 Build Tools、.NET SDK、Task、Velopack `vpk`），并产出可运行的安装包：
+
+```powershell
+git clone https://github.com/haya3/FleetKanban.git
+cd FleetKanban\repo
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-from-source.ps1
+# → build\release\com.fleetkanban.FleetKanban-win-Setup.exe
+```
+
+运行生成的 `Setup.exe` 一次即可完成安装。该脚本是幂等的——重复执行只会安装缺失的部分。
+
+### 更新自构建安装
+
+已安装的应用会通过 Velopack feed 标记（`update-feed.txt`）轮询你本地的 `build\release\` 目录，因此更新只需重新构建即可——无需单独的重装步骤。可以选择：
+
+- **在应用内（一键完成）。** 打开 **Settings → Source updates (self-built install) → Pull & rebuild from source**。该按钮会执行 `git pull --ff-only` + 构建脚本，实时跟踪构建日志，新版本就绪时应用内的 **Update InfoBar** 会自动出现。点击即可替换二进制并重启。
+- **在终端中。** `git pull; .\scripts\build-from-source.ps1 -SkipPrereqs`，然后等待同样的 InfoBar。
+
+两条路径都会把新包写入 `build\release\`；正在运行的应用会在不重装的前提下自动拾取。若希望已安装的应用把它视为更新版本，请在重新构建前同步提升 `ui/pubspec.yaml`、`ui/lib/app/version.dart` 与 `sidecar/internal/branding/branding.go` 中的 `appVersion`（由 `check-versions.ps1` 强制校验）。完整构建细节：[CONTRIBUTING.md](./CONTRIBUTING.md#environment-setup)。
 
 ## 工作原理
 

@@ -37,9 +37,31 @@
 - You need: **Windows 11 64-bit** · **GitHub Copilot subscription** · **Git for Windows**
 - After install, the app **updates itself with one click** from an in-app InfoBar.
 
-> **Early Preview.** FleetKanban is in Phase 1 development. Until the first tagged release lands, see [CONTRIBUTING.md](./CONTRIBUTING.md) to build from source today.
+> **Early Preview.** FleetKanban is in Phase 1 development. Until the first tagged release lands, [build from source](#build-from-source-early-preview) — it's a single PowerShell script.
 
 > **SmartScreen.** Phase 1 ships unsigned, so Windows SmartScreen will show "Windows protected your PC" on first launch. Click "More info" → "Run anyway" to proceed. EV / Azure Trusted Signing is planned for Phase 2.
+
+## Build from source (Early Preview)
+
+Until the first tagged release lands, a single PowerShell script installs the full toolchain (Go, Flutter, VS 2022 Build Tools, .NET SDK, Task, Velopack `vpk`) via winget and produces a runnable installer:
+
+```powershell
+git clone https://github.com/haya3/FleetKanban.git
+cd FleetKanban\repo
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-from-source.ps1
+# → build\release\com.fleetkanban.FleetKanban-win-Setup.exe
+```
+
+Run the generated `Setup.exe` once to install. The script is idempotent — re-running only installs what's missing.
+
+### Updating a self-built install
+
+The installed app polls your local `build\release\` directory via a Velopack feed marker (`update-feed.txt`), so updating is just a rebuild — no separate reinstall step. Either:
+
+- **Inside the app (one click).** Open **Settings → Source updates (self-built install) → Pull & rebuild from source**. The button runs `git pull --ff-only` + the build script, tails the build log inline, and the in-app **Update InfoBar** surfaces automatically when the new version is ready. Click it to swap binaries and restart.
+- **From a terminal.** `git pull; .\scripts\build-from-source.ps1 -SkipPrereqs`, then wait for the same InfoBar.
+
+Either path writes the new package into `build\release\`; the running app picks it up without reinstalling. Bump `appVersion` in `ui/pubspec.yaml`, `ui/lib/app/version.dart`, and `sidecar/internal/branding/branding.go` (enforced by `check-versions.ps1`) before the rebuild if you want the installed app to treat it as a newer version. Full build details: [CONTRIBUTING.md](./CONTRIBUTING.md#environment-setup).
 
 ## How it works
 

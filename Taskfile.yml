@@ -157,6 +157,13 @@ tasks:
     cmds:
       - cmd: pwsh -NoProfile -Command "New-Item -ItemType Directory -Force -Path '{{.OUTPUT_DIR}}' | Out-Null"
         platforms: [windows]
+      # When FEED_URL is set (typically by scripts/build-from-source.ps1 for
+      # self-built installs), drop update-feed.txt into the Release runner
+      # dir so it ends up at <installRoot>/current/update-feed.txt after
+      # install. VelopackUpdater reads this file and polls a local
+      # build/release/ feed instead of GitHub Releases.
+      - cmd: pwsh -NoProfile -Command "if ($env:FEED_URL) { Set-Content -Path 'build/windows/x64/runner/Release/update-feed.txt' -Value $env:FEED_URL -Encoding ascii -NoNewline; Write-Host ('Wrote update-feed.txt -> ' + $env:FEED_URL) }"
+        platforms: [windows]
       # Set VPK_SIGN_TEMPLATE (e.g., 'signtool sign /tr ... /f cert.pfx /p pw {{file...}}')
       # to enable code signing. When unset, the installer is unsigned and
       # SmartScreen will show a first-run warning.

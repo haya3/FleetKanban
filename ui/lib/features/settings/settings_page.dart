@@ -8,6 +8,8 @@ import 'package:protobuf/well_known_types/google/protobuf/empty.pb.dart'
     show Empty;
 
 import '../../app/error_display.dart';
+import '../../app/updater/source_rebuild_service.dart';
+import '../../app/updater/updater_service.dart';
 import '../../infra/ipc/generated/fleetkanban/v1/fleetkanban.pb.dart' as pb;
 import '../../infra/ipc/providers.dart';
 import '../auth/sign_in_dialog.dart';
@@ -232,6 +234,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             const _CopilotAuthSection(),
             const _MemorySection(),
             const HousekeepingSection(),
+            const _SourceRebuildSection(),
           ],
         ),
       ),
@@ -1561,6 +1564,179 @@ class _OllamaModelListState extends ConsumerState<_OllamaModelList> {
           ),
         );
       },
+    );
+  }
+}
+
+// _SourceRebuildSection is the in-app counterpart to running
+// scripts/build-from-source.ps1 from a terminal. Shows only on installs
+// that came from a self-build (update-feed.txt + build-from-source.ps1
+// both present); hidden on public-release installs. Runs `git pull
+// --ff-only` then the script with -SkipPrereqs and streams both
+// processes' output into a scrollable log. On success, the existing
+// updateCheckProvider re-checks immediately (via
+// SourceRebuildNotifier.run) so the Update InfoBar surfaces without
+// waiting for the hourly poll.
+class _SourceRebuildSection extends ConsumerStatefulWidget {
+  const _SourceRebuildSection();
+  @override
+  ConsumerState<_SourceRebuildSection> createState() =>
+      _SourceRebuildSectionState();
+}
+
+class _SourceRebuildSectionState extends ConsumerState<_SourceRebuildSection> {
+  final _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  // Only follow the tail when the user is already near the bottom,
+  // so scrolling up to read an earlier build step is sticky instead
+  // of being yanked back down on every appended line.
+  void _scrollToBottomAfterBuild() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      final pos = _scrollController.position;
+      if (pos.maxScrollExtent - pos.pixels < 60) {
+        _scrollController.jumpTo(pos.maxScrollExtent);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final service = ref.watch(sourceRebuildServiceProvider);
+    final root = service.resolveSourceRepoRoot();
+    if (root == null) return const SizedBox.shrink();
+
+    final state = ref.watch(sourceRebuildProvider);
+    final notifier = ref.read(sourceRebuildProvider.notifier);
+    final theme = FluentTheme.of(context);
+    _scrollToBottomAfterBuild();
+
+    return _Section(
+      title: 'Source updates (self-built install)',
+      subtitle:
+          'Pull the latest code from git and rebuild locally. The '
+          'Update InfoBar appears on its own once the rebuild produces a '
+          'newer appVersion — this section just saves a round-trip to '
+          'the terminal.\n\nRepo: ${root.path}',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              FilledButton(
+                onPressed: state.isRunning ? null : () => notifier.run(),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (state.isRunning)
+                      const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: ProgressRing(strokeWidth: 2),
+                      )
+                    else
+                      const Icon(FluentIcons.refresh, size: 14),
+                    const SizedBox(width: 6),
+                    Text(_buttonLabel(state.phase)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              _PhaseLabel(phase: state.phase),
+              const Spacer(),
+              if (state.logLines.isNotEmpty)
+                Button(
+                  onPressed: state.isRunning ? null : () => notifier.reset(),
+                  child: const Text('Clear log'),
+                ),
+            ],
+          ),
+          if (state.errorMessage != null) ...[
+            const SizedBox(height: 8),
+            ErrorInfoBar(
+              title: 'Rebuild failed',
+              message: state.errorMessage!,
+            ),
+          ],
+          if (state.logLines.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              height: 220,
+              decoration: BoxDecoration(
+                color: theme.resources.subtleFillColorSecondary,
+                border: Border.all(
+                  color: theme.resources.controlStrokeColorDefault,
+                ),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              padding: const EdgeInsets.all(8),
+              child: Scrollbar(
+                controller: _scrollController,
+                child: ListView.builder(
+                  controller: _scrollController,
+                  itemCount: state.logLines.length,
+                  itemBuilder: (ctx, i) => SelectableText(
+                    state.logLines[i],
+                    style: TextStyle(
+                      fontFamily: 'Consolas',
+                      fontSize: 12,
+                      color: theme.resources.textFillColorPrimary,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _buttonLabel(SourceRebuildPhase p) => switch (p) {
+    SourceRebuildPhase.pulling => 'Pulling…',
+    SourceRebuildPhase.building => 'Building…',
+    SourceRebuildPhase.success => 'Pull & rebuild again',
+    SourceRebuildPhase.failure => 'Retry pull & rebuild',
+    SourceRebuildPhase.idle => 'Pull & rebuild from source',
+  };
+}
+
+class _PhaseLabel extends StatelessWidget {
+  const _PhaseLabel({required this.phase});
+  final SourceRebuildPhase phase;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (phase) {
+      SourceRebuildPhase.pulling => (
+        'Pulling from remote…',
+        const Color(0xFF005FB8),
+      ),
+      SourceRebuildPhase.building => (
+        'Building (1–3 min)…',
+        const Color(0xFF005FB8),
+      ),
+      SourceRebuildPhase.success => (
+        'Build complete — Update InfoBar follows automatically',
+        const Color(0xFF107C10),
+      ),
+      SourceRebuildPhase.failure => ('Failed', const Color(0xFFC42B1C)),
+      SourceRebuildPhase.idle => ('', Color(0x00000000)),
+    };
+    if (label.isEmpty) return const SizedBox.shrink();
+    return Text(
+      label,
+      style: TextStyle(
+        color: color,
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+      ),
     );
   }
 }

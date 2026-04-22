@@ -37,9 +37,31 @@
 - Вам потребуется: **Windows 11 64-бит** · **подписка GitHub Copilot** · **Git for Windows**
 - После установки приложение **обновляется в один клик** через InfoBar внутри приложения.
 
-> **Early Preview.** FleetKanban находится в разработке Phase 1. До появления первого тегированного релиза смотрите [CONTRIBUTING.md](./CONTRIBUTING.md), чтобы собрать из исходников уже сегодня.
+> **Early Preview (сборка из исходников).** FleetKanban находится в разработке Phase 1. До появления первого тегированного релиза [соберите из исходников](#сборка-из-исходников-early-preview) — это один PowerShell-скрипт.
 
 > **SmartScreen.** Phase 1 поставляется без подписи, поэтому Windows SmartScreen при первом запуске покажет «Система Windows защитила ваш компьютер». Нажмите «Подробнее» → «Выполнить в любом случае», чтобы продолжить. EV / Azure Trusted Signing запланированы на Phase 2.
+
+## Сборка из исходников (Early Preview)
+
+До появления первого тегированного релиза один PowerShell-скрипт устанавливает полный toolchain (Go, Flutter, VS 2022 Build Tools, .NET SDK, Task, Velopack `vpk`) через winget и собирает готовый к запуску installer:
+
+```powershell
+git clone https://github.com/haya3/FleetKanban.git
+cd FleetKanban\repo
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-from-source.ps1
+# → build\release\com.fleetkanban.FleetKanban-win-Setup.exe
+```
+
+Запустите сгенерированный `Setup.exe` один раз, чтобы установить приложение. Скрипт идемпотентен — повторный запуск ставит только недостающее.
+
+### Обновление self-built установки
+
+Установленное приложение опрашивает локальный каталог `build\release\` через Velopack-feed-маркер (`update-feed.txt`), поэтому обновление сводится к пересборке — отдельный шаг переустановки не нужен. Варианта два:
+
+- **Внутри приложения (в один клик).** Откройте **Settings → Source updates (self-built install) → Pull & rebuild from source**. Кнопка выполняет `git pull --ff-only` + build-скрипт, показывает лог сборки прямо в интерфейсе, и когда новая версия готова, автоматически всплывает in-app **Update InfoBar**. Нажмите на него, чтобы подменить бинарники и перезапустить приложение.
+- **Из терминала.** `git pull; .\scripts\build-from-source.ps1 -SkipPrereqs`, затем дождитесь того же InfoBar.
+
+В обоих случаях новый пакет попадает в `build\release\`; запущенное приложение подхватывает его без переустановки. Если хотите, чтобы установленное приложение воспринимало сборку как более новую версию, перед пересборкой увеличьте `appVersion` в `ui/pubspec.yaml`, `ui/lib/app/version.dart` и `sidecar/internal/branding/branding.go` (проверяется `check-versions.ps1`). Полные детали сборки: [CONTRIBUTING.md](./CONTRIBUTING.md#environment-setup).
 
 ## Как это работает
 

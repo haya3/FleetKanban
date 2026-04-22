@@ -37,9 +37,31 @@
 - Você precisa de: **Windows 11 64 bits** · **Assinatura do GitHub Copilot** · **Git for Windows**
 - Após a instalação, o app **se atualiza sozinho com um clique** a partir de um InfoBar dentro do próprio app.
 
-> **Early Preview.** O FleetKanban está em desenvolvimento na Phase 1. Até o primeiro release marcado por tag sair, consulte [CONTRIBUTING.md](./CONTRIBUTING.md) para compilar a partir do código-fonte hoje.
+> **Early Preview (compile a partir do código-fonte).** O FleetKanban está em desenvolvimento na Phase 1. Até o primeiro release marcado por tag sair, [compile a partir do código-fonte](#build-from-source-early-preview) — é um único script PowerShell.
 
 > **SmartScreen.** A Phase 1 é distribuída sem assinatura, então o Windows SmartScreen exibirá "O Windows protegeu seu PC" no primeiro lançamento. Clique em "Mais informações" → "Executar mesmo assim" para continuar. Assinatura EV / Azure Trusted Signing está prevista para a Phase 2.
+
+## Build from source (Early Preview)
+
+Até o primeiro release marcado por tag sair, um único script PowerShell instala toda a toolchain (Go, Flutter, VS 2022 Build Tools, .NET SDK, Task, Velopack `vpk`) via winget e produz um instalador executável:
+
+```powershell
+git clone https://github.com/haya3/FleetKanban.git
+cd FleetKanban\repo
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-from-source.ps1
+# → build\release\com.fleetkanban.FleetKanban-win-Setup.exe
+```
+
+Execute o `Setup.exe` gerado uma vez para instalar. O script é idempotente — reexecutá-lo só instala o que estiver faltando.
+
+### Atualizando uma instalação compilada por você
+
+O app instalado consulta o seu diretório local `build\release\` através de um marcador de feed do Velopack (`update-feed.txt`), então atualizar é apenas recompilar — sem um passo de reinstalação separado. Escolha uma das opções:
+
+- **Dentro do app (um clique).** Abra **Settings → Source updates (self-built install) → Pull & rebuild from source**. O botão executa `git pull --ff-only` + o script de build, mostra o log do build inline e o **Update InfoBar** dentro do app aparece automaticamente quando a nova versão estiver pronta. Clique nele para trocar os binários e reiniciar.
+- **A partir de um terminal.** `git pull; .\scripts\build-from-source.ps1 -SkipPrereqs`, depois aguarde o mesmo InfoBar.
+
+Qualquer um dos caminhos grava o novo pacote em `build\release\`; o app em execução o detecta sem reinstalar. Faça o bump de `appVersion` em `ui/pubspec.yaml`, `ui/lib/app/version.dart` e `sidecar/internal/branding/branding.go` (verificado por `check-versions.ps1`) antes do rebuild caso queira que o app instalado o trate como uma versão mais nova. Detalhes completos de build: [CONTRIBUTING.md](./CONTRIBUTING.md#environment-setup).
 
 ## Como funciona
 

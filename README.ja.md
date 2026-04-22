@@ -37,9 +37,31 @@
 - 必要環境: **Windows 11 64-bit** ・ **GitHub Copilot サブスクリプション** ・ **Git for Windows**
 - インストール後は、アプリ内 InfoBar から **ワンクリックで自己更新** します。
 
-> **Early Preview。** FleetKanban は Phase 1 開発中です。初回タグ付きリリースが到着するまでは、[CONTRIBUTING.md](./CONTRIBUTING.md) を参照してソースからビルドしてください。
+> **早期プレビュー（ソースからビルド）。** FleetKanban は Phase 1 開発中です。初回タグ付きリリースが到着するまでは、[ソースからビルド](#ソースからビルド-early-preview)してください — PowerShell スクリプト 1 本で済みます。
 
 > **SmartScreen。** Phase 1 は未署名で出荷されるため、Windows SmartScreen が初回起動時に「Windows によって PC が保護されました」を表示します。「詳細情報」→「実行」を選択して続行してください。EV 署名 / Azure Trusted Signing は Phase 2 で導入予定です。
+
+## ソースからビルド (Early Preview)
+
+初回タグ付きリリースが到着するまでは、PowerShell スクリプト 1 本で winget 経由で完全なツールチェーン (Go、Flutter、VS 2022 Build Tools、.NET SDK、Task、Velopack `vpk`) をインストールし、実行可能なインストーラを生成します:
+
+```powershell
+git clone https://github.com/haya3/FleetKanban.git
+cd FleetKanban\repo
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-from-source.ps1
+# → build\release\com.fleetkanban.FleetKanban-win-Setup.exe
+```
+
+生成された `Setup.exe` を一度実行してインストールしてください。このスクリプトは冪等です — 再実行しても不足しているものだけをインストールします。
+
+### 自己ビルド版インストールの更新
+
+インストール済みアプリは Velopack のフィードマーカー (`update-feed.txt`) を介してローカルの `build\release\` ディレクトリをポーリングするため、更新は再ビルドするだけで完了します — 別途再インストール手順は不要です。次のいずれかを選んでください:
+
+- **アプリ内から (ワンクリック)。** **Settings → Source updates (self-built install) → Pull & rebuild from source** を開きます。ボタンを押すと `git pull --ff-only` とビルドスクリプトが実行され、ビルドログがインラインで追跡表示され、新バージョンの準備が整うとアプリ内の **Update InfoBar** が自動的に表示されます。クリックするとバイナリが差し替えられ、アプリが再起動します。
+- **ターミナルから。** `git pull; .\scripts\build-from-source.ps1 -SkipPrereqs` を実行し、同じ InfoBar が表示されるのを待ちます。
+
+どちらの経路でも新しいパッケージは `build\release\` に書き込まれ、実行中のアプリは再インストールすることなくこれを取り込みます。インストール済みアプリに新しいバージョンとして扱わせたい場合は、再ビルドの前に `ui/pubspec.yaml`、`ui/lib/app/version.dart`、`sidecar/internal/branding/branding.go` の `appVersion` を bump してください (`check-versions.ps1` により強制されます)。ビルドの詳細は [CONTRIBUTING.md](./CONTRIBUTING.md#environment-setup) を参照してください。
 
 ## 仕組み
 
