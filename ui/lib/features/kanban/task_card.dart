@@ -184,11 +184,20 @@ class _TitleRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: Text(
-            title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: theme.typography.bodyStrong,
+          // SelectionArea lets the user mouse-drag inside the title to
+          // select text (and right-click / Ctrl+C to copy) while leaving
+          // the underlying Text widget's maxLines + TextOverflow.ellipsis
+          // visuals intact. Selection gestures win against the outer
+          // Draggable within this subtree, so dragging on the title text
+          // no longer starts a Kanban column move — dragging from the
+          // rest of the card (phase label, chips, stepper) still does.
+          child: SelectionArea(
+            child: Text(
+              title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.typography.bodyStrong,
+            ),
           ),
         ),
         const SizedBox(width: 4),
