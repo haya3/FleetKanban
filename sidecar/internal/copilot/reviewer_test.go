@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/FleetKanban/fleetkanban/internal/task"
+	"github.com/haya3/FleetKanban/internal/task"
 )
 
 func TestParseReviewDecision_Approve(t *testing.T) {

@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	pb "github.com/FleetKanban/fleetkanban/internal/ipc/gen/fleetkanban/v1"
-	"github.com/FleetKanban/fleetkanban/internal/store"
+	pb "github.com/haya3/FleetKanban/internal/ipc/gen/fleetkanban/v1"
+	"github.com/haya3/FleetKanban/internal/store"
 )
 
 // openTestHarnessDB opens a fresh file-backed SQLite DB for harness tests.

@@ -15,8 +15,8 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
-	"github.com/FleetKanban/fleetkanban/internal/ctxmem"
-	"github.com/FleetKanban/fleetkanban/internal/ctxmem/store"
+	"github.com/haya3/FleetKanban/internal/ctxmem"
+	"github.com/haya3/FleetKanban/internal/ctxmem/store"
 )
 
 // SessionRunner runs a one-shot Copilot session in the given repo and

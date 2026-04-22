@@ -575,7 +575,7 @@ const file_fleetkanban_v1_insights_proto_rawDesc = "" +
 	"\x06failed\x18\x03 \x01(\x05R\x06failed2e\n" +
 	"\x0fInsightsService\x12R\n" +
 	"\vGetInsights\x12\".fleetkanban.v1.GetInsightsRequest\x1a\x1f.fleetkanban.v1.InsightsSummaryB\xce\x01\n" +
-	"\x12com.fleetkanban.v1B\rInsightsProtoP\x01ZPgithub.com/FleetKanban/fleetkanban/internal/ipc/gen/fleetkanban/v1;fleetkanbanv1\xa2\x02\x03FXX\xaa\x02\x0eFleetkanban.V1\xca\x02\x0eFleetkanban\\V1\xe2\x02\x1aFleetkanban\\V1\\GPBMetadata\xea\x02\x0fFleetkanban::V1b\x06proto3"
+	"\x12com.fleetkanban.v1B\rInsightsProtoP\x01ZPgithub.com/haya3/FleetKanban/internal/ipc/gen/fleetkanban/v1;fleetkanbanv1\xa2\x02\x03FXX\xaa\x02\x0eFleetkanban.V1\xca\x02\x0eFleetkanban\\V1\xe2\x02\x1aFleetkanban\\V1\\GPBMetadata\xea\x02\x0fFleetkanban::V1b\x06proto3"
 
 var (
 	file_fleetkanban_v1_insights_proto_rawDescOnce sync.Once

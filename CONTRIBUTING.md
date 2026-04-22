@@ -66,7 +66,7 @@ FleetKanban/
 │   ├── buf.yaml / buf.gen.yaml / buf.gen.dart.yaml
 │   └── fleetkanban/v1/              # fleetkanban.proto / housekeeping.proto / insights.proto
 ├── sidecar/                         # Go gRPC backend (headless)
-│   ├── go.mod                       # module github.com/FleetKanban/fleetkanban
+│   ├── go.mod                       # module github.com/haya3/FleetKanban
 │   ├── cmd/
 │   │   ├── fleetkanban-sidecar/     # entry + bundler-generated embedded CLI
 │   │   └── dbquery/                 # local SQLite inspection helper
@@ -132,7 +132,7 @@ flutter doctor
 Clone the repository and bootstrap tooling:
 
 ```powershell
-git clone https://github.com/FleetKanban/fleetkanban.git
+git clone https://github.com/haya3/FleetKanban.git
 cd fleetkanban
 
 go install github.com/go-task/task/v3/cmd/task@latest

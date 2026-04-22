@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/FleetKanban/fleetkanban/internal/task"
+	"github.com/haya3/FleetKanban/internal/task"
 )
 
 func TestSetConcurrency_Clamps(t *testing.T) {

@@ -19,8 +19,8 @@ package orchestrator
 import (
 	"context"
 
-	"github.com/FleetKanban/fleetkanban/internal/task"
-	"github.com/FleetKanban/fleetkanban/internal/worktree"
+	"github.com/haya3/FleetKanban/internal/task"
+	"github.com/haya3/FleetKanban/internal/worktree"
 )
 
 // AgentRunner executes one task from start to finish inside a worktree.

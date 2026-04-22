@@ -35,7 +35,7 @@ sidecar/
 │   ├── setup/                 # Runtime-dependency checks (pwsh 7+)
 │   ├── winapi/                # Windows 11 APIs (DPAPI / Toast / AUMID / Mica)
 │   └── branding/              # App identifiers (incl. ProtocolVersion)
-├── go.mod                     # module github.com/FleetKanban/fleetkanban
+├── go.mod                     # module github.com/haya3/FleetKanban
 └── go.sum
 ```
 

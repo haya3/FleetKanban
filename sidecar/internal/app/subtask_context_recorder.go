@@ -7,8 +7,8 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/FleetKanban/fleetkanban/internal/copilot"
-	"github.com/FleetKanban/fleetkanban/internal/store"
+	"github.com/haya3/FleetKanban/internal/copilot"
+	"github.com/haya3/FleetKanban/internal/store"
 )
 
 // subtaskContextRecorder implements copilot.SubtaskContextRecorder by

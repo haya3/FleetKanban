@@ -12,7 +12,7 @@ import (
 
 	copilot "github.com/github/copilot-sdk/go"
 
-	"github.com/FleetKanban/fleetkanban/internal/task"
+	"github.com/haya3/FleetKanban/internal/task"
 )
 
 // analyzerTimeout caps one repo-analysis session. Repos can be large

@@ -8,7 +8,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/FleetKanban/fleetkanban/internal/task"
+	"github.com/haya3/FleetKanban/internal/task"
 )
 
 // MaxGoalRunes caps the Goal length included in the prompt. Long goals are

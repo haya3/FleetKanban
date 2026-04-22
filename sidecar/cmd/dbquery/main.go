@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	dbPath := "C:/Users/Work/AppData/Roaming/FleetKanban/fleetkanban.db"
+	dbPath := "C:/Users/Work/AppData/Roaming/haya3/FleetKanban.db"
 	db, err := sql.Open("sqlite", "file:"+dbPath+"?mode=ro&_pragma=busy_timeout(5000)")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

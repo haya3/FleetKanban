@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/FleetKanban/fleetkanban/internal/copilot/tools"
-	"github.com/FleetKanban/fleetkanban/internal/orchestrator"
-	"github.com/FleetKanban/fleetkanban/internal/task"
+	"github.com/haya3/FleetKanban/internal/copilot/tools"
+	"github.com/haya3/FleetKanban/internal/orchestrator"
+	"github.com/haya3/FleetKanban/internal/task"
 	copilot "github.com/github/copilot-sdk/go"
 )
 

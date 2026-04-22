@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/FleetKanban/fleetkanban/internal/ihr"
-	pb "github.com/FleetKanban/fleetkanban/internal/ipc/gen/fleetkanban/v1"
-	"github.com/FleetKanban/fleetkanban/internal/store"
+	"github.com/haya3/FleetKanban/internal/ihr"
+	pb "github.com/haya3/FleetKanban/internal/ipc/gen/fleetkanban/v1"
+	"github.com/haya3/FleetKanban/internal/store"
 )
 
 // newHarnessServerWithCallback builds a HarnessServer like

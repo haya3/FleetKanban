@@ -529,7 +529,7 @@ const file_fleetkanban_v1_housekeeping_proto_rawDesc = "" +
 	"\x10SetAutoSweepDays\x12'.fleetkanban.v1.SetAutoSweepDaysRequest\x1a(.fleetkanban.v1.SetAutoSweepDaysResponse\x12h\n" +
 	"\x11ListStaleBranches\x12(.fleetkanban.v1.ListStaleBranchesRequest\x1a).fleetkanban.v1.ListStaleBranchesResponse\x12V\n" +
 	"\vRunSweepNow\x12\".fleetkanban.v1.RunSweepNowRequest\x1a#.fleetkanban.v1.RunSweepNowResponseB\xd2\x01\n" +
-	"\x12com.fleetkanban.v1B\x11HousekeepingProtoP\x01ZPgithub.com/FleetKanban/fleetkanban/internal/ipc/gen/fleetkanban/v1;fleetkanbanv1\xa2\x02\x03FXX\xaa\x02\x0eFleetkanban.V1\xca\x02\x0eFleetkanban\\V1\xe2\x02\x1aFleetkanban\\V1\\GPBMetadata\xea\x02\x0fFleetkanban::V1b\x06proto3"
+	"\x12com.fleetkanban.v1B\x11HousekeepingProtoP\x01ZPgithub.com/haya3/FleetKanban/internal/ipc/gen/fleetkanban/v1;fleetkanbanv1\xa2\x02\x03FXX\xaa\x02\x0eFleetkanban.V1\xca\x02\x0eFleetkanban\\V1\xe2\x02\x1aFleetkanban\\V1\\GPBMetadata\xea\x02\x0fFleetkanban::V1b\x06proto3"
 
 var (
 	file_fleetkanban_v1_housekeeping_proto_rawDescOnce sync.Once

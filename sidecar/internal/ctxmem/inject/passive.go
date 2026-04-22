@@ -19,9 +19,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/FleetKanban/fleetkanban/internal/ctxmem"
-	"github.com/FleetKanban/fleetkanban/internal/ctxmem/retrieval"
-	"github.com/FleetKanban/fleetkanban/internal/ctxmem/store"
+	"github.com/haya3/FleetKanban/internal/ctxmem"
+	"github.com/haya3/FleetKanban/internal/ctxmem/retrieval"
+	"github.com/haya3/FleetKanban/internal/ctxmem/store"
 )
 
 // Builder assembles injection blocks. Fields are the stores /

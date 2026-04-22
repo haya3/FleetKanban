@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/FleetKanban/fleetkanban/internal/task"
+	"github.com/haya3/FleetKanban/internal/task"
 )
 
 func TestSanitizeGoal_PassesThroughNormalText(t *testing.T) {

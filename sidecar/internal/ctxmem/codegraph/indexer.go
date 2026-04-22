@@ -10,8 +10,8 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
-	"github.com/FleetKanban/fleetkanban/internal/ctxmem"
-	"github.com/FleetKanban/fleetkanban/internal/ctxmem/store"
+	"github.com/haya3/FleetKanban/internal/ctxmem"
+	"github.com/haya3/FleetKanban/internal/ctxmem/store"
 )
 
 // Indexer persists the scan result into ctx_node + ctx_edge. It is
@@ -155,7 +155,7 @@ func fileAttrs(f FileEntry) map[string]string {
 //   - Relative paths ("./foo", "../bar/baz") for JS/TS/Dart/Python
 //   - Suffix match against repo-relative paths (for absolute/package
 //     imports whose trailing components overlap a real file — e.g.
-//     a Go import "github.com/FleetKanban/fleetkanban/internal/x"
+//     a Go import "github.com/haya3/FleetKanban/internal/x"
 //     matching "internal/x/x.go" inside the repo)
 func resolveImport(src FileEntry, ref string, idx map[string]ctxmem.Node) string {
 	// 1. Relative imports: resolve against src's directory.

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/FleetKanban/fleetkanban/internal/task"
+	"github.com/haya3/FleetKanban/internal/task"
 )
 
 // EventStore persists AgentEvent rows. Events are append-only; there are no

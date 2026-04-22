@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/FleetKanban/fleetkanban/internal/ctxmem"
-	"github.com/FleetKanban/fleetkanban/internal/ctxmem/embed"
-	"github.com/FleetKanban/fleetkanban/internal/ctxmem/graph"
-	"github.com/FleetKanban/fleetkanban/internal/ctxmem/store"
+	"github.com/haya3/FleetKanban/internal/ctxmem"
+	"github.com/haya3/FleetKanban/internal/ctxmem/embed"
+	"github.com/haya3/FleetKanban/internal/ctxmem/graph"
+	"github.com/haya3/FleetKanban/internal/ctxmem/store"
 )
 
 // Searcher runs hybrid retrieval (semantic + keyword + graph-boost
