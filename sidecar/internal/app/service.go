@@ -1013,16 +1013,26 @@ func (s *Service) CancelTask(ctx context.Context, id string) error {
 	if terr != nil {
 		return terr
 	}
+	var target task.Status
 	switch t.Status {
 	case task.StatusInProgress, task.StatusAIReview:
-		return s.tasks.Transition(ctx, id, t.Status, task.StatusAborted,
-			task.ErrCodeNone, "", task.FinalizationNone)
+		target = task.StatusAborted
 	case task.StatusPlanning, task.StatusQueued:
-		return s.tasks.Transition(ctx, id, t.Status, task.StatusCancelled,
-			task.ErrCodeNone, "", task.FinalizationNone)
+		target = task.StatusCancelled
 	default:
 		return nil // already terminal; nothing to do
 	}
+	if err := s.tasks.Transition(ctx, id, t.Status, target,
+		task.ErrCodeNone, "", task.FinalizationNone); err != nil {
+		return err
+	}
+	// The orchestrator's emitStatus does not run on this fallback (it had
+	// no live session for the task), so publish the kind="status" event
+	// ourselves — otherwise WatchEvents subscribers never see the orphan
+	// task transition and the Kanban shows the stale row until the user
+	// presses Refresh.
+	s.appendStatusEvent(ctx, id, t.Status, target)
+	return nil
 }
 
 // --- Settings --------------------------------------------------------------

@@ -167,6 +167,14 @@ class Tasks extends _$Tasks {
   final Map<String, Int64> _sinceByTask = {};
   int _attempt = 0;
   bool _disposed = false;
+  // Set every time _connect() is called (initial subscribe and every
+  // reconnect). Cleared by the first _onEvent that follows, at which point
+  // we force a tasks-list refetch. This closes the race where a status
+  // event fires on the sidecar after listTasks snapshots state but before
+  // the server-side broker.Subscribe() registers the new subscriber: once
+  // any live event makes it through we know we are hooked up and take the
+  // opportunity to resync against the server.
+  bool _resyncOnNextEvent = false;
 
   @override
   Future<List<pb.Task>> build(String repoId) async {
@@ -191,6 +199,7 @@ class Tasks extends _$Tasks {
     _reconnectTimer?.cancel();
     _sub?.cancel();
     _setHealth(const StreamHealth(state: StreamHealthState.connecting));
+    _resyncOnNextEvent = true;
 
     final req = pb.WatchEventsRequest();
     req.sinceSeqByTask.addAll(_sinceByTask);
@@ -208,18 +217,19 @@ class Tasks extends _$Tasks {
 
   void _onEvent(pb.AgentEvent ev) {
     if (_disposed) return;
-    final firstPacket = _attempt != 0;
+    final postConnectResync = _resyncOnNextEvent;
+    _resyncOnNextEvent = false;
     _attempt = 0;
     final prev = _sinceByTask[ev.taskId];
     if (prev == null || ev.seq > prev) {
       _sinceByTask[ev.taskId] = ev.seq;
     }
     _setHealth(const StreamHealth(state: StreamHealthState.connected));
-    // After a reconnect, the sidecar suppresses events whose seq <= our
-    // high-water-mark — but anything emitted while the UI was offline is
-    // simply lost (no backfill on WatchEvents by design). Re-fetch the
-    // task list once to resync, then fall back to incremental refresh.
-    if (firstPacket || _refetchKinds.contains(ev.kind)) {
+    // The first event after every connect (initial or reconnect) triggers
+    // a full refetch so the UI converges on the server-of-truth even if
+    // a status event slipped through the subscribe gap. On steady state
+    // we only refetch for the kinds that materially change the task row.
+    if (postConnectResync || _refetchKinds.contains(ev.kind)) {
       ref.invalidateSelf();
     }
   }
@@ -371,6 +381,16 @@ class TaskMutation extends _$TaskMutation {
   }
 
   Future<void> run(String taskId) async {
+    // Callers invoke this via `ref.read(mutationProvider.notifier).run(id)`
+    // without retaining a listener, so the family notifier would otherwise
+    // auto-dispose between the synchronous entry and the gRPC await's
+    // completion. Assigning `state` on a disposed Ref throws, which shows
+    // up in the logs as "Cannot use the Ref of taskMutationProvider after
+    // it has been disposed" and swallows mutation feedback (no spinner,
+    // no error InfoBar) even when the RPC itself succeeded. Hold the
+    // notifier alive for the duration of the call and release at the end
+    // so autoDispose can resume its normal lifecycle.
+    final link = ref.keepAlive();
     state = const AsyncValue.loading();
     try {
       final client = ref.read(ipcClientProvider);
@@ -412,6 +432,8 @@ class TaskMutation extends _$TaskMutation {
     } catch (e, st) {
       state = AsyncValue.error(e, st);
       recordActionError(ref, title: _mutationTitle(kind), error: e);
+    } finally {
+      link.close();
     }
   }
 }
