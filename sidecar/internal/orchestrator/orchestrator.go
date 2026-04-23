@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -28,6 +30,15 @@ type Config struct {
 	// Concurrency is the maximum number of tasks running simultaneously.
 	// Defaults to 4; phase1-spec §3.3 caps it at 12.
 	Concurrency int
+
+	// SubtaskConcurrency caps how many subtasks within a single task run
+	// concurrently on the same worktree. Each subtask still burns a full
+	// Copilot session, so raising this amplifies LLM rate-limit pressure
+	// and local CPU load; defaults to 3 and is clamped to
+	// [SubtaskConcurrencyMin, SubtaskConcurrencyMax]. Even when > 1,
+	// subtasks only overlap when the planner declared their WritePaths
+	// as mutually disjoint — overlapping writers always serialise.
+	SubtaskConcurrency int
 
 	// EventBatchInterval is how often buffered delta events are flushed to
 	// the store. Defaults to 100ms (phase1-spec §3.4).
@@ -115,6 +126,18 @@ const (
 	ConcurrencyMax = 12
 )
 
+// SubtaskConcurrency bounds. 8 is a soft ceiling chosen so a pathological
+// plan (many disjoint single-file subtasks) still can't fan out into a
+// level that blows past typical Copilot rate limits. 3 is the default —
+// big enough that path-disjoint plans see real parallelism, small enough
+// that a burst of LLM calls does not trip anyone's per-minute quotas on
+// the first run.
+const (
+	SubtaskConcurrencyMin     = 1
+	SubtaskConcurrencyMax     = 8
+	SubtaskConcurrencyDefault = 3
+)
+
 // MaxReworkCount caps automatic AI-review-driven rework cycles per task.
 // Once the counter (tracked on task.Task.ReworkCount, persisted in the
 // tasks.rework_count column) reaches this value, further rework
@@ -190,6 +213,15 @@ func New(cfg Config) (*Orchestrator, error) {
 	}
 	if cfg.Concurrency > ConcurrencyMax {
 		cfg.Concurrency = ConcurrencyMax
+	}
+	if cfg.SubtaskConcurrency <= 0 {
+		cfg.SubtaskConcurrency = SubtaskConcurrencyDefault
+	}
+	if cfg.SubtaskConcurrency < SubtaskConcurrencyMin {
+		cfg.SubtaskConcurrency = SubtaskConcurrencyMin
+	}
+	if cfg.SubtaskConcurrency > SubtaskConcurrencyMax {
+		cfg.SubtaskConcurrency = SubtaskConcurrencyMax
 	}
 	if cfg.EventBatchInterval <= 0 {
 		cfg.EventBatchInterval = 100 * time.Millisecond
@@ -734,27 +766,35 @@ func (o *Orchestrator) runSingleSession(ctx context.Context, t *task.Task, log *
 	return runOutcome{runErr: runErr, abortByUser: abort}
 }
 
-// runSubtaskLoop walks subs in topological order (subs is already sorted
-// by the planner's order_idx), runs one Copilot session per node, and
-// emits subtask.start / subtask.end lifecycle events so the UI can
-// group agent output by subtask.
+// runSubtaskLoop drives the Subtask DAG to completion by batching ready
+// subtasks into parallel waves. Within each wave up to
+// cfg.SubtaskConcurrency subtasks run concurrently on the parent task's
+// single worktree; batching only admits subtasks whose planner-declared
+// WritePaths are pairwise disjoint so two sessions never edit the same
+// file simultaneously. Subtasks whose writers would overlap, or which
+// failed to declare WritePaths, spill into the next wave (effectively
+// serialised).
 //
-// Runs serially on the parent task's single worktree — the planner DAG's
-// parallelism is informational only under Phase 1's single-worktree
-// constraint.
+// On the first subtask failure, every still-pending subtask in the
+// round is cancelled with the failure reason (or "cancelled by user"
+// when the user aborted mid-run) so the UI doesn't leave orphan
+// pending cards across a half-run round.
 func (o *Orchestrator) runSubtaskLoop(ctx context.Context, t *task.Task, subs []*task.Subtask, log *slog.Logger) runOutcome {
-	// Persisted subtask state (pending / doing / done / failed) is mutated
-	// here. We hold references to the same *Subtask values returned from
-	// the store so in-memory changes line up with what Update writes back.
+	// done / failed track subtask IDs across waves so ready-set construction
+	// and dep-cascade skip don't need to re-scan the DB between iterations.
+	done := make(map[string]bool, len(subs))
 	failed := make(map[string]bool, len(subs))
 
 	// Fetch the latest plan.summary for this task once, so each Coder
 	// session gets the Planner's investigation context as part of its
 	// prompt — without this, every subtask re-explores the repo.
 	planSummary := o.fetchPlanSummary(ctx, t.ID)
+
 	// priorSummaries accumulates one entry per completed subtask so
-	// the next subtask's prompt carries "what the siblings already
-	// produced" — cuts down re-exploration and duplicate work.
+	// later subtasks' prompts carry "what the siblings already produced"
+	// — cuts down re-exploration and duplicate work. Mutex-protected
+	// because parallel subtasks in the same wave finish concurrently.
+	var priorMu sync.Mutex
 	priorSummaries := make([]task.PriorSubtaskSummary, 0, len(subs))
 
 	// Rework entry (ai_review → queued → in_progress) re-uses the plan the
@@ -773,20 +813,30 @@ func (o *Orchestrator) runSubtaskLoop(ctx context.Context, t *task.Task, subs []
 		}
 	}
 
-	for i, sub := range subs {
-		// Cascade-skip subtasks whose upstreams already failed. This keeps
-		// the DB state readable after a mid-loop abort: directly-impacted
-		// nodes are marked failed with a dependency reason, the rest stay
-		// pending.
-		if hasFailedDep(sub, failed) {
-			sub.Status = task.SubtaskFailed
-			if err := o.cfg.SubtaskStore.Update(ctx, sub); err != nil {
-				log.Warn("orchestrator: mark dependency-failed subtask", "id", sub.ID, "err", err)
-			}
-			o.emitSubtaskEnd(ctx, t, sub, false, "dependency failed")
-			failed[sub.ID] = true
-			continue
+	// remaining is the set of subtasks not yet scheduled. We consume it
+	// wave-by-wave; on failure the survivors get cascade-cancelled.
+	remaining := make(map[string]*task.Subtask, len(subs))
+	for _, sub := range subs {
+		remaining[sub.ID] = sub
+	}
+
+	// subtaskSem caps fan-out within a single wave. Every subtask must
+	// acquire a slot before invoking the Runner, so even a wave with N
+	// disjoint subtasks never runs more than SubtaskConcurrency Copilot
+	// sessions in parallel on the same worktree.
+	subtaskSem := make(chan struct{}, o.cfg.SubtaskConcurrency)
+
+	// runOneSubtask is the per-subtask body: semaphore acquire, state
+	// transitions, artifact writes, Runner call, event emission. Returns
+	// the Runner's error (nil on success) so the caller can decide whether
+	// to cancel the rest of the round.
+	runOneSubtask := func(sub *task.Subtask, isFinal bool, priorSnapshot []task.PriorSubtaskSummary) error {
+		select {
+		case subtaskSem <- struct{}{}:
+		case <-ctx.Done():
+			return ctx.Err()
 		}
+		defer func() { <-subtaskSem }()
 
 		sub.Status = task.SubtaskDoing
 		if err := o.cfg.SubtaskStore.Update(ctx, sub); err != nil {
@@ -816,8 +866,8 @@ func (o *Orchestrator) runSubtaskLoop(ctx context.Context, t *task.Task, subs []
 
 		subCtx := task.SubtaskRunContext{
 			PlanSummary:    planSummary,
-			PriorSummaries: append([]task.PriorSubtaskSummary(nil), priorSummaries...),
-			IsFinalSubtask: i == len(subs)-1,
+			PriorSummaries: priorSnapshot,
+			IsFinalSubtask: isFinal,
 		}
 		codeModel, codeUsage, runErr := o.cfg.Runner.RunSubtask(ctx, t, sub, subCtx, eventCh)
 		<-consumerDone
@@ -836,40 +886,7 @@ func (o *Orchestrator) runSubtaskLoop(ctx context.Context, t *task.Task, subs []
 				log.Warn("orchestrator: mark subtask failed", "id", sub.ID, "err", err)
 			}
 			o.emitSubtaskEnd(ctx, t, sub, false, runErr.Error())
-
-			o.mu.Lock()
-			abort := false
-			if rs, ok := o.running[t.ID]; ok {
-				abort = rs.abortByUser
-			}
-			o.mu.Unlock()
-			// Cascade-cancel the rest of this round so the DAG does not
-			// leave stale "pending" subtasks sitting there after a user
-			// Cancel. Without this cleanup the UI shows a half-run
-			// round whose pending cards look identical to an active run
-			// — which on top of a re-enqueued next round makes it look
-			// like round 1 and round 2 are executing simultaneously.
-			reason := runErr.Error()
-			if abort {
-				reason = "cancelled by user"
-			}
-			// Use a fresh context so the cleanup still persists even
-			// when the outer ctx is already done (common on Cancel).
-			bgCtx, bgCancel := context.WithTimeout(context.Background(), 10*time.Second)
-			for _, rest := range subs[i+1:] {
-				if rest.Status == task.SubtaskDone ||
-					rest.Status == task.SubtaskFailed {
-					continue
-				}
-				rest.Status = task.SubtaskFailed
-				if err := o.cfg.SubtaskStore.Update(bgCtx, rest); err != nil {
-					log.Warn("orchestrator: mark remaining subtask cancelled",
-						"id", rest.ID, "err", err)
-				}
-				o.emitSubtaskEnd(bgCtx, t, rest, false, reason)
-			}
-			bgCancel()
-			return runOutcome{runErr: runErr, abortByUser: abort}
+			return runErr
 		}
 
 		sub.Status = task.SubtaskDone
@@ -906,17 +923,166 @@ func (o *Orchestrator) runSubtaskLoop(ctx context.Context, t *task.Task, subs []
 		}
 
 		o.emitSubtaskEnd(ctx, t, sub, true, "")
-		// Add this subtask's outcome to priorSummaries so the next
-		// subtask's prompt lists it. We don't have the agent's final
-		// paragraph in hand here (it streamed through eventCh and
-		// landed in the events table), so the summary stays empty
-		// for now; title + role alone is already enough context to
-		// prevent redundant re-exploration.
+		// Add this subtask's outcome to priorSummaries so later subtasks'
+		// prompts list it. Title + role alone is enough to prevent
+		// redundant re-exploration; the agent's full final paragraph
+		// isn't readily available here.
+		priorMu.Lock()
 		priorSummaries = append(priorSummaries, task.PriorSubtaskSummary{
 			Title:   sub.Title,
 			Role:    sub.AgentRole,
 			Summary: "",
 		})
+		priorMu.Unlock()
+		return nil
+	}
+
+	var firstRunErr error
+	for len(remaining) > 0 {
+		// Build the ready set: subtasks whose dependencies are all resolved
+		// (done or failed). Cascade-skip any whose deps include a failure,
+		// persisting the state transition before they're removed.
+		ready := make([]*task.Subtask, 0)
+		for id, sub := range remaining {
+			allDepsResolved := true
+			anyDepFailed := false
+			for _, dep := range sub.DependsOn {
+				if failed[dep] {
+					anyDepFailed = true
+				}
+				if !done[dep] && !failed[dep] {
+					allDepsResolved = false
+					break
+				}
+			}
+			if !allDepsResolved {
+				continue
+			}
+			if anyDepFailed {
+				sub.Status = task.SubtaskFailed
+				if err := o.cfg.SubtaskStore.Update(ctx, sub); err != nil {
+					log.Warn("orchestrator: mark dependency-failed subtask", "id", sub.ID, "err", err)
+				}
+				o.emitSubtaskEnd(ctx, t, sub, false, "dependency failed")
+				failed[sub.ID] = true
+				delete(remaining, id)
+				continue
+			}
+			ready = append(ready, sub)
+		}
+
+		if len(ready) == 0 {
+			// No runnable subtasks left — either everything finished or
+			// only dep-cascade-skipped entries are gone. The outer loop
+			// will exit because remaining shrank to zero (or stays > 0
+			// because of orphan cycles, but normalisePlan has already
+			// rejected cycles so this cannot happen).
+			break
+		}
+
+		// Stable packing order: OrderIdx is the planner's topological
+		// position, so earlier-ordered subtasks enter the batch first.
+		// This also gives deterministic tests.
+		sort.Slice(ready, func(i, j int) bool {
+			return ready[i].OrderIdx < ready[j].OrderIdx
+		})
+
+		// Greedy path-disjoint batch pack. An empty WritePaths list (or
+		// one containing "**") is taken as "touches everything" and gets
+		// its own solo batch — the cursor stops after adding it.
+		batch := make([]*task.Subtask, 0, len(ready))
+		batchPaths := make([]string, 0)
+		conservativeTaken := false
+		for _, sub := range ready {
+			if conservativeTaken {
+				break
+			}
+			if pathsIntersectAny(sub.WritePaths, batchPaths) {
+				continue
+			}
+			batch = append(batch, sub)
+			if len(sub.WritePaths) == 0 {
+				// Empty WritePaths: serialise by locking the batch to
+				// just this subtask.
+				conservativeTaken = true
+				continue
+			}
+			batchPaths = append(batchPaths, sub.WritePaths...)
+		}
+
+		// Snapshot the priorSummaries once per wave so every parallel
+		// subtask in this batch sees the same pre-batch history.
+		priorMu.Lock()
+		snapshot := append([]task.PriorSubtaskSummary(nil), priorSummaries...)
+		priorMu.Unlock()
+
+		// isFinal holds only when this wave exhausts the remaining set —
+		// i.e. after this batch, nothing is left to run. In that case
+		// every subtask in the batch is flagged final so the runner
+		// nudges them to perform full verification.
+		isFinal := len(batch) == len(remaining)
+
+		// Snapshot the worktree's pre-wave modified file set so aggregate
+		// verification can flag writes that escaped the batch's declared
+		// WritePaths union. Best-effort — a diff error just skips the
+		// check without failing the wave.
+		preWaveFiles := o.diffedFiles(ctx, t, log)
+
+		var wg sync.WaitGroup
+		var firstErrMu sync.Mutex
+		var firstWaveErr error
+		for _, sub := range batch {
+			wg.Add(1)
+			go func(s *task.Subtask) {
+				defer wg.Done()
+				if err := runOneSubtask(s, isFinal, snapshot); err != nil {
+					firstErrMu.Lock()
+					if firstWaveErr == nil {
+						firstWaveErr = err
+					}
+					firstErrMu.Unlock()
+				}
+			}(sub)
+		}
+		wg.Wait()
+
+		// Aggregate verification. We can't attribute per-subtask in a
+		// shared worktree, so this check is batch-scoped and
+		// warning-only: it surfaces planners that under-declared
+		// WritePaths without blocking the run. Retry-on-violation is
+		// future work once the runner exposes per-session diff.
+		if firstWaveErr == nil && t.WorktreePath != "" {
+			postWaveFiles := o.diffedFiles(ctx, t, log)
+			waveDelta := setDifference(postWaveFiles, preWaveFiles)
+			if len(waveDelta) > 0 {
+				var declared []string
+				for _, sub := range batch {
+					declared = append(declared, sub.WritePaths...)
+				}
+				unexpected := pathsOutsideDeclared(waveDelta, declared)
+				if len(unexpected) > 0 {
+					log.Warn("orchestrator: wave wrote paths outside declared write_paths",
+						"round", subs[0].Round,
+						"batch_size", len(batch),
+						"unexpected", unexpected)
+				}
+			}
+		}
+
+		// Reconcile batch outcomes with the orchestrator's cross-wave bookkeeping.
+		for _, sub := range batch {
+			delete(remaining, sub.ID)
+			if sub.Status == task.SubtaskFailed {
+				failed[sub.ID] = true
+			} else {
+				done[sub.ID] = true
+			}
+		}
+
+		if firstWaveErr != nil {
+			firstRunErr = firstWaveErr
+			break
+		}
 	}
 
 	o.mu.Lock()
@@ -925,7 +1091,180 @@ func (o *Orchestrator) runSubtaskLoop(ctx context.Context, t *task.Task, subs []
 		abort = rs.abortByUser
 	}
 	o.mu.Unlock()
-	return runOutcome{runErr: nil, abortByUser: abort}
+
+	// On first failure (or user cancel), cascade-cancel everything still
+	// pending so the UI doesn't leave orphan "pending" cards from a
+	// half-run round sitting next to a re-enqueued next round. Uses a
+	// fresh context so cleanup persists even when ctx is already done.
+	if firstRunErr != nil && len(remaining) > 0 {
+		reason := firstRunErr.Error()
+		if abort {
+			reason = "cancelled by user"
+		}
+		bgCtx, bgCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		for _, sub := range remaining {
+			if sub.Status == task.SubtaskDone || sub.Status == task.SubtaskFailed {
+				continue
+			}
+			sub.Status = task.SubtaskFailed
+			if err := o.cfg.SubtaskStore.Update(bgCtx, sub); err != nil {
+				log.Warn("orchestrator: mark remaining subtask cancelled",
+					"id", sub.ID, "err", err)
+			}
+			o.emitSubtaskEnd(bgCtx, t, sub, false, reason)
+		}
+		bgCancel()
+	}
+
+	return runOutcome{runErr: firstRunErr, abortByUser: abort}
+}
+
+// pathsIntersect reports whether two planner-declared write-path tokens
+// could possibly refer to overlapping files. Conservative: when we can't
+// prove disjointness we treat the tokens as overlapping so path-safety
+// never hinges on glob cleverness.
+//
+// "**" (or an empty/whitespace token) means "touches everything" and
+// conflicts with every other token. Otherwise we extract each token's
+// literal prefix (leading substring before the first wildcard) and
+// declare a conflict when either prefix is a directory-boundary prefix
+// of the other.
+func pathsIntersect(a, b string) bool {
+	a = normaliseWritePath(a)
+	b = normaliseWritePath(b)
+	if a == "" || b == "" || a == "**" || b == "**" {
+		return true
+	}
+	pa := literalPrefix(a)
+	pb := literalPrefix(b)
+	return pathPrefixMatch(pa, pb) || pathPrefixMatch(pb, pa)
+}
+
+// pathsIntersectAny reports whether group intersects anything in batch.
+// Empty batch → no conflict (first subtask in a wave always fits).
+// Empty group → caller is declaring "touches everything"; conflict iff
+// the batch already holds something.
+func pathsIntersectAny(group []string, batch []string) bool {
+	if len(batch) == 0 {
+		return false
+	}
+	if len(group) == 0 {
+		return true
+	}
+	for _, g := range group {
+		for _, b := range batch {
+			if pathsIntersect(g, b) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func normaliseWritePath(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.ReplaceAll(s, "\\", "/")
+	s = strings.TrimPrefix(s, "./")
+	s = strings.TrimPrefix(s, "/")
+	return s
+}
+
+// literalPrefix returns the leading substring of glob up to (but not
+// including) the first glob metacharacter. For a literal path it
+// returns the path unchanged.
+func literalPrefix(glob string) string {
+	for i := 0; i < len(glob); i++ {
+		switch glob[i] {
+		case '*', '?', '[', '{':
+			return glob[:i]
+		}
+	}
+	return glob
+}
+
+// diffedFiles returns the set of paths currently showing as modified
+// in the worktree, extracted from `git diff` output. Used before/after
+// each parallel wave to compute the delta of files touched in that
+// wave. Best-effort — an empty map on error.
+func (o *Orchestrator) diffedFiles(ctx context.Context, t *task.Task, log *slog.Logger) map[string]struct{} {
+	out := make(map[string]struct{})
+	if t.WorktreePath == "" {
+		return out
+	}
+	patch, err := o.cfg.Worktrees.Diff(ctx, t.WorktreePath, t.BaseBranch)
+	if err != nil {
+		log.Warn("orchestrator: pre/post-wave diff failed", "err", err)
+		return out
+	}
+	// Parse `diff --git a/<path> b/<path>` header lines. This is the
+	// cheapest way to get a file list without a second git call.
+	for _, line := range strings.Split(patch, "\n") {
+		if !strings.HasPrefix(line, "diff --git ") {
+			continue
+		}
+		rest := strings.TrimPrefix(line, "diff --git ")
+		// Shape: "a/<path> b/<path>" — take everything after the first " b/".
+		idx := strings.Index(rest, " b/")
+		if idx < 0 {
+			continue
+		}
+		path := strings.TrimSpace(rest[idx+3:])
+		if path != "" {
+			out[normaliseWritePath(path)] = struct{}{}
+		}
+	}
+	return out
+}
+
+func setDifference(after, before map[string]struct{}) []string {
+	var out []string
+	for k := range after {
+		if _, seen := before[k]; !seen {
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
+// pathsOutsideDeclared returns the subset of actual (concrete file
+// paths) not matched by any entry in declared (paths or globs).
+func pathsOutsideDeclared(actual []string, declared []string) []string {
+	var out []string
+	for _, a := range actual {
+		covered := false
+		for _, d := range declared {
+			if pathsIntersect(a, d) {
+				covered = true
+				break
+			}
+		}
+		if !covered {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+// pathPrefixMatch returns true when short is a directory-boundary
+// prefix of long (or equal). "a/b" matches "a/b/c" but not "a/bc";
+// "a/b/" matches "a/b/c" and "a/b/" itself.
+func pathPrefixMatch(short, long string) bool {
+	if short == "" {
+		return true
+	}
+	if short == long {
+		return true
+	}
+	if !strings.HasPrefix(long, short) {
+		return false
+	}
+	if strings.HasSuffix(short, "/") {
+		return true
+	}
+	if len(long) > len(short) && long[len(short)] == '/' {
+		return true
+	}
+	return false
 }
 
 // fetchPlanSummary returns the latest plan.summary text for taskID,
@@ -964,15 +1303,6 @@ func decodePlanSummaryText(payload string) string {
 		}
 	}
 	return payload
-}
-
-func hasFailedDep(sub *task.Subtask, failed map[string]bool) bool {
-	for _, dep := range sub.DependsOn {
-		if failed[dep] {
-			return true
-		}
-	}
-	return false
 }
 
 func (o *Orchestrator) emitSubtaskStart(ctx context.Context, t *task.Task, sub *task.Subtask) {

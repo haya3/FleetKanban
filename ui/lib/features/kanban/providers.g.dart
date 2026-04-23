@@ -121,7 +121,7 @@ final class TasksProvider extends $AsyncNotifierProvider<Tasks, List<pb.Task>> {
   }
 }
 
-String _$tasksHash() => r'b19062d8cfde7b6e5c903dc75468315c688ae3ac';
+String _$tasksHash() => r'c98aebf2577ec091da2b099413789e2ad99108b7';
 
 /// Tasks scoped to a repository. Family key = repoId; an empty string means
 /// "all repos" (mostly useful for diagnostics, not Kanban).
@@ -268,7 +268,7 @@ final class TaskMutationProvider
   }
 }
 
-String _$taskMutationHash() => r'df85119b509c77229d4fdf5a23fcf4e34188836a';
+String _$taskMutationHash() => r'54804de24611488551d5c72c861cfbc94a2a4a99';
 
 /// Generic mutation notifier. Records failures into the shared
 /// [actionErrorLogProvider] so the app shell can surface them via an

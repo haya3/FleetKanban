@@ -252,12 +252,13 @@ func (s *Server) ListSubtasks(ctx context.Context, req *pb.ListSubtasksRequest) 
 
 func (s *Server) CreateSubtask(ctx context.Context, req *pb.CreateSubtaskRequest) (*pb.Subtask, error) {
 	sub, err := s.app.CreateSubtask(ctx, app.CreateSubtaskInput{
-		TaskID:    req.GetTaskId(),
-		Title:     req.GetTitle(),
-		AgentRole: req.GetAgentRole(),
-		DependsOn: req.GetDependsOn(),
-		Status:    task.SubtaskStatus(req.GetStatus()),
-		OrderIdx:  int(req.GetOrderIdx()),
+		TaskID:     req.GetTaskId(),
+		Title:      req.GetTitle(),
+		AgentRole:  req.GetAgentRole(),
+		DependsOn:  req.GetDependsOn(),
+		WritePaths: req.GetWritePaths(),
+		Status:     task.SubtaskStatus(req.GetStatus()),
+		OrderIdx:   int(req.GetOrderIdx()),
 	})
 	if err != nil {
 		return nil, mapAppError(err)

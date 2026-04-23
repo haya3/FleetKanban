@@ -32,18 +32,21 @@ func (s SubtaskStatus) Valid() bool {
 // "test-writer", "researcher") — the executor injects it into the subtask's
 // Copilot session system prompt. DependsOn lists Subtask IDs within the same
 // parent task that must reach SubtaskDone before this subtask may start; the
-// executor topological-sorts DependsOn to schedule runs. With the Phase 1
-// single-worktree constraint execution is serialised even when the DAG
-// expresses independent branches — parallelism is informational for UI and
-// planning, not concurrency.
+// executor topological-sorts DependsOn to schedule runs. WritePaths declares
+// the files / globs this subtask will modify; the orchestrator groups ready
+// subtasks whose WritePaths are mutually disjoint into batches and runs each
+// batch concurrently on the parent task's worktree. Overlapping writers are
+// serialised by falling through to the next batch. An empty WritePaths list
+// is treated conservatively as "touches everything" and always serialises.
 type Subtask struct {
-	ID        string // ULID
-	TaskID    string // FK tasks.id
-	Title     string
-	AgentRole string // planner-invented role name; "" for legacy/manual subtasks
-	DependsOn []string
-	Status    SubtaskStatus
-	OrderIdx  int // planner-assigned topological order; also drives UI ordering
+	ID         string // ULID
+	TaskID     string // FK tasks.id
+	Title      string
+	AgentRole  string // planner-invented role name; "" for legacy/manual subtasks
+	DependsOn  []string
+	WritePaths []string // planner-declared write targets (globs); empty = serial fallback
+	Status     SubtaskStatus
+	OrderIdx   int // planner-assigned topological order; also drives UI ordering
 	// CodeModel records the model actually used to execute this subtask
 	// (Code stage). Empty until the executor starts running the subtask.
 	CodeModel string

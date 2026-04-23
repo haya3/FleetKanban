@@ -416,6 +416,13 @@ message Subtask {
   // Empty for legacy / manual subtasks; BuildSubtaskPrompt falls back to
   // a title-only template.
   string prompt = 12;
+  // Write paths the planner declared this subtask will modify (file
+  // globs or exact paths relative to the worktree root). The
+  // orchestrator batches subtasks with disjoint write_paths for
+  // parallel execution; overlapping sets are serialised. An empty list
+  // is treated as "**" (conservatively conflicts with every other
+  // subtask) so legacy / hand-written plans fall back to serial order.
+  repeated string write_paths = 13;
 }
 
 message Repository {
@@ -634,6 +641,9 @@ message CreateSubtaskRequest {
   string agent_role = 5;
   // Sibling subtask IDs that must reach `done` before this one may start.
   repeated string depends_on = 6;
+  // Write paths declared by the planner (globs / exact paths). Enables
+  // path-disjoint parallel batching; empty = conservative serial fallback.
+  repeated string write_paths = 7;
 }
 
 message UpdateSubtaskRequest {

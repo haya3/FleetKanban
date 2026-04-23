@@ -683,6 +683,21 @@ CREATE TABLE subtask_context (
 CREATE INDEX subtask_context_subtask ON subtask_context(subtask_id);
 `,
 	},
+	{
+		// v19 adds `write_paths` to subtasks so the orchestrator can batch
+		// path-disjoint subtasks for concurrent execution. The planner
+		// declares the files / globs each subtask will touch; batches
+		// whose WritePaths sets are pairwise disjoint run in parallel on
+		// the same worktree. Stored as a JSON array in a single TEXT
+		// column (same encoding shape as depends_on). Pre-v19 rows
+		// backfill to "[]" which the runtime treats as "touches
+		// everything" — conservative serial fallback.
+		Version: 19,
+		Name:    "subtasks_write_paths",
+		SQL: `
+ALTER TABLE subtasks ADD COLUMN write_paths TEXT NOT NULL DEFAULT '[]';
+`,
+	},
 }
 
 type migration struct {

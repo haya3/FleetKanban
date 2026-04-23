@@ -343,6 +343,7 @@ const Subtask$json = {
     {'1': 'code_model', '3': 10, '4': 1, '5': 9, '10': 'codeModel'},
     {'1': 'round', '3': 11, '4': 1, '5': 5, '10': 'round'},
     {'1': 'prompt', '3': 12, '4': 1, '5': 9, '10': 'prompt'},
+    {'1': 'write_paths', '3': 13, '4': 3, '5': 9, '10': 'writePaths'},
   ],
 };
 
@@ -354,7 +355,8 @@ final $typed_data.Uint8List subtaskDescriptor = $convert.base64Decode(
     '1lc3RhbXBSCWNyZWF0ZWRBdBI5Cgp1cGRhdGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVm'
     'LlRpbWVzdGFtcFIJdXBkYXRlZEF0Eh0KCmFnZW50X3JvbGUYCCABKAlSCWFnZW50Um9sZRIdCg'
     'pkZXBlbmRzX29uGAkgAygJUglkZXBlbmRzT24SHQoKY29kZV9tb2RlbBgKIAEoCVIJY29kZU1v'
-    'ZGVsEhQKBXJvdW5kGAsgASgFUgVyb3VuZBIWCgZwcm9tcHQYDCABKAlSBnByb21wdA==');
+    'ZGVsEhQKBXJvdW5kGAsgASgFUgVyb3VuZBIWCgZwcm9tcHQYDCABKAlSBnByb21wdBIfCgt3cm'
+    'l0ZV9wYXRocxgNIAMoCVIKd3JpdGVQYXRocw==');
 
 @$core.Deprecated('Use repositoryDescriptor instead')
 const Repository$json = {
@@ -761,6 +763,7 @@ const CreateSubtaskRequest$json = {
     {'1': 'order_idx', '3': 4, '4': 1, '5': 5, '10': 'orderIdx'},
     {'1': 'agent_role', '3': 5, '4': 1, '5': 9, '10': 'agentRole'},
     {'1': 'depends_on', '3': 6, '4': 3, '5': 9, '10': 'dependsOn'},
+    {'1': 'write_paths', '3': 7, '4': 3, '5': 9, '10': 'writePaths'},
   ],
 };
 
@@ -769,7 +772,7 @@ final $typed_data.Uint8List createSubtaskRequestDescriptor = $convert.base64Deco
     'ChRDcmVhdGVTdWJ0YXNrUmVxdWVzdBIXCgd0YXNrX2lkGAEgASgJUgZ0YXNrSWQSFAoFdGl0bG'
     'UYAiABKAlSBXRpdGxlEhYKBnN0YXR1cxgDIAEoCVIGc3RhdHVzEhsKCW9yZGVyX2lkeBgEIAEo'
     'BVIIb3JkZXJJZHgSHQoKYWdlbnRfcm9sZRgFIAEoCVIJYWdlbnRSb2xlEh0KCmRlcGVuZHNfb2'
-    '4YBiADKAlSCWRlcGVuZHNPbg==');
+    '4YBiADKAlSCWRlcGVuZHNPbhIfCgt3cml0ZV9wYXRocxgHIAMoCVIKd3JpdGVQYXRocw==');
 
 @$core.Deprecated('Use updateSubtaskRequestDescriptor instead')
 const UpdateSubtaskRequest$json = {

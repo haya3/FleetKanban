@@ -88,6 +88,13 @@ type plannerRawSubtask struct {
 	Title     string   `json:"title"`
 	AgentRole string   `json:"agent_role"`
 	DependsOn []string `json:"depends_on"`
+	// WritePaths is the list of file paths / globs (relative to the
+	// worktree root) the planner promises this subtask will touch.
+	// The orchestrator groups ready subtasks with disjoint WritePaths
+	// into batches for concurrent execution. Omitting it or emitting
+	// an empty array forces serial execution for that subtask — so
+	// the planner is instructed to always populate it.
+	WritePaths []string `json:"write_paths"`
 	// Prompt is the concrete instruction the executor feeds into the
 	// Coder's Copilot session when running this subtask. The planner
 	// writes what files to touch, what to implement, what to verify —
@@ -369,11 +376,17 @@ Plan summary requirements:
 DAG constraints:
   - Produce between 1 and %d subtasks.
   - Each subtask must be implementable in a single, independent, short Copilot session.
-  - Subtasks execute serially on the same worktree; parallelism in the DAG is representational only.
+  - The orchestrator batches ready subtasks with DISJOINT write_paths for concurrent execution on the same worktree. Subtasks whose write_paths overlap are serialised. Therefore: carve the plan so independent file sets end up as sibling subtasks (e.g. one subtask per README language, one subtask per proto file, UI vs. sidecar split) — this is what unlocks real parallelism.
   - agent_role may be any descriptive name (e.g. coder, tester, researcher, verifier).
   - **Using "reviewer" or "ai_reviewer" as an agent_role is forbidden**: review is performed by the dedicated AI Review phase in a separate session after execution, so do not duplicate it inside the plan. If a read-only verification subtask is needed, use a role such as "verifier".
   - depends_on must reference subtask ids within the same plan (no cycles).
   - id must be a short alphanumeric string unique within the plan (e.g. "s1", "s2").
+
+Write paths (REQUIRED — this is what enables parallel execution):
+  - Every subtask MUST declare a non-empty "write_paths" array listing the files it will modify, as paths or globs RELATIVE TO THE WORKTREE ROOT.
+  - Exact paths (e.g. "repo/README.ja.md", "sidecar/internal/task/subtask.go") are preferred when known; globs (e.g. "ui/lib/features/kanban/**", "proto/fleetkanban/v1/*.proto") are acceptable when a subtask legitimately sweeps a directory.
+  - Be PRECISE, not defensive. Declaring "**" or overly broad globs collapses the plan back to serial execution and wastes the parallelism budget. List only what the subtask will actually write.
+  - Read-only subtasks (verifier, researcher) should still declare any scratch file or report they write (e.g. "docs/verify-report.md"); pure read-only with zero writes may emit an empty array — the scheduler will treat it as globally parallel.
 
 Per-subtask prompt requirements (CRITICAL — without these each subtask's Coder has to guess and ends up replanning):
   - Every subtask MUST include a "prompt" field written as Markdown. The UI renders this, and humans read it — run-on paragraphs are unacceptable.
@@ -384,6 +397,7 @@ Per-subtask prompt requirements (CRITICAL — without these each subtask's Coder
       - path/two.ext — what to change
       **Behaviour:** 1-3 bullets or sentences on the change itself (wording, algorithm, API shape, etc.).
       **Verify:** the exact command to run (build, test, or check) — or "(no verify — final subtask covers it)" if the instruction legitimately has no per-subtask verification.
+  - The "Files to touch" list MUST match the "write_paths" array (same set, minus globs expanded to concrete files when known).
   - File paths must be the actual paths you discovered during investigation (not "the relevant files").
   - Do NOT restate generic planner-level context — focus on what makes THIS subtask different from its siblings.
 
@@ -395,8 +409,8 @@ Output format (in this exact order, no extra prose outside these blocks):
 %s
 {
   "subtasks": [
-    {"id": "s1", "title": "short label", "agent_role": "...", "depends_on": [], "prompt": "Concrete, multi-sentence instruction: which files, what behaviour, how to verify."},
-    {"id": "s2", "title": "...", "agent_role": "...", "depends_on": ["s1"], "prompt": "..."}
+    {"id": "s1", "title": "short label", "agent_role": "...", "depends_on": [], "write_paths": ["path/one.ext"], "prompt": "Concrete, multi-sentence instruction: which files, what behaviour, how to verify."},
+    {"id": "s2", "title": "...", "agent_role": "...", "depends_on": ["s1"], "write_paths": ["other/path/**"], "prompt": "..."}
   ]
 }
 %s`,
@@ -541,16 +555,36 @@ func normalisePlan(parentTaskID string, raw []plannerRawSubtask) ([]*task.Subtas
 			deps = append(deps, mappedDep)
 		}
 
+		// WritePaths: trim, drop empties, dedupe. An empty final list is
+		// left as nil so the orchestrator's serial fallback kicks in for
+		// planners that forgot the field; the prompt strongly discourages
+		// this, but we don't hard-reject because legacy plans / manual
+		// flows must still work.
+		writePaths := make([]string, 0, len(r.WritePaths))
+		seenPath := make(map[string]struct{}, len(r.WritePaths))
+		for _, p := range r.WritePaths {
+			p = strings.TrimSpace(p)
+			if p == "" {
+				continue
+			}
+			if _, dup := seenPath[p]; dup {
+				continue
+			}
+			seenPath[p] = struct{}{}
+			writePaths = append(writePaths, p)
+		}
+
 		ulidID := rawID[r.ID]
 		nodes[ulidID] = &plannerNode{
 			sub: &task.Subtask{
-				ID:        ulidID,
-				TaskID:    parentTaskID,
-				Title:     title,
-				AgentRole: role,
-				DependsOn: deps,
-				Status:    task.SubtaskPending,
-				Prompt:    strings.TrimSpace(r.Prompt),
+				ID:         ulidID,
+				TaskID:     parentTaskID,
+				Title:      title,
+				AgentRole:  role,
+				DependsOn:  deps,
+				WritePaths: writePaths,
+				Status:     task.SubtaskPending,
+				Prompt:     strings.TrimSpace(r.Prompt),
 			},
 			rawDeps: deps,
 		}

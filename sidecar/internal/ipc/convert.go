@@ -66,18 +66,19 @@ func subtaskToPB(s *task.Subtask) *pb.Subtask {
 		return nil
 	}
 	return &pb.Subtask{
-		Id:        s.ID,
-		TaskId:    s.TaskID,
-		Title:     s.Title,
-		Status:    string(s.Status),
-		OrderIdx:  int32(s.OrderIdx),
-		CreatedAt: ts(s.CreatedAt),
-		UpdatedAt: ts(s.UpdatedAt),
-		AgentRole: s.AgentRole,
-		DependsOn: s.DependsOn,
-		CodeModel: s.CodeModel,
-		Round:     int32(s.Round),
-		Prompt:    s.Prompt,
+		Id:         s.ID,
+		TaskId:     s.TaskID,
+		Title:      s.Title,
+		Status:     string(s.Status),
+		OrderIdx:   int32(s.OrderIdx),
+		CreatedAt:  ts(s.CreatedAt),
+		UpdatedAt:  ts(s.UpdatedAt),
+		AgentRole:  s.AgentRole,
+		DependsOn:  s.DependsOn,
+		WritePaths: s.WritePaths,
+		CodeModel:  s.CodeModel,
+		Round:      int32(s.Round),
+		Prompt:     s.Prompt,
 	}
 }
 

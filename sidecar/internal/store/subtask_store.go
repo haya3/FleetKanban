@@ -28,9 +28,13 @@ func (s *SubtaskStore) Create(ctx context.Context, sub *task.Subtask) error {
 	if created == "" {
 		created = now
 	}
-	deps, err := encodeDeps(sub.DependsOn)
+	deps, err := encodeStringList(sub.DependsOn)
 	if err != nil {
-		return err
+		return fmt.Errorf("subtask: encode depends_on: %w", err)
+	}
+	paths, err := encodeStringList(sub.WritePaths)
+	if err != nil {
+		return fmt.Errorf("subtask: encode write_paths: %w", err)
 	}
 	round := sub.Round
 	if round <= 0 {
@@ -38,10 +42,10 @@ func (s *SubtaskStore) Create(ctx context.Context, sub *task.Subtask) error {
 	}
 	_, err = s.db.write.ExecContext(ctx, `
 INSERT INTO subtasks(
-    id, task_id, title, agent_role, depends_on, status, order_idx,
+    id, task_id, title, agent_role, depends_on, write_paths, status, order_idx,
     code_model, round, prompt, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		sub.ID, sub.TaskID, sub.Title, sub.AgentRole, deps,
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		sub.ID, sub.TaskID, sub.Title, sub.AgentRole, deps, paths,
 		string(sub.Status), sub.OrderIdx, sub.CodeModel, round, sub.Prompt, created, now,
 	)
 	if err != nil {
@@ -56,7 +60,7 @@ INSERT INTO subtasks(
 // to drive execution so older rounds aren't re-run.
 func (s *SubtaskStore) ListByTask(ctx context.Context, parentID string) ([]*task.Subtask, error) {
 	rows, err := s.db.read.QueryContext(ctx, `
-SELECT id, task_id, title, agent_role, depends_on, status, order_idx,
+SELECT id, task_id, title, agent_role, depends_on, write_paths, status, order_idx,
        code_model, round, prompt, created_at, updated_at
   FROM subtasks
  WHERE task_id = ?
@@ -84,7 +88,7 @@ SELECT id, task_id, title, agent_role, depends_on, status, order_idx,
 // when the parent has no subtasks at all.
 func (s *SubtaskStore) ListLatestRound(ctx context.Context, parentID string) ([]*task.Subtask, error) {
 	rows, err := s.db.read.QueryContext(ctx, `
-SELECT id, task_id, title, agent_role, depends_on, status, order_idx,
+SELECT id, task_id, title, agent_role, depends_on, write_paths, status, order_idx,
        code_model, round, prompt, created_at, updated_at
   FROM subtasks
  WHERE task_id = ?
@@ -122,7 +126,7 @@ func (s *SubtaskStore) MaxRound(ctx context.Context, parentID string) (int, erro
 // Get loads a subtask by ID.
 func (s *SubtaskStore) Get(ctx context.Context, id string) (*task.Subtask, error) {
 	row := s.db.read.QueryRowContext(ctx, `
-SELECT id, task_id, title, agent_role, depends_on, status, order_idx,
+SELECT id, task_id, title, agent_role, depends_on, write_paths, status, order_idx,
        code_model, round, prompt, created_at, updated_at
   FROM subtasks WHERE id = ?`, id)
 	return scanSubtask(row)
@@ -133,22 +137,27 @@ func (s *SubtaskStore) Update(ctx context.Context, sub *task.Subtask) error {
 	if err := sub.Validate(); err != nil {
 		return err
 	}
-	deps, err := encodeDeps(sub.DependsOn)
+	deps, err := encodeStringList(sub.DependsOn)
 	if err != nil {
-		return err
+		return fmt.Errorf("subtask: encode depends_on: %w", err)
+	}
+	paths, err := encodeStringList(sub.WritePaths)
+	if err != nil {
+		return fmt.Errorf("subtask: encode write_paths: %w", err)
 	}
 	res, err := s.db.write.ExecContext(ctx, `
 UPDATE subtasks SET
-    title      = ?,
-    agent_role = ?,
-    depends_on = ?,
-    status     = ?,
-    order_idx  = ?,
-    code_model = ?,
-    prompt     = ?,
-    updated_at = ?
+    title       = ?,
+    agent_role  = ?,
+    depends_on  = ?,
+    write_paths = ?,
+    status      = ?,
+    order_idx   = ?,
+    code_model  = ?,
+    prompt      = ?,
+    updated_at  = ?
 WHERE id = ?`,
-		sub.Title, sub.AgentRole, deps, string(sub.Status),
+		sub.Title, sub.AgentRole, deps, paths, string(sub.Status),
 		sub.OrderIdx, sub.CodeModel, sub.Prompt, nowUTC(), sub.ID)
 	if err != nil {
 		return fmt.Errorf("subtask: update: %w", err)
@@ -249,18 +258,22 @@ func (s *SubtaskStore) CreatePlan(ctx context.Context, parentID string, subs []*
 	now := nowUTC()
 	stmt, err := tx.PrepareContext(ctx, `
 INSERT INTO subtasks(
-    id, task_id, title, agent_role, depends_on, status, order_idx,
+    id, task_id, title, agent_role, depends_on, write_paths, status, order_idx,
     code_model, round, prompt, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return 0, fmt.Errorf("subtask: CreatePlan prepare: %w", err)
 	}
 	defer stmt.Close()
 
 	for _, sub := range subs {
-		deps, err := encodeDeps(sub.DependsOn)
+		deps, err := encodeStringList(sub.DependsOn)
 		if err != nil {
-			return 0, err
+			return 0, fmt.Errorf("subtask: encode depends_on: %w", err)
+		}
+		paths, err := encodeStringList(sub.WritePaths)
+		if err != nil {
+			return 0, fmt.Errorf("subtask: encode write_paths: %w", err)
 		}
 		created := formatTime(sub.CreatedAt)
 		if created == "" {
@@ -271,7 +284,7 @@ INSERT INTO subtasks(
 		// during execution).
 		sub.Round = round
 		if _, err := stmt.ExecContext(ctx,
-			sub.ID, sub.TaskID, sub.Title, sub.AgentRole, deps,
+			sub.ID, sub.TaskID, sub.Title, sub.AgentRole, deps, paths,
 			string(sub.Status), sub.OrderIdx, sub.CodeModel, round, sub.Prompt, created, now,
 		); err != nil {
 			return 0, fmt.Errorf("subtask: CreatePlan insert %s: %w", sub.ID, err)
@@ -313,12 +326,13 @@ func scanSubtask(sc scanner) (*task.Subtask, error) {
 	var (
 		sub       task.Subtask
 		deps      string
+		paths     string
 		status    string
 		createdAt string
 		updatedAt string
 	)
 	err := sc.Scan(&sub.ID, &sub.TaskID, &sub.Title, &sub.AgentRole,
-		&deps, &status, &sub.OrderIdx, &sub.CodeModel, &sub.Round, &sub.Prompt, &createdAt, &updatedAt)
+		&deps, &paths, &status, &sub.OrderIdx, &sub.CodeModel, &sub.Round, &sub.Prompt, &createdAt, &updatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -326,8 +340,11 @@ func scanSubtask(sc scanner) (*task.Subtask, error) {
 		return nil, fmt.Errorf("subtask: scan: %w", err)
 	}
 	sub.Status = task.SubtaskStatus(status)
-	if sub.DependsOn, err = decodeDeps(deps); err != nil {
+	if sub.DependsOn, err = decodeStringList(deps); err != nil {
 		return nil, fmt.Errorf("subtask: scan depends_on: %w", err)
+	}
+	if sub.WritePaths, err = decodeStringList(paths); err != nil {
+		return nil, fmt.Errorf("subtask: scan write_paths: %w", err)
 	}
 	if ct, perr := parseTime(createdAt); perr == nil {
 		sub.CreatedAt = ct
@@ -338,23 +355,23 @@ func scanSubtask(sc scanner) (*task.Subtask, error) {
 	return &sub, nil
 }
 
-// encodeDeps serialises a dependency list as a JSON array. A nil/empty slice
-// becomes "[]" so the stored value is never NULL and the schema can enforce
-// NOT NULL on depends_on.
-func encodeDeps(deps []string) (string, error) {
-	if len(deps) == 0 {
+// encodeStringList serialises a string slice as a JSON array. A nil/empty
+// slice becomes "[]" so the stored value is never NULL and the schema can
+// enforce NOT NULL. Used for both depends_on and write_paths.
+func encodeStringList(xs []string) (string, error) {
+	if len(xs) == 0 {
 		return "[]", nil
 	}
-	b, err := json.Marshal(deps)
+	b, err := json.Marshal(xs)
 	if err != nil {
-		return "", fmt.Errorf("subtask: encode depends_on: %w", err)
+		return "", err
 	}
 	return string(b), nil
 }
 
-// decodeDeps parses a JSON-encoded dependency list. The empty string and
-// "[]" both decode to nil (no dependencies).
-func decodeDeps(raw string) ([]string, error) {
+// decodeStringList parses a JSON-encoded string list. The empty string and
+// "[]" both decode to nil. Used for both depends_on and write_paths.
+func decodeStringList(raw string) ([]string, error) {
 	if raw == "" || raw == "[]" {
 		return nil, nil
 	}

@@ -1603,15 +1603,16 @@ func (s *Service) GetSubtaskContext(ctx context.Context, subtaskID string, round
 }
 
 // CreateSubtaskInput is the payload for inserting a subtask. The planner
-// supplies AgentRole and DependsOn; the legacy manual-add UI leaves them
-// empty and will be retired once the Plan phase ships.
+// supplies AgentRole, DependsOn, and WritePaths; the legacy manual-add
+// UI leaves them empty and will be retired once the Plan phase ships.
 type CreateSubtaskInput struct {
-	TaskID    string
-	Title     string
-	AgentRole string
-	DependsOn []string
-	Status    task.SubtaskStatus // "" → pending
-	OrderIdx  int                // <= 0 → append at end
+	TaskID     string
+	Title      string
+	AgentRole  string
+	DependsOn  []string
+	WritePaths []string
+	Status     task.SubtaskStatus // "" → pending
+	OrderIdx   int                // <= 0 → append at end
 }
 
 // CreateSubtask inserts a new subtask under the parent task. When OrderIdx <=
@@ -1638,14 +1639,15 @@ func (s *Service) CreateSubtask(ctx context.Context, in CreateSubtaskInput) (*ta
 		idx = maxIdx + 1
 	}
 	sub := &task.Subtask{
-		ID:        ulid.Make().String(),
-		TaskID:    in.TaskID,
-		Title:     strings.TrimSpace(in.Title),
-		AgentRole: strings.TrimSpace(in.AgentRole),
-		DependsOn: in.DependsOn,
-		Status:    status,
-		OrderIdx:  idx,
-		CreatedAt: time.Now().UTC(),
+		ID:         ulid.Make().String(),
+		TaskID:     in.TaskID,
+		Title:      strings.TrimSpace(in.Title),
+		AgentRole:  strings.TrimSpace(in.AgentRole),
+		DependsOn:  in.DependsOn,
+		WritePaths: in.WritePaths,
+		Status:     status,
+		OrderIdx:   idx,
+		CreatedAt:  time.Now().UTC(),
 	}
 	if err := s.subtasks.Create(ctx, sub); err != nil {
 		return nil, err

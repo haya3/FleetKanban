@@ -1038,7 +1038,14 @@ type Subtask struct {
 	// the executor has precise intent instead of guessing from the Title.
 	// Empty for legacy / manual subtasks; BuildSubtaskPrompt falls back to
 	// a title-only template.
-	Prompt        string `protobuf:"bytes,12,opt,name=prompt,proto3" json:"prompt,omitempty"`
+	Prompt string `protobuf:"bytes,12,opt,name=prompt,proto3" json:"prompt,omitempty"`
+	// Write paths the planner declared this subtask will modify (file
+	// globs or exact paths relative to the worktree root). The
+	// orchestrator batches subtasks with disjoint write_paths for
+	// parallel execution; overlapping sets are serialised. An empty list
+	// is treated as "**" (conservatively conflicts with every other
+	// subtask) so legacy / hand-written plans fall back to serial order.
+	WritePaths    []string `protobuf:"bytes,13,rep,name=write_paths,json=writePaths,proto3" json:"write_paths,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1155,6 +1162,13 @@ func (x *Subtask) GetPrompt() string {
 		return x.Prompt
 	}
 	return ""
+}
+
+func (x *Subtask) GetWritePaths() []string {
+	if x != nil {
+		return x.WritePaths
+	}
+	return nil
 }
 
 type Repository struct {
@@ -2345,7 +2359,10 @@ type CreateSubtaskRequest struct {
 	// Planner-invented agent role for execution; empty for legacy manual rows.
 	AgentRole string `protobuf:"bytes,5,opt,name=agent_role,json=agentRole,proto3" json:"agent_role,omitempty"`
 	// Sibling subtask IDs that must reach `done` before this one may start.
-	DependsOn     []string `protobuf:"bytes,6,rep,name=depends_on,json=dependsOn,proto3" json:"depends_on,omitempty"`
+	DependsOn []string `protobuf:"bytes,6,rep,name=depends_on,json=dependsOn,proto3" json:"depends_on,omitempty"`
+	// Write paths declared by the planner (globs / exact paths). Enables
+	// path-disjoint parallel batching; empty = conservative serial fallback.
+	WritePaths    []string `protobuf:"bytes,7,rep,name=write_paths,json=writePaths,proto3" json:"write_paths,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2418,6 +2435,13 @@ func (x *CreateSubtaskRequest) GetAgentRole() string {
 func (x *CreateSubtaskRequest) GetDependsOn() []string {
 	if x != nil {
 		return x.DependsOn
+	}
+	return nil
+}
+
+func (x *CreateSubtaskRequest) GetWritePaths() []string {
+	if x != nil {
+		return x.WritePaths
 	}
 	return nil
 }
@@ -9019,7 +9043,7 @@ const file_fleetkanban_v1_fleetkanban_proto_rawDesc = "" +
 	"\n" +
 	"plan_model\x18\x13 \x01(\tR\tplanModel\x12!\n" +
 	"\freview_model\x18\x14 \x01(\tR\vreviewModel\x12'\n" +
-	"\x0fharness_version\x18\x15 \x01(\x05R\x0eharnessVersion\"\xfe\x02\n" +
+	"\x0fharness_version\x18\x15 \x01(\x05R\x0eharnessVersion\"\x9f\x03\n" +
 	"\aSubtask\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\atask_id\x18\x02 \x01(\tR\x06taskId\x12\x14\n" +
@@ -9038,7 +9062,9 @@ const file_fleetkanban_v1_fleetkanban_proto_rawDesc = "" +
 	"code_model\x18\n" +
 	" \x01(\tR\tcodeModel\x12\x14\n" +
 	"\x05round\x18\v \x01(\x05R\x05round\x12\x16\n" +
-	"\x06prompt\x18\f \x01(\tR\x06prompt\"\xfc\x01\n" +
+	"\x06prompt\x18\f \x01(\tR\x06prompt\x12\x1f\n" +
+	"\vwrite_paths\x18\r \x03(\tR\n" +
+	"writePaths\"\xfc\x01\n" +
 	"\n" +
 	"Repository\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
@@ -9133,7 +9159,7 @@ const file_fleetkanban_v1_fleetkanban_proto_rawDesc = "" +
 	"\x18harness_skill_version_id\x18\n" +
 	" \x01(\tR\x15harnessSkillVersionId\x12(\n" +
 	"\x10harness_skill_md\x18\v \x01(\tR\x0eharnessSkillMd\x12!\n" +
-	"\fnot_recorded\x18\f \x01(\bR\vnotRecorded\"\xb8\x01\n" +
+	"\fnot_recorded\x18\f \x01(\bR\vnotRecorded\"\xd9\x01\n" +
 	"\x14CreateSubtaskRequest\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x16\n" +
@@ -9142,7 +9168,9 @@ const file_fleetkanban_v1_fleetkanban_proto_rawDesc = "" +
 	"\n" +
 	"agent_role\x18\x05 \x01(\tR\tagentRole\x12\x1d\n" +
 	"\n" +
-	"depends_on\x18\x06 \x03(\tR\tdependsOn\"T\n" +
+	"depends_on\x18\x06 \x03(\tR\tdependsOn\x12\x1f\n" +
+	"\vwrite_paths\x18\a \x03(\tR\n" +
+	"writePaths\"T\n" +
 	"\x14UpdateSubtaskRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x16\n" +

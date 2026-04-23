@@ -1063,6 +1063,7 @@ class Subtask extends $pb.GeneratedMessage {
     $core.String? codeModel,
     $core.int? round,
     $core.String? prompt,
+    $core.Iterable<$core.String>? writePaths,
   }) {
     final result = create();
     if (id != null) result.id = id;
@@ -1077,6 +1078,7 @@ class Subtask extends $pb.GeneratedMessage {
     if (codeModel != null) result.codeModel = codeModel;
     if (round != null) result.round = round;
     if (prompt != null) result.prompt = prompt;
+    if (writePaths != null) result.writePaths.addAll(writePaths);
     return result;
   }
 
@@ -1107,6 +1109,7 @@ class Subtask extends $pb.GeneratedMessage {
     ..aOS(10, _omitFieldNames ? '' : 'codeModel')
     ..aI(11, _omitFieldNames ? '' : 'round')
     ..aOS(12, _omitFieldNames ? '' : 'prompt')
+    ..pPS(13, _omitFieldNames ? '' : 'writePaths')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1246,6 +1249,15 @@ class Subtask extends $pb.GeneratedMessage {
   $core.bool hasPrompt() => $_has(11);
   @$pb.TagNumber(12)
   void clearPrompt() => $_clearField(12);
+
+  /// Write paths the planner declared this subtask will modify (file
+  /// globs or exact paths relative to the worktree root). The
+  /// orchestrator batches subtasks with disjoint write_paths for
+  /// parallel execution; overlapping sets are serialised. An empty list
+  /// is treated as "**" (conservatively conflicts with every other
+  /// subtask) so legacy / hand-written plans fall back to serial order.
+  @$pb.TagNumber(13)
+  $pb.PbList<$core.String> get writePaths => $_getList(12);
 }
 
 class Repository extends $pb.GeneratedMessage {
@@ -2767,6 +2779,7 @@ class CreateSubtaskRequest extends $pb.GeneratedMessage {
     $core.int? orderIdx,
     $core.String? agentRole,
     $core.Iterable<$core.String>? dependsOn,
+    $core.Iterable<$core.String>? writePaths,
   }) {
     final result = create();
     if (taskId != null) result.taskId = taskId;
@@ -2775,6 +2788,7 @@ class CreateSubtaskRequest extends $pb.GeneratedMessage {
     if (orderIdx != null) result.orderIdx = orderIdx;
     if (agentRole != null) result.agentRole = agentRole;
     if (dependsOn != null) result.dependsOn.addAll(dependsOn);
+    if (writePaths != null) result.writePaths.addAll(writePaths);
     return result;
   }
 
@@ -2797,6 +2811,7 @@ class CreateSubtaskRequest extends $pb.GeneratedMessage {
     ..aI(4, _omitFieldNames ? '' : 'orderIdx')
     ..aOS(5, _omitFieldNames ? '' : 'agentRole')
     ..pPS(6, _omitFieldNames ? '' : 'dependsOn')
+    ..pPS(7, _omitFieldNames ? '' : 'writePaths')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2869,6 +2884,11 @@ class CreateSubtaskRequest extends $pb.GeneratedMessage {
   /// Sibling subtask IDs that must reach `done` before this one may start.
   @$pb.TagNumber(6)
   $pb.PbList<$core.String> get dependsOn => $_getList(5);
+
+  /// Write paths declared by the planner (globs / exact paths). Enables
+  /// path-disjoint parallel batching; empty = conservative serial fallback.
+  @$pb.TagNumber(7)
+  $pb.PbList<$core.String> get writePaths => $_getList(6);
 }
 
 class UpdateSubtaskRequest extends $pb.GeneratedMessage {
