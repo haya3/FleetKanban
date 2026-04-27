@@ -44,7 +44,7 @@ dependencies:
   # win32 6 bump deferred to v0.1.2 — v6 drops COMObject and does not ship
   # an ITaskbarList3 binding, so taskbar_overlay.dart needs a full rewrite
   # on top of the new `IUnknown implements ComInterface` abstraction.
-  win32: ^5.15.0
+  win32: ^6.1.0
 
   # Native folder picker for repository registration (IFileOpenDialog on Windows).
   file_selector: ^1.0.3
