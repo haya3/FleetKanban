@@ -75,7 +75,7 @@ dev_dependencies:
   # is intentionally omitted — as of 2026-04, custom_lint 0.8.1 pins analyzer
   # ^8 while riverpod_lint 3.1.3 needs analyzer ^9, and pub cannot resolve the
   # pair. Add them back once custom_lint ships an analyzer-9 compatible build.
-  build_runner: ^2.13.1
+  build_runner: ^2.14.1
   riverpod_generator: ^4.0.3
 
 flutter:
