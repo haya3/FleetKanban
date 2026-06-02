@@ -22,7 +22,7 @@ dependencies:
   # Windows desktop window chrome.
   flutter_acrylic: ^1.1.4       # Mica / Acrylic
   window_manager: ^0.5.1        # Frameless window, DragToMoveArea, min size
-  system_theme: ^3.1.2          # OS accent colour
+  system_theme: ^3.3.0          # OS accent colour
 
   # gRPC sidecar client. Versions are coupled: protoc_plugin 25.x emits
   # imports targeting protobuf 6.x, and grpc 5.x is the first line to depend
