@@ -16,7 +16,7 @@ dependencies:
   # State management (AsyncNotifier for RPC calls, StreamProvider for gRPC server-streaming events).
   # Riverpod 3 moves Notifier / AsyncNotifier authoring onto build_runner code
   # generation via @riverpod; see riverpod_generator below.
-  flutter_riverpod: ^3.3.1
+  flutter_riverpod: ^3.3.2
   riverpod_annotation: ^4.0.2
 
   # Windows desktop window chrome.
