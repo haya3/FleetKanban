@@ -76,7 +76,7 @@ dev_dependencies:
   # ^8 while riverpod_lint 3.1.3 needs analyzer ^9, and pub cannot resolve the
   # pair. Add them back once custom_lint ships an analyzer-9 compatible build.
   build_runner: ^2.13.1
-  riverpod_generator: ^4.0.3
+  riverpod_generator: ^4.0.4
 
 flutter:
   uses-material-design: true
